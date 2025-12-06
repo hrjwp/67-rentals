@@ -725,19 +725,18 @@ def submit_cancellation(booking_id):
                            booking=booking)
 
 
-@app.route('/admin/cancellation-requests')
-def admin_cancellation_requests():
-    """Admin page to view all cancellation requests"""
+@app.route('/seller/cancellation-requests')
+def seller_cancellation_requests():
+    """Seller page to view all cancellation requests"""
     pending_requests = {
         rid: req for rid, req in CANCELLATION_REQUESTS.items()
         if req['status'] == 'Pending'
     }
+    return render_template('seller_cancellations.html', requests=pending_requests)
 
-    return render_template('admin_cancellations.html', requests=pending_requests)
 
-
-@app.route('/admin/approve-cancellation/<request_id>', methods=['POST'])
-def approve_cancellation(request_id):
+@app.route('/seller/approve-cancellation/<request_id>', methods=['POST'])
+def seller_approve_cancellation(request_id):
     """Approve cancellation request"""
     cancellation_request = CANCELLATION_REQUESTS.get(request_id)
 
@@ -774,8 +773,8 @@ def approve_cancellation(request_id):
     return jsonify({'success': True, 'refund_id': refund_id, 'refund_amount': refund_amount})
 
 
-@app.route('/admin/reject-cancellation/<request_id>', methods=['POST'])
-def reject_cancellation(request_id):
+@app.route('/seller/reject-cancellation/<request_id>', methods=['POST'])
+def seller_reject_cancellation(request_id):
     """Reject cancellation request"""
     cancellation_request = CANCELLATION_REQUESTS.get(request_id)
 
@@ -789,7 +788,6 @@ def reject_cancellation(request_id):
     BOOKINGS[booking['booking_id']]['status'] = 'Confirmed'
 
     return jsonify({'success': True})
-
 
 # Continuation of app.py - Seller & Admin Routes
 
@@ -1095,16 +1093,6 @@ def cases():
 # ============================================
 # EVENT ROUTES
 # ============================================
-
-@app.route("/event-listing")
-def event_listing():
-    return render_template("event-listing.html")
-
-
-@app.route("/event-detail")
-def event_detail():
-    return render_template("event-detail.html")
-
 
 # ============================================
 # RUN APPLICATION
