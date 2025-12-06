@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Incident Report - 67 Rentals</title>
+
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css" rel="stylesheet">
+
+        <style>
+            body {
+                font-family: 'DM Sans', sans-serif;
+            }
+
+            .navbar {
+                background-color: #3D405B !important;
+                padding: 20px 0;
+            }
+
+            .navbar-brand-text {
+                color: #ffffff;
+                font-size: 28px;
+                font-weight: 700;
+            }
+
+            .navbar-brand-text small {
+                display: block;
+                font-size: 14px;
+                font-weight: 400;
+            }
+
+            .nav-link {
+                color: #ffffff !important;
+                font-weight: 500;
+                padding: 10px 20px !important;
+            }
+
+            .nav-link:hover {
+                color: #F2CC8F !important;
+            }
+
+            .incident-section {
+                padding: 80px 0;
+                min-height: 70vh;
+                background-color: #ffffff;
+            }
+
+            .incident-header h2 {
+                color: #3D405B;
+                font-weight: 700;
+                margin-bottom: 40px;
+            }
+
+            .incident-card {
+                background: #ffffff;
+                border: 1px solid #e9eaeb;
+                border-radius: 10px;
+                padding: 30px;
+                margin-bottom: 30px;
+                box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            }
+
+            .incident-card h4 {
+                color: #3D405B;
+                font-weight: 700;
+                margin-bottom: 20px;
+                padding-bottom: 15px;
+                border-bottom: 2px solid #81B29A;
+            }
+
+            .form-label {
+                color: #3D405B;
+                font-weight: 600;
+                margin-bottom: 8px;
+            }
+
+            .form-control, .form-select {
+                border: 1px solid #e9eaeb;
+                border-radius: 5px;
+                padding: 12px;
+            }
+
+            .form-control:focus, .form-select:focus {
+                border-color: #81B29A;
+                box-shadow: 0 0 0 0.2rem rgba(129, 178, 154, 0.25);
+            }
+
+            .form-control.is-invalid {
+                border-color: #dc3545;
+            }
+
+            .invalid-feedback {
+                display: block;
+                color: #dc3545;
+                font-size: 0.875rem;
+                margin-top: 0.25rem;
+            }
+
+            textarea.form-control {
+                min-height: 120px;
+            }
+
+            .alert-info {
+                background-color: #e3f2fd;
+                border-color: #81B29A;
+                color: #0c5460;
+            }
+
+            .alert-warning {
+                background-color: #fff3cd;
+                border-color: #F2CC8F;
+                color: #856404;
+            }
+
+            .btn-submit {
+                background-color: #81B29A;
+                color: #ffffff;
+                border: none;
+                padding: 15px 40px;
+                border-radius: 5px;
+                font-weight: 700;
+                font-size: 16px;
+                transition: all 0.3s ease;
+            }
+
+            .btn-submit:hover {
+                background-color: #6a9a82;
+                color: #ffffff;
+                transform: translateY(-2px);
+            }
+
+            .btn-back {
+                background-color: #6c757d;
+                color: #ffffff;
+                border: none;
+                padding: 15px 40px;
+                border-radius: 5px;
+                font-weight: 700;
+                font-size: 16px;
+                transition: all 0.3s ease;
+                text-decoration: none;
+            }
+
+            .btn-back:hover {
+                background-color: #5a6268;
+                color: #ffffff;
+            }
+
+            .info-box {
+                background-color: #F4F1DE;
+                border-radius: 10px;
+                padding: 25px;
+                margin-bottom: 25px;
+            }
+
+            .info-box h5 {
+                color: #3D405B;
+                font-weight: 700;
+                margin-bottom: 15px;
+            }
+
+            .info-box ul {
+                margin-bottom: 0;
+                padding-left: 20px;
+            }
+
+            .info-box li {
+                color: #717275;
+                margin-bottom: 8px;
+            }
+
+            .required {
+                color: #dc3545;
+            }
+            .navbar-brand-image {
+                width: 50px;
+                margin-right: 10px;
+            }
+
+            .navbar-brand-text {
+                color: #ffffff;
+                font-size: 28px;
+                font-weight: 700;
+                line-height: 1;
+            }
+
+            .navbar-brand-text small {
+                display: block;
+                font-size: 14px;
+                font-weight: 400;
+            }
+            /* Put this at the VERY END of your <style> section */
+            .nav-link.active {
+                color: #F2CC8F !important;
+            }
+        </style>
+    </head>
+
+    <body>
+        <nav class="navbar navbar-expand-lg">
+            <div class="container">
+                <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index_logged') }}">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="67 Rentals" style="width: 50px;">
+                    <span class="navbar-brand-text">
+                        67
+                        <small>Rentals</small>
+                    </span>
+                </a>
+
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-lg-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('index_logged') }}#section_1">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('index_logged') }}#section_2">About</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('vehicle_listing_logged') }}">Vehicles</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="{{ url_for('report') }}">Report</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('index_logged') }}#section_4">Contact Us</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('cart') }}">
+                                <i class="bi bi-cart3"></i> Cart
+                                {% if cart_count > 0 %}
+                                <span class="badge bg-danger">{{ cart_count }}</span>
+                                {% endif %}
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+
+        <section class="incident-section">
+            <div class="container">
+                <div class="incident-header">
+                    <h2><i class="bi bi-exclamation-triangle"></i> Report an Incident</h2>
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="incident-card">
+                            <h4><i class="bi bi-file-earmark-text"></i> Incident Report Form</h4>
+
+                            <div class="alert alert-info mb-4">
+                                <i class="bi bi-info-circle"></i>
+                                Please provide as much detail as possible about the incident. This information will help us process your claim efficiently and provide the necessary support.
+                            </div>
+
+                            <form id="incidentForm" method="POST" action="#">
+                                <!-- Personal Information -->
+                                <h5 style="color: #3D405B; font-weight: 700; margin-bottom: 20px;">Personal Information</h5>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Full Name <span class="required">*</span></label>
+                                        <input type="text" class="form-control" id="full_name" name="full_name" placeholder="Enter your full name" required>
+                                        <div class="invalid-feedback" id="full_name_error"></div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Contact Number <span class="required">*</span></label>
+                                        <input type="tel" class="form-control" id="contact_number" name="contact_number" placeholder="Enter your phone number" required>
+                                        <div class="invalid-feedback" id="contact_number_error"></div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Email Address <span class="required">*</span></label>
+                                    <input type="email" class="form-control" name="email" placeholder="Enter your email address" required>
+                                </div>
+
+                                <hr class="my-4">
+
+                                <!-- Booking Information -->
+                                <h5 style="color: #3D405B; font-weight: 700; margin-bottom: 20px;">Booking Information</h5>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Booking ID <span class="required">*</span></label>
+                                        <input type="text" class="form-control" name="booking_id" placeholder="e.g., BK-2024-001" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Vehicle Name/Model <span class="required">*</span></label>
+                                        <input type="text" class="form-control" name="vehicle_name" placeholder="e.g., Toyota Camry 2024" required>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">License Plate Number</label>
+                                    <input type="text" class="form-control" name="license_plate" placeholder="Enter vehicle license plate">
+                                </div>
+
+                                <hr class="my-4">
+
+                                <!-- Incident Details -->
+                                <h5 style="color: #3D405B; font-weight: 700; margin-bottom: 20px;">Incident Details</h5>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Date of Incident <span class="required">*</span></label>
+                                        <input type="date" class="form-control" id="incident_date" name="incident_date" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Time of Incident <span class="required">*</span></label>
+                                        <input type="time" class="form-control" name="incident_time" required>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Location of Incident <span class="required">*</span></label>
+                                    <input type="text" class="form-control" name="incident_location" placeholder="Enter the exact location where the incident occurred" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Type of Incident <span class="required">*</span></label>
+                                    <select class="form-select" name="incident_type" required>
+                                        <option value="">Select incident type...</option>
+                                        <option value="accident">Traffic Accident</option>
+                                        <option value="damage">Vehicle Damage</option>
+                                        <option value="theft">Theft or Break-in</option>
+                                        <option value="mechanical">Mechanical Breakdown</option>
+                                        <option value="vandalism">Vandalism</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Severity Level <span class="required">*</span></label>
+                                    <select class="form-select" name="severity_level" required>
+                                        <option value="">Select severity level...</option>
+                                        <option value="minor">Minor (Cosmetic damage, no injuries)</option>
+                                        <option value="moderate">Moderate (Significant damage, minor injuries)</option>
+                                        <option value="major">Major (Severe damage, serious injuries)</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Detailed Description <span class="required">*</span></label>
+                                    <textarea class="form-control" name="incident_description" placeholder="Please provide a detailed description of what happened, including any relevant circumstances, weather conditions, and other factors..." required></textarea>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Were there any injuries?</label>
+                                    <select class="form-select" name="injuries">
+                                        <option value="no">No</option>
+                                        <option value="yes">Yes</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Were authorities contacted?</label>
+                                    <select class="form-select" name="authorities_contacted">
+                                        <option value="no">No</option>
+                                        <option value="police">Police</option>
+                                        <option value="ambulance">Ambulance</option>
+                                        <option value="both">Both Police and Ambulance</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Police Report Number (if applicable)</label>
+                                    <input type="text" class="form-control" name="police_report" placeholder="Enter police report number">
+                                </div>
+
+                                <hr class="my-4">
+
+                                <!-- Additional Information -->
+                                <h5 style="color: #3D405B; font-weight: 700; margin-bottom: 20px;">Additional Information</h5>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Other Parties Involved</label>
+                                    <textarea class="form-control" name="other_parties" placeholder="List names, contact information, and insurance details of any other parties involved..."></textarea>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Witnesses</label>
+                                    <textarea class="form-control" name="witnesses" placeholder="Provide names and contact information of any witnesses..."></textarea>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Photos/Documentation</label>
+                                    <input type="file" class="form-control" id="photos" name="photos" multiple accept="image/*,video/*">
+                                    <div class="invalid-feedback" id="photos_error"></div>
+                                    <small class="text-muted">Upload photos or videos of the damage, scene, or relevant documentation (Images: jpg, jpeg, png, gif, webp | Videos: mp4, avi, mov, wmv - Max 10 files)</small>
+                                </div>
+
+                                <div class="alert alert-warning">
+                                    <i class="bi bi-exclamation-triangle-fill"></i>
+                                    <strong>Important:</strong> Please ensure all information provided is accurate and complete. False or misleading information may result in claim denial and potential legal consequences.
+                                </div>
+
+                                <div class="d-flex gap-3 mt-4">
+                                    <button type="submit" class="btn-submit">
+                                        <i class="bi bi-send"></i> Submit Incident Report
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <!-- Guidelines -->
+                        <div class="incident-card" style="background-color: #F4F1DE;">
+                            <h4><i class="bi bi-list-check"></i> Reporting Guidelines</h4>
+                            <ul style="padding-left: 20px; color: #717275;">
+                                <li>Report incidents as soon as possible</li>
+                                <li>Provide accurate and detailed information</li>
+                                <li>Include photos from multiple angles</li>
+                                <li>Document all damages, no matter how minor</li>
+                                <li>Obtain contact info from other parties</li>
+                                <li>File a police report for serious incidents</li>
+                            </ul>
+                        </div>
+
+                        <!-- What to Expect -->
+                        <div class="incident-card">
+                            <h4><i class="bi bi-clock-history"></i> What to Expect</h4>
+                            <div class="info-box">
+                                <p style="color: #717275; margin-bottom: 15px;"><strong>Response Time:</strong> Our team will review your report within 24-48 hours.</p>
+                                <p style="color: #717275; margin-bottom: 15px;"><strong>Investigation:</strong> We may contact you for additional information or clarification.</p>
+                                <p style="color: #717275; margin-bottom: 0;"><strong>Resolution:</strong> You will be notified of the outcome via email and phone.</p>
+                            </div>
+                        </div>
+
+                        <!-- Emergency Contact -->
+                        <div class="incident-card">
+                            <h4><i class="bi bi-telephone-fill"></i> Emergency Support</h4>
+                            <p style="color: #717275;">For urgent incidents requiring immediate assistance:</p>
+                            <p class="mb-1">
+                                <i class="bi bi-telephone"></i> <strong>24/7 Hotline: (65) 6600-6655</strong>
+                            </p>
+                            <p class="mb-0">
+                                <i class="bi bi-envelope"></i> <strong>incidents@67rentals.com</strong>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.0/jquery.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+        <script>
+            // Set max date to today
+            document.addEventListener('DOMContentLoaded', function() {
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById('incident_date').setAttribute('max', today);
+            });
+
+            // Validation functions
+            function validateName(name) {
+                // Allow only letters, spaces, hyphens, and apostrophes
+                const nameRegex = /^[A-Za-z\s\-']+$/;
+                return nameRegex.test(name);
+            }
+
+            function validatePhone(phone) {
+                // Allow only numbers (and optional spaces, hyphens, parentheses for formatting)
+                const phoneRegex = /^[0-9\s\-\(\)]+$/;
+                const digitsOnly = phone.replace(/[\s\-\(\)]/g, '');
+                // Check if it contains only digits after removing formatting
+                return /^\d+$/.test(digitsOnly) && digitsOnly.length >= 8;
+            }
+
+            function validateFiles(files) {
+                const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+                const allowedVideoTypes = ['video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/quicktime'];
+                const allowedTypes = [...allowedImageTypes, ...allowedVideoTypes];
+                const maxFiles = 10;
+
+                if (files.length > maxFiles) {
+                    return { valid: false, message: `Maximum ${maxFiles} files allowed` };
+                }
+
+                for (let file of files) {
+                    if (!allowedTypes.includes(file.type)) {
+                        return { valid: false, message: `Invalid file type: ${file.name}. Only images (jpg, png, gif, webp) and videos (mp4, avi, mov, wmv) are allowed.` };
+                    }
+                }
+
+                return { valid: true };
+            }
+
+            // Real-time validation
+            document.getElementById('full_name').addEventListener('input', function() {
+                const input = this;
+                const errorDiv = document.getElementById('full_name_error');
+
+                if (input.value && !validateName(input.value)) {
+                    input.classList.add('is-invalid');
+                    errorDiv.textContent = 'Name should contain only letters, spaces, hyphens, and apostrophes';
+                } else {
+                    input.classList.remove('is-invalid');
+                    errorDiv.textContent = '';
+                }
+            });
+
+            document.getElementById('contact_number').addEventListener('input', function() {
+                const input = this;
+                const errorDiv = document.getElementById('contact_number_error');
+
+                if (input.value && !validatePhone(input.value)) {
+                    input.classList.add('is-invalid');
+                    errorDiv.textContent = 'Phone number should contain only numbers (minimum 8 digits)';
+                } else {
+                    input.classList.remove('is-invalid');
+                    errorDiv.textContent = '';
+                }
+            });
+
+            document.getElementById('photos').addEventListener('change', function() {
+                const input = this;
+                const errorDiv = document.getElementById('photos_error');
+                const files = Array.from(input.files);
+
+                if (files.length > 0) {
+                    const validation = validateFiles(files);
+                    if (!validation.valid) {
+                        input.classList.add('is-invalid');
+                        errorDiv.textContent = validation.message;
+                        input.value = ''; // Clear the invalid selection
+                    } else {
+                        input.classList.remove('is-invalid');
+                        errorDiv.textContent = '';
+                    }
+                }
+            });
+
+            // Form submission
+            document.getElementById('incidentForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                const fullName = document.getElementById('full_name').value;
+                const contactNumber = document.getElementById('contact_number').value;
+                const photosInput = document.getElementById('photos');
+                const files = Array.from(photosInput.files);
+
+                let isValid = true;
+                let errorMessage = '';
+
+                // Validate name
+                if (!validateName(fullName)) {
+                    isValid = false;
+                    errorMessage += 'Please enter a valid name (letters only).\n';
+                    document.getElementById('full_name').classList.add('is-invalid');
+                    document.getElementById('full_name_error').textContent = 'Name should contain only letters';
+                }
+
+                // Validate phone
+                if (!validatePhone(contactNumber)) {
+                    isValid = false;
+                    errorMessage += 'Please enter a valid phone number (numbers only, minimum 8 digits).\n';
+                    document.getElementById('contact_number').classList.add('is-invalid');
+                    document.getElementById('contact_number_error').textContent = 'Phone number should contain only numbers';
+                }
+
+                // Validate files if any uploaded
+                if (files.length > 0) {
+                    const fileValidation = validateFiles(files);
+                    if (!fileValidation.valid) {
+                        isValid = false;
+                        errorMessage += fileValidation.message + '\n';
+                        document.getElementById('photos').classList.add('is-invalid');
+                        document.getElementById('photos_error').textContent = fileValidation.message;
+                    }
+                }
+
+                if (!isValid) {
+                    alert('Please correct the following errors:\n\n' + errorMessage);
+                    return false;
+                }
+
+                if (confirm('Are you sure you want to submit this incident report? Please ensure all information is accurate.')) {
+                    // Save to localStorage
+                    const formData = new FormData(this);
+                    const reportData = {
+                        id: 'IR-' + Date.now(),
+                        timestamp: new Date().toISOString(),
+                        full_name: formData.get('full_name'),
+                        contact_number: formData.get('contact_number'),
+                        email: formData.get('email'),
+                        booking_id: formData.get('booking_id'),
+                        vehicle_name: formData.get('vehicle_name'),
+                        license_plate: formData.get('license_plate'),
+                        incident_date: formData.get('incident_date'),
+                        incident_time: formData.get('incident_time'),
+                        incident_location: formData.get('incident_location'),
+                        incident_type: formData.get('incident_type'),
+                        severity_level: formData.get('severity_level'),
+                        incident_description: formData.get('incident_description'),
+                        injuries: formData.get('injuries'),
+                        authorities_contacted: formData.get('authorities_contacted'),
+                        police_report: formData.get('police_report'),
+                        other_parties: formData.get('other_parties'),
+                        witnesses: formData.get('witnesses'),
+                        status: 'Pending Review',
+                        files_count: files.length
+                    };
+
+                    // Get existing reports or initialize empty array
+                    let reports = JSON.parse(localStorage.getItem('incidentReports') || '[]');
+                    reports.push(reportData);
+                    localStorage.setItem('incidentReports', JSON.stringify(reports));
+
+                    alert('Incident report submitted successfully! Your report ID is: ' + reportData.id + '\n\nOur team will review your report and contact you within 24-48 hours.');
+
+                    // Reset the form
+                    this.reset();
+
+                    // Redirect to submitted cases page
+                    window.location.href = 'submitted_cases.html';
+                }
+            });
+        </script>
+    </body>
+</html>

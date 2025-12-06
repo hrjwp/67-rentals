@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Cancellation Request Submitted - 67 Rentals</title>
+
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/bootstrap-icons.css') }}" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/templatemo-tiya-golf-club.css') }}" rel="stylesheet">
+
+        <style>
+            .navbar {
+                background-color: #3D405B !important;
+                padding: 20px 0;
+            }
+
+            .navbar-brand-text {
+                color: #ffffff;
+                font-size: 28px;
+                font-weight: 700;
+            }
+
+            .navbar-brand-text small {
+                display: block;
+                font-size: 14px;
+                font-weight: 400;
+            }
+
+            .submitted-section {
+                padding: 100px 0;
+                min-height: 70vh;
+                background-color: #ffffff;
+            }
+
+            .submitted-card {
+                background: #ffffff;
+                border: 2px solid #F2CC8F;
+                border-radius: 15px;
+                padding: 60px 40px;
+                text-align: center;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            }
+
+            .submitted-icon {
+                width: 100px;
+                height: 100px;
+                background-color: #F2CC8F;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 30px;
+                animation: scaleIn 0.5s ease-out;
+            }
+
+            .submitted-icon i {
+                font-size: 50px;
+                color: white;
+            }
+
+            @keyframes scaleIn {
+                0% {
+                    transform: scale(0);
+                }
+                50% {
+                    transform: scale(1.1);
+                }
+                100% {
+                    transform: scale(1);
+                }
+            }
+
+            .submitted-card h2 {
+                color: #3D405B;
+                font-weight: 700;
+                margin-bottom: 20px;
+            }
+
+            .submitted-card p {
+                color: #717275;
+                font-size: 18px;
+                margin-bottom: 30px;
+            }
+
+            .info-box {
+                background-color: #F4F1DE;
+                border-radius: 10px;
+                padding: 25px;
+                margin: 30px 0;
+                text-align: left;
+            }
+
+            .info-box h5 {
+                color: #3D405B;
+                font-weight: 700;
+                margin-bottom: 15px;
+            }
+
+            .btn-primary-custom {
+                background-color: #F2CC8F;
+                color: #ffffff;
+                border: none;
+                padding: 15px 40px;
+                border-radius: 5px;
+                font-weight: 700;
+                font-size: 16px;
+                text-decoration: none;
+                display: inline-block;
+                transition: all 0.3s ease;
+            }
+
+            .btn-primary-custom:hover {
+                background-color: #E07A5F;
+                color: #ffffff;
+                transform: translateY(-2px);
+            }
+        </style>
+    </head>
+
+    <body>
+        <nav class="navbar navbar-expand-lg">
+            <div class="container">
+                <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index_logged') }}">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="67 Rentals" style="width: 50px;">
+                    <span class="navbar-brand-text">
+                        67
+                        <small>Rentals</small>
+                    </span>
+                </a>
+            </div>
+        </nav>
+
+        <section class="submitted-section">
+            <div class="container">
+                <div class="row justify-content-center">
+                    <div class="col-lg-8">
+                        <div class="submitted-card">
+                            <div class="submitted-icon">
+                                <i class="bi bi-hourglass-split"></i>
+                            </div>
+
+                            <h2>Cancellation Request Submitted</h2>
+                            <p>Your cancellation request has been received and is pending review by our team.</p>
+
+                            <div class="info-box">
+                                <h5><i class="bi bi-info-circle"></i> Request Information</h5>
+                                <p class="mb-2"><strong>Request ID:</strong> {{ request_id }}</p>
+                                <p class="mb-2"><strong>Booking ID:</strong> {{ booking.booking_id }}</p>
+                                <p class="mb-2"><strong>Vehicle:</strong> {{ booking.vehicle_name }}</p>
+                                <p class="mb-0"><strong>Status:</strong> <span style="color: #F2CC8F; font-weight: 700;">Pending Review</span></p>
+                            </div>
+
+                            <div class="info-box" style="background-color: #fff3cd; border-left: 4px solid #F2CC8F;">
+                                <h5><i class="bi bi-clock-history"></i> What Happens Next?</h5>
+                                <ul style="text-align: left; color: #717275; margin-bottom: 0;">
+                                    <li class="mb-2">Our team will review your cancellation request within 24-48 hours</li>
+                                    <li class="mb-2">You will receive an email notification once your request is reviewed</li>
+                                    <li class="mb-2">If approved, your refund will be processed according to our refund policy</li>
+                                    <li>You can check your request status anytime in "My Bookings"</li>
+                                </ul>
+                            </div>
+
+                            <div class="alert alert-info" style="text-align: left;">
+                                <strong><i class="bi bi-envelope"></i> Email Confirmation:</strong>
+                                A confirmation email has been sent to your registered email address with your request details.
+                            </div>
+
+                            <div class="mt-4">
+                                <a href="{{ url_for('index_logged') }}" class="btn-primary-custom">
+                                    <i class="bi bi-house"></i> Back to Home
+                                </a>
+                            </div>
+
+                            <div class="mt-5 pt-4" style="border-top: 1px solid #e9eaeb;">
+                                <h6 style="color: #3D405B; font-weight: 700; margin-bottom: 15px;">Need to Contact Us?</h6>
+                                <p class="mb-1">
+                                    <i class="bi bi-telephone"></i> <strong>(65) 6600-6655</strong>
+                                </p>
+                                <p class="mb-0">
+                                    <i class="bi bi-envelope"></i> <strong>67Rentals@company.com</strong>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="site-footer" style="background-color: #3D405B; color: white; padding: 40px 0;">
+            <div class="container">
+                <div class="row">
+                    <div class="col-lg-6 col-12 text-center text-lg-start mb-3">
+                        <span class="navbar-brand-text">
+                            67
+                            <small>Rentals</small>
+                        </span>
+                    </div>
+                    <div class="col-lg-6 col-12 text-center text-lg-end">
+                        <p class="mb-0">Copyright © 2048 67 Rentals</p>
+                    </div>
+                </div>
+            </div>
+        </footer>
+
+        <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+    </body>
+</html>

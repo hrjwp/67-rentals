@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <meta name="description" content="">
+        <meta name="author" content="">
+
+        <title>Vehicle Detail</title>
+
+        <!-- CSS FILES -->
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+
+        <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+
+        <link href="{{ url_for('static', filename='css/bootstrap-icons.css') }}" rel="stylesheet">
+
+        <link href="{{ url_for('static', filename='css/templatemo-tiya-golf-club.css') }}" rel="stylesheet">
+
+        <style>
+        .tab-navigation {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab-button {
+            padding: 15px 30px;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: #666;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab-button:hover {
+            color: #00bdfe;
+            background: rgba(0, 189, 254, 0.05);
+        }
+
+        .tab-button.active {
+            color: #00bdfe;
+            border-bottom-color: #00bdfe;
+        }
+
+        .tab-pane {
+            display: none;
+        }
+
+        .tab-pane.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+
+
+
+        .events-detail-section .col-lg-6.col-md-8.col-12.mx-auto {
+            max-width: 100% !important;
+            flex: 0 0 100%;
+        }
+
+        .tab-pane img {
+            width: 100%;
+            height: auto;
+            margin-bottom: 15px;
+            border-radius: 10px;
+        }
+
+        .events-detail-info {
+            padding: 0 40px;
+            background: #ffffff;
+        }
+
+        .events-detail-info .col-lg-4,
+        .events-detail-info .col-lg-6 {
+            margin-bottom: 30px;
+            padding: 0px 0px;
+            padding-top: 40px;
+        }
+            #tab{
+            padding-left: 40px;
+            font-size: 30px;
+            }
+        </style>
+
+    </head>
+
+    <body>
+
+        <main>
+
+<!-- Navbar -->
+            <nav class="navbar navbar-expand-lg">
+                <div class="container">
+                    <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index_logged') }}">
+                        <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="67 Rentals" style="width: 50px;">
+                        <span class="navbar-brand-text">
+                            67
+                            <small>Rentals</small>
+                        </span>
+                    </a>
+
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+
+                    <div class="collapse navbar-collapse" id="navbarNav">
+                        <ul class="navbar-nav ms-lg-auto">
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('index_logged') }}#section_1">Home</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('index_logged') }}#section_2">About</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('vehicle_listing_logged') }}#section_3">Vehicles</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link click-scroll" href="{{ url_for('report') }}">Report</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('index_logged') }}#section_4">Contact Us</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('cart') }}">
+                                    <i class="bi bi-cart3"></i> Cart
+                                    {% if cart_count > 0 %}
+                                    <span class="badge bg-danger">{{ cart_count }}</span>
+                                    {% endif %}
+                                </a>
+                            </li>
+                        </ul>
+                        <div class="d-none d-lg-block ms-lg-3">
+                          <a class="btn custom-btn custom-border-btn d-flex align-items-center gap-2" role="button">
+                                    <i class="bi bi-person"></i>
+                                    Amy@gmail.com
+                                </a>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+                <div class="offcanvas offcanvas-end" data-bs-scroll="true" tabindex="-1" id="offcanvasExample" aria-labelledby="offcanvasExampleLabel">
+                    <div class="offcanvas-header">
+                        <h5 class="offcanvas-title" id="offcanvasExampleLabel">Member Login</h5>
+
+                        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+                    </div>
+
+                    <div class="offcanvas-body d-flex flex-column">
+                        <form class="custom-form member-login-form" action="#" method="post" role="form">
+
+                            <div class="member-login-form-body">
+                                <div class="mb-4">
+                                    <label class="form-label mb-2" for="member-login-number">Username</label>
+
+                                    <input type="text" name="member-login-number" id="member-login-number" class="form-control" placeholder="11002560" required>
+                                </div>
+
+                                <div class="mb-4">
+                                    <label class="form-label mb-2" for="member-login-password">Password</label>
+
+                                    <input type="password" name="member-login-password" id="member-login-password" pattern="[0-9a-zA-Z]{4,10}" class="form-control" placeholder="Password" required="">
+                                </div>
+
+                                <div class="form-check mb-4">
+                                    <input class="form-check-input" type="checkbox" value="" id="flexCheckDefault">
+
+                                    <label class="form-check-label" for="flexCheckDefault">
+                                        Remember me
+                                    </label>
+                                </div>
+
+                                <div class="col-lg-5 col-md-7 col-8 mx-auto">
+                                    <button type="submit" class="form-control">Login</button>
+                                </div>
+
+                                <div class="text-center my-4">
+                                    <a href="#">Forgotten password?</a>
+                                </div>
+
+                               <div class="text-center my-4">
+                                    <a href="#">No account? Sign up here!</a>
+                                </div>
+                            </div>
+                        </form>
+
+                        <div class="mt-auto mb-5">
+                            <p>
+                                <strong class="text-white me-3">Any Questions?</strong>
+
+                                <a href="tel: 010-020-0340" class="contact-link">
+                                    65-6600-6655
+                                </a>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+            <section class="hero-section hero-50 d-flex justify-content-center align-items-center" id="section_1">
+
+                <div class="section-overlay"></div>
+
+                <svg viewBox="0 0 1962 178" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path fill="#3D405B" d="M 0 114 C 118.5 114 118.5 167 237 167 L 237 167 L 237 0 L 0 0 Z" stroke-width="0"></path> <path fill="#3D405B" d="M 236 167 C 373 167 373 128 510 128 L 510 128 L 510 0 L 236 0 Z" stroke-width="0"></path> <path fill="#3D405B" d="M 509 128 C 607 128 607 153 705 153 L 705 153 L 705 0 L 509 0 Z" stroke-width="0"></path><path fill="#3D405B" d="M 704 153 C 812 153 812 113 920 113 L 920 113 L 920 0 L 704 0 Z" stroke-width="0"></path><path fill="#3D405B" d="M 919 113 C 1048.5 113 1048.5 148 1178 148 L 1178 148 L 1178 0 L 919 0 Z" stroke-width="0"></path><path fill="#3D405B" d="M 1177 148 C 1359.5 148 1359.5 129 1542 129 L 1542 129 L 1542 0 L 1177 0 Z" stroke-width="0"></path><path fill="#3D405B" d="M 1541 129 C 1751.5 129 1751.5 138 1962 138 L 1962 138 L 1962 0 L 1541 0 Z" stroke-width="0"></path></svg>
+
+                <div class="container">
+                    <div class="row">
+
+                        <div class="col-lg-6 col-12">
+
+                            <h1 class="text-white mb-4 pb-2">Vehicle Detail</h1>
+
+                        </div>
+
+                    </div>
+                </div>
+
+                <svg viewBox="0 0 1962 178" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path fill="#ffffff" d="M 0 114 C 118.5 114 118.5 167 237 167 L 237 167 L 237 0 L 0 0 Z" stroke-width="0"></path> <path fill="#ffffff" d="M 236 167 C 373 167 373 128 510 128 L 510 128 L 510 0 L 236 0 Z" stroke-width="0"></path> <path fill="#ffffff" d="M 509 128 C 607 128 607 153 705 153 L 705 153 L 705 0 L 509 0 Z" stroke-width="0"></path><path fill="#ffffff" d="M 704 153 C 812 153 812 113 920 113 L 920 113 L 920 0 L 704 0 Z" stroke-width="0"></path><path fill="#ffffff" d="M 919 113 C 1048.5 113 1048.5 148 1178 148 L 1178 148 L 1178 0 L 919 0 Z" stroke-width="0"></path><path fill="#ffffff" d="M 1177 148 C 1359.5 148 1359.5 129 1542 129 L 1542 129 L 1542 0 L 1177 0 Z" stroke-width="0"></path><path fill="#ffffff" d="M 1541 129 C 1751.5 129 1751.5 138 1962 138 L 1962 138 L 1962 0 L 1541 0 Z" stroke-width="0"></path></svg>
+            </section>
+
+
+            <section class="events-section events-detail-section section-padding" id="section_2">
+                <div class="container">
+                    <div class="row">
+
+                        <div class="col-lg-6 col-md-8 col-12 mx-auto">
+                            <h2 class="mb-lg-5 mb-4">Toyota Sienta Hybrid</h2>
+
+                            <div class="custom-block-image-wrap" style="text-align: center;">
+                                <img src="{{ url_for('static', filename='images/toyota.png') }}" class="custom-block-image img-fluid" alt="">
+                            </div>
+
+                            <div class="custom-block-info">
+                                <h3 class="mb-3">Overview</h3>
+
+                                <p>The rounded corners, more compact appearance, and overall shape mean the car is as practical as it is aesthetically pleasing.</p>
+
+                                <!-- Tab Navigation -->
+                                <div class="tab-navigation">
+                                    <button class="tab-button active" onclick="openTab(event, 'details')">Safety</button>
+                                    <button class="tab-button" onclick="openTab(event, 'features')">Performance</button>
+                                    <button class="tab-button" onclick="openTab(event, 'specifications')">Technology</button>
+                                </div>
+
+                                <!-- Tab Content -->
+                                <div id="details" class="tab-pane active">
+                                    <div class="events-detail-info row my-2">
+                                        <div class="col-lg-6 col-12">
+                                            <img src="{{ url_for('static', filename='images/sientaSafety.jpg') }}" alt="Vehicle">
+                                        </div>
+                                        <div class="col-lg-4 col-9" id="tab">
+                                           <span class="custom-block-span"><b>Protection in Every Journey</b></span>
+                                            <p>Enjoy peace of mind in every drive thanks to a combination of cutting-edge safety systems with Toyota Safety Sense.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="features" class="tab-pane">
+                                    <div class="events-detail-info row my-2">
+                                        <div class="col-lg-6 col-12">
+                                            <img src="{{ url_for('static', filename='images/sientaPerf.jpg') }}" alt="Vehicle">
+                                        </div>
+                                         <div class="col-lg-4 col-9" id="tab">
+                                             <span class="custom-block-span"><b>Seamless Efficiency</b></span>
+                                            <p class="mb-0">The self-charging 1.5L Dynamic Force Engine with its electric motor delivers greater power and 25km/L of fuel economy in every drive.</p>
+                                         </div>
+                                    </div>
+                                </div>
+
+                                <div id="specifications" class="tab-pane">
+                                    <div class="events-detail-info row my-2">
+                                        <div class="col-lg-6 col-12">
+                                            <img src="{{ url_for('static', filename='images/sientaTech.jpg') }}" alt="Vehicle">
+                                        </div>
+                                        <div class="col-lg-4 col-9" id="tab">
+                                            <span class="custom-block-span"><b>More Features to Love</b></span>
+                                            <p class="mb-0">Filled with technology designed with you in mind—from a multi-info display, wireless entertainment control, to push-button powered sliding doors.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+            </section>
+        </main>
+
+
+        <footer class="site-footer">
+            <div class="container">
+                <div class="row">
+
+                    <div class="col-lg-6 col-12 me-auto mb-5 mb-lg-0">
+                        <a class="navbar-brand d-flex align-items-center" href="index.html">
+                            <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="">
+                            <span class="navbar-brand-text">
+                                67
+                                <small>Rentals</small>
+                            </span>
+                        </a>
+                    </div>
+
+                    <div class="col-lg-3 col-12">
+                        <h5 class="site-footer-title mb-4">Contact Hours</h5>
+
+                        <p class="d-flex border-bottom pb-3 mb-3 me-lg-3">
+                            <span>Mon-Fri</span>
+                            9:00 AM - 6:00 PM
+                        </p>
+
+                        <p class="d-flex me-lg-3">
+                            <span>Sat-Sun</span>
+                            10:00 AM - 6:00 PM
+                        </p>
+                        <br>
+                        <p class="copyright-text">Copyright © 2048 67 Rentals</p>
+                    </div>
+
+                        <div class="col-lg-2 col-12 ms-auto">
+                            <ul class="social-icon mt-lg-5 mt-3 mb-4">
+                                <li class="social-icon-item">
+                                    <a href="#" class="social-icon-link bi-instagram"></a>
+                                </li>
+
+                                <li class="social-icon-item">
+                                    <a href="#" class="social-icon-link bi-twitter"></a>
+                                </li>
+
+                                <li class="social-icon-item">
+                                    <a href="#" class="social-icon-link bi-whatsapp"></a>
+                                </li>
+                            </ul>
+
+                        </div>
+
+                </div>
+            </div>
+
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320">
+                <path fill="#81B29A" fill-opacity="1" d="M0,224L34.3,192C68.6,160,137,96,206,90.7C274.3,85,
+                343,139,411,144C480,149,549,107,617,122.7C685.7,139,754,213,823,240C891.4,267,960,245,1029,
+                224C1097.1,203,1166,181,1234,160C1302.9,139,1371,117,1406,106.7L1440,96L1440,320L1405.7,320C1371.4,
+                320,1303,320,1234,320C1165.7,320,1097,320,1029,320C960,320,891,320,823,320C754.3,320,686,320,617,
+                320C548.6,320,480,320,411,320C342.9,320,274,320,206,320C137.1,320,69,320,34,320L0,320Z"></path></svg>
+        </footer>
+
+
+        <!-- JAVASCRIPT FILES -->
+        <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
+        <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+        <script src="{{ url_for('static', filename='js/jquery.sticky.js') }}"></script>
+        <script src="{{ url_for('static', filename='js/custom.js') }}"></script>
+
+        <script>
+        function openTab(event, tabName) {
+            // Hide all tab panes
+            const tabPanes = document.getElementsByClassName('tab-pane');
+            for (let i = 0; i < tabPanes.length; i++) {
+                tabPanes[i].classList.remove('active');
+            }
+
+            // Remove active class from all buttons
+            const tabButtons = document.getElementsByClassName('tab-button');
+            for (let i = 0; i < tabButtons.length; i++) {
+                tabButtons[i].classList.remove('active');
+            }
+
+            // Show the selected tab and mark button as active
+            document.getElementById(tabName).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+        </script>
+
+    </body>
+</html>
