@@ -82,11 +82,53 @@ BOOKINGS = {
         'total_amount': 225,
         'status': 'Confirmed',
         'payment_intent_id': 'pi_xyz789'
+    },
+    'BK003': {
+        'booking_id': 'BK003',
+        'vehicle_id': 3,
+        'vehicle_name': 'Honda Civic',
+        'vehicle_image': 'images/civic.png',
+        'customer_name': 'Alice Wong',
+        'customer_email': 'alice@example.com',
+        'pickup_date': '2025-12-10',
+        'return_date': '2025-12-15',
+        'pickup_location': 'Northpoint, Singapore',
+        'booking_date': '2025-11-25',
+        'days': 5,
+        'total_amount': 650,
+        'status': 'Confirmed',
+        'payment_intent_id': 'pi_def456'
     }
 }
 
 # Cancellation requests
-CANCELLATION_REQUESTS = {}
+CANCELLATION_REQUESTS = {
+    'REQ001': {
+        'request_id': 'REQ001',
+        'booking': {
+            'booking_id': 'BK003',
+            'vehicle_id': 3,
+            'vehicle_name': 'Honda Civic',
+            'vehicle_image': 'images/civic.png',
+            'customer_name': 'Alice Wong',
+            'customer_email': 'alice@example.com',
+            'pickup_date': '2025-12-10',
+            'return_date': '2025-12-15',
+            'pickup_location': 'Northpoint, Singapore',
+            'booking_date': '2025-11-25',
+            'days': 5,
+            'total_amount': 650,
+            'status': 'Confirmed',
+            'payment_intent_id': 'pi_def456'
+        },
+        'reason': 'Change of travel plans - unable to make the trip',
+        'request_date': '2025-12-05 14:30:00',
+        'status': 'Pending',
+        'refund_percentage': 80,
+        'days_before_pickup': 5
+    }
+}
+
 
 # Refund records
 REFUNDS = {

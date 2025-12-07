@@ -789,7 +789,7 @@ def seller_reject_cancellation(request_id):
 
     return jsonify({'success': True})
 
-# Continuation of app.py - Seller & Admin Routes
+
 
 @app.route('/refund-status/<refund_id>')
 def refund_status(refund_id):
@@ -849,7 +849,20 @@ def seller_index():
 
 @app.route('/seller/manage-listings')
 def manage_listings():
-    return render_template('manage_listings.html', listings=listings)
+    """Seller page to manage listings and view cancellation requests"""
+    # Import the data from models
+    from models import listings, CANCELLATION_REQUESTS
+
+    # Filter for pending cancellation requests
+    pending_requests = {
+        rid: req for rid, req in CANCELLATION_REQUESTS.items()
+        if req['status'] == 'Pending'
+    }
+
+    # Pass both listings and pending_requests to the template
+    return render_template('manage_listings.html',
+                           listings=listings,
+                           pending_requests=pending_requests)
 
 
 @app.route('/seller/add-listing', methods=['POST'])
