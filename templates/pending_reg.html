@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <title>67 Rentals - Registration Pending</title>
+
+    <!-- CSS FILES -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap"
+        rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.css"
+        rel="stylesheet">
+
+    <style>
+        :root {
+            --white-color: #ffffff;
+            --primary-color: #81B29A;
+            --secondary-color: #3D405B;
+            --section-bg-color: #F4F1DE;
+            --custom-btn-bg-color: #F2CC8F;
+            --custom-btn-bg-hover-color: #E07A5F;
+            --dark-color: #000000;
+            --p-color: #717275;
+            --link-hover-color: #F2CC8F;
+            --body-font-family: 'DM Sans', sans-serif;
+            --h4-font-size: 24px;
+            --menu-font-size: 16px;
+            --p-font-size: 18px;
+            --border-radius-large: 100px;
+            --border-radius-medium: 20px;
+            --font-weight-normal: 400;
+            --font-weight-medium: 500;
+            --font-weight-bold: 700;
+        }
+
+        body {
+            background-color: var(--section-bg-color);
+            font-family: var(--body-font-family);
+            margin: 0;
+            padding: 0;
+            padding-top: 90px;
+        }
+
+        /* Navbar Styles */
+        .navbar {
+            background-color: var(--secondary-color);
+            padding-top: 15px;
+            padding-bottom: 15px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .navbar-brand {
+            font-size: var(--h4-font-size);
+            font-weight: var(--font-weight-bold);
+            color: var(--white-color);
+            display: flex;
+            align-items: center;
+        }
+
+        .navbar-brand-image {
+            width: 80px;
+            height: 60px;
+            filter: brightness(0) invert(1);
+        }
+
+        .navbar-brand-text {
+            line-height: normal;
+            margin-left: 10px;
+            color: var(--white-color);
+        }
+
+        .navbar-brand-text small {
+            display: block;
+            font-size: 10px;
+            line-height: 1;
+            text-transform: uppercase;
+        }
+
+        .navbar-nav .nav-link {
+            display: inline-block;
+            color: var(--white-color);
+            font-size: var(--menu-font-size);
+            font-weight: var(--font-weight-medium);
+            padding-top: 15px;
+            padding-bottom: 15px;
+        }
+
+        .navbar-nav .nav-link:hover {
+            color: var(--link-hover-color);
+        }
+
+        .custom-btn {
+            background: var(--custom-btn-bg-color);
+            border: 2px solid transparent;
+            border-radius: var(--border-radius-large);
+            color: var(--white-color);
+            font-weight: var(--font-weight-bold);
+            padding: 10px 20px;
+            transition: all 0.3s;
+        }
+
+        .custom-btn:hover {
+            background: var(--custom-btn-bg-hover-color);
+            color: var(--white-color);
+        }
+
+        .custom-border-btn {
+            background: transparent;
+            border: 2px solid var(--custom-btn-bg-color);
+            color: var(--custom-btn-bg-color);
+        }
+
+        .custom-border-btn:hover {
+            background: var(--custom-btn-bg-color);
+            color: var(--white-color);
+        }
+
+        .navbar-toggler {
+            border: 0;
+            padding: 0;
+        }
+
+        .navbar-toggler-icon {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255, 255, 255, 1)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+        }
+
+        /* Pending Status Container */
+        .pending-container {
+            min-height: calc(100vh - 100px);
+            display: flex;
+            align-items: center;
+            padding: 50px 0;
+        }
+
+        .pending-card {
+            background: var(--white-color);
+            border-radius: var(--border-radius-medium);
+            padding: 60px 50px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            max-width: 700px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .pending-icon {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, var(--custom-btn-bg-color), var(--primary-color));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 30px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .pending-icon i {
+            font-size: 60px;
+            color: var(--white-color);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(242, 204, 143, 0.7);
+            }
+
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 20px rgba(242, 204, 143, 0);
+            }
+        }
+
+        .pending-card h1 {
+            color: var(--secondary-color);
+            font-weight: var(--font-weight-bold);
+            margin-bottom: 20px;
+            font-size: 32px;
+        }
+
+        .pending-card .subtitle {
+            color: var(--primary-color);
+            font-size: 20px;
+            font-weight: var(--font-weight-medium);
+            margin-bottom: 30px;
+        }
+
+        .pending-card p {
+            color: var(--p-color);
+            font-size: var(--p-font-size);
+            line-height: 1.8;
+            margin-bottom: 20px;
+        }
+
+        .info-box {
+            background: var(--section-bg-color);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 30px 0;
+            text-align: left;
+        }
+
+        .info-box h3 {
+            color: var(--secondary-color);
+            font-size: 22px;
+            font-weight: var(--font-weight-bold);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+
+        .info-box h3 i {
+            margin-right: 10px;
+            color: var(--primary-color);
+        }
+
+        .info-box ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .info-box ul li {
+            color: var(--p-color);
+            padding: 10px 0;
+            padding-left: 30px;
+            position: relative;
+            font-size: 16px;
+        }
+
+        .info-box ul li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: var(--primary-color);
+            font-weight: var(--font-weight-bold);
+            font-size: 18px;
+        }
+
+        .timeline {
+            background: var(--section-bg-color);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 30px 0;
+        }
+
+        .timeline h3 {
+            color: var(--secondary-color);
+            font-size: 22px;
+            font-weight: var(--font-weight-bold);
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .timeline-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .timeline-item:not(:last-child):after {
+            content: "";
+            position: absolute;
+            left: 19px;
+            top: 40px;
+            width: 2px;
+            height: calc(100% + 20px);
+            background: var(--primary-color);
+            opacity: 0.3;
+        }
+
+        .timeline-dot {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white-color);
+            font-weight: var(--font-weight-bold);
+            margin-right: 20px;
+            flex-shrink: 0;
+        }
+
+        .timeline-content {
+            flex: 1;
+            padding-top: 8px;
+        }
+
+        .timeline-content h4 {
+            color: var(--secondary-color);
+            font-size: 18px;
+            font-weight: var(--font-weight-bold);
+            margin-bottom: 5px;
+        }
+
+        .timeline-content p {
+            color: var(--p-color);
+            font-size: 15px;
+            margin: 0;
+        }
+
+        .contact-section {
+            background: linear-gradient(135deg, var(--primary-color), var(--custom-btn-bg-color));
+            border-radius: 15px;
+            padding: 30px;
+            margin-top: 30px;
+            color: var(--white-color);
+        }
+
+        .contact-section h3 {
+            font-size: 22px;
+            font-weight: var(--font-weight-bold);
+            margin-bottom: 15px;
+        }
+
+        .contact-section p {
+            color: var(--white-color);
+            opacity: 0.95;
+            margin-bottom: 20px;
+        }
+
+        .contact-info {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .contact-item i {
+            font-size: 24px;
+        }
+
+        .contact-item a {
+            color: var(--white-color);
+            text-decoration: none;
+            font-weight: var(--font-weight-medium);
+            font-size: 18px;
+        }
+
+        .contact-item a:hover {
+            opacity: 0.8;
+        }
+
+        .btn-home {
+            background: var(--custom-btn-bg-color);
+            border: none;
+            border-radius: var(--border-radius-large);
+            color: var(--white-color);
+            font-weight: var(--font-weight-bold);
+            padding: 15px 40px;
+            font-size: var(--p-font-size);
+            transition: all 0.3s;
+            display: inline-block;
+            margin-top: 20px;
+            text-decoration: none;
+        }
+
+        .btn-home:hover {
+            background: var(--custom-btn-bg-hover-color);
+            color: var(--white-color);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(224, 122, 95, 0.3);
+        }
+
+        @media screen and (max-width: 768px) {
+            .pending-card {
+                padding: 40px 25px;
+            }
+
+            .pending-card h1 {
+                font-size: 26px;
+            }
+
+            .pending-card .subtitle {
+                font-size: 18px;
+            }
+
+            .info-box,
+            .timeline,
+            .contact-section {
+                padding: 20px;
+            }
+
+            .contact-info {
+                gap: 15px;
+            }
+
+            .timeline-item {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+
+            .timeline-item:not(:last-child):after {
+                display: none;
+            }
+
+            .timeline-dot {
+                margin-right: 0;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='50' font-size='60' text-anchor='middle' dominant-baseline='middle' fill='white'%3E67%3C/text%3E%3C/svg%3E"
+                    class="navbar-brand-image img-fluid" alt="67 Rentals">
+                <span class="navbar-brand-text">
+                    67
+                    <small>Rentals</small>
+                </span>
+            </a>
+            <div class="d-lg-none ms-auto me-3">
+                <a class="btn custom-btn custom-border-btn" href="#" onclick="return false;">Member Login</a>
+            </div>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-lg-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#section_2">About</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/vehicles">Vehicles</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#section_4">Contact Us</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/cart"><i class="bi bi-cart3"></i> Cart</a>
+                    </li>
+                </ul>
+
+                <div class="d-none d-lg-block ms-lg-3">
+                    <a class="btn custom-btn custom-border-btn" href="#" onclick="return false;">Member Login</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Pending Status Container -->
+    <div class="pending-container">
+        <div class="container">
+            <div class="pending-card">
+                <div class="pending-icon">
+                    <i class="bi bi-clock-history"></i>
+                </div>
+
+                <h1>Registration Submitted Successfully!</h1>
+                <p class="subtitle">Your account is pending approval</p>
+
+                <p>Thank you for registering with 67 Rentals. We have received your registration details and documents.
+                </p>
+
+                <div class="info-box">
+                    <h3><i class="bi bi-info-circle-fill"></i> What Happens Next?</h3>
+                    <ul>
+                        <li>Our admin team will review your submitted documents (NRIC and Driver's License)</li>
+                        <li>We verify all information to ensure account security and compliance</li>
+                        <li>You will receive an email notification once your account is approved</li>
+                        <li>The approval process typically takes 2-3 business days</li>
+                    </ul>
+                </div>
+
+                <div class="timeline">
+                    <h3>Approval Timeline</h3>
+                    <div class="timeline-item">
+                        <div class="timeline-dot">1</div>
+                        <div class="timeline-content">
+                            <h4>Registration Received</h4>
+                            <p>Your application has been submitted successfully</p>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-dot">2</div>
+                        <div class="timeline-content">
+                            <h4>Document Review</h4>
+                            <p>Admin team verifies your NRIC and license (1-2 days)</p>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-dot">3</div>
+                        <div class="timeline-content">
+                            <h4>Account Approval</h4>
+                            <p>You'll receive confirmation email and can start renting (2-3 days)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="contact-section">
+                    <h3>Need Assistance?</h3>
+                    <p>If you have any questions or need to update your information, please contact us:</p>
+                    <div class="contact-info">
+                        <div class="contact-item">
+                            <i class="bi bi-telephone-fill"></i>
+                            <a href="tel:6566006655">65-6600-6655</a>
+                        </div>
+                        <div class="contact-item">
+                            <i class="bi bi-envelope-fill"></i>
+                            <a href="mailto:support@67rentals.com">support@67rentals.com</a>
+                        </div>
+                    </div>
+                </div>
+
+                <a href="/" class="btn-home">Return to Home</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

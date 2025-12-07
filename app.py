@@ -74,6 +74,10 @@ def index_logged():
 # AUTHENTICATION ROUTES
 # ============================================
 
+# ============================================
+# AUTHENTICATION ROUTES
+# ============================================
+
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     """Sign up page with comprehensive validation including NRIC checksum"""
@@ -191,15 +195,17 @@ def signup():
         session['users'][email] = user_data
         session.modified = True
 
-        # Log user in automatically
-        session['user'] = email
-        session['user_name'] = f"{first_name} {last_name}"
-
-        flash('Account created successfully! Welcome to 67 Rentals.', 'success')
-        return redirect(url_for('index'))
+        # Redirect to registration pending page instead of logging in automatically
+        flash('Registration submitted successfully! Please wait for admin approval.', 'success')
+        return redirect(url_for('registration_pending'))
 
     return render_template('signup.html')
 
+
+@app.route('/registration-pending')
+def registration_pending():
+    """Registration pending approval page"""
+    return render_template('pending_reg.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():

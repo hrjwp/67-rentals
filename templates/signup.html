@@ -9,86 +9,87 @@
     <title>67 Rentals - Sign Up</title>
 
     <!-- CSS FILES -->
-        <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
 
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap"
+        rel="stylesheet">
 
-        <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
 
-        <link href="{{ url_for('static', filename='css/bootstrap-icons.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/bootstrap-icons.css') }}" rel="stylesheet">
 
-        <link href="{{ url_for('static', filename='css/templatemo-tiya-golf-club.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/templatemo-tiya-golf-club.css') }}" rel="stylesheet">
 
 
     <style>
-            :root {
-              --white-color:                  #ffffff;
-              --primary-color:                #81B29A;
-              --secondary-color:              #3D405B;
-              --section-bg-color:             #F4F1DE;
-              --custom-btn-bg-color:          #F2CC8F;
-              --custom-btn-bg-hover-color:    #E07A5F;
-              --dark-color:                   #000000;
-              --p-color:                      #717275;
-              --link-hover-color:             #F2CC8F;
+        :root {
+            --white-color: #ffffff;
+            --primary-color: #81B29A;
+            --secondary-color: #3D405B;
+            --section-bg-color: #F4F1DE;
+            --custom-btn-bg-color: #F2CC8F;
+            --custom-btn-bg-hover-color: #E07A5F;
+            --dark-color: #000000;
+            --p-color: #717275;
+            --link-hover-color: #F2CC8F;
 
-              --body-font-family:             'DM Sans', sans-serif;
+            --body-font-family: 'DM Sans', sans-serif;
 
-              --h1-font-size:                 42px;
-              --h2-font-size:                 36px;
-              --h3-font-size:                 28px;
-              --h4-font-size:                 24px;
-              --h5-font-size:                 22px;
-              --h6-font-size:                 20px;
-              --p-font-size:                  18px;
-              --menu-font-size:               16px;
-              --btn-font-size:                14px;
+            --h1-font-size: 42px;
+            --h2-font-size: 36px;
+            --h3-font-size: 28px;
+            --h4-font-size: 24px;
+            --h5-font-size: 22px;
+            --h6-font-size: 20px;
+            --p-font-size: 18px;
+            --menu-font-size: 16px;
+            --btn-font-size: 14px;
 
-              --border-radius-large:          100px;
-              --border-radius-medium:         20px;
-              --border-radius-small:          10px;
+            --border-radius-large: 100px;
+            --border-radius-medium: 20px;
+            --border-radius-small: 10px;
 
-              --font-weight-normal:           400;
-              --font-weight-medium:           500;
-              --font-weight-bold:             700;
-            }
+            --font-weight-normal: 400;
+            --font-weight-medium: 500;
+            --font-weight-bold: 700;
+        }
 
-            body {
-              background-color: var(--white-color);
-              font-family: var(--body-font-family);
-            }
+        body {
+            background-color: var(--white-color);
+            font-family: var(--body-font-family);
+        }
 
-            .navbar {
-                background: #3D405B;
-                z-index: 99;
-                padding-top: 15px;
-                padding-bottom: 15px;
-            }
+        .navbar {
+            background: #3D405B;
+            z-index: 99;
+            padding-top: 15px;
+            padding-bottom: 15px;
+        }
 
-            .navbar-brand-text {
-                color: var(--white-color);
-                font-size: 28px;
-                font-weight: 700;
-                margin-left: 10px;
-            }
+        .navbar-brand-text {
+            color: var(--white-color);
+            font-size: 28px;
+            font-weight: 700;
+            margin-left: 10px;
+        }
 
-            .navbar-brand-text small {
-                display: block;
-                font-size: 14px;
-                font-weight: 400;
-            }
+        .navbar-brand-text small {
+            display: block;
+            font-size: 14px;
+            font-weight: 400;
+        }
 
-            .nav-link {
-                color: var(--white-color) !important;
-                font-weight: 500;
-                padding: 10px 20px !important;
-            }
+        .nav-link {
+            color: var(--white-color) !important;
+            font-weight: 500;
+            padding: 10px 20px !important;
+        }
 
-            .nav-link:hover {
-                color: #F2CC8F!important;
-            }
+        .nav-link:hover {
+            color: #F2CC8F !important;
+        }
 
 
         /* Sign Up Form Styles */
@@ -204,10 +205,11 @@
 
 <body>
     <!-- Navbar -->
-        <nav class="navbar navbar-expand-lg">
+    <nav class="navbar navbar-expand-lg">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
-                <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="67 Rentals" style="width: 50px;">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid"
+                    alt="67 Rentals" style="width: 50px;">
                 <span class="navbar-brand-text">
                     67
                     <small>Rentals</small>
@@ -228,68 +230,72 @@
                     </li>
                 </ul>
                 <div class="d-none d-lg-block ms-lg-3">
-                    <a class="btn custom-btn custom-border-btn" data-bs-toggle="offcanvas" href="#offcanvasExample" role="button" aria-controls="offcanvasExample">Member Login</a>
+                    <a class="btn custom-btn custom-border-btn" data-bs-toggle="offcanvas" href="#offcanvasExample"
+                        role="button" aria-controls="offcanvasExample">Member Login</a>
                 </div>
             </div>
         </div>
     </nav>
 
-        <div class="offcanvas offcanvas-end" data-bs-scroll="true" tabindex="-1" id="offcanvasExample" aria-labelledby="offcanvasExampleLabel">
-            <div class="offcanvas-header">
-                <h5 class="offcanvas-title" id="offcanvasExampleLabel">Member Login</h5>
+    <div class="offcanvas offcanvas-end" data-bs-scroll="true" tabindex="-1" id="offcanvasExample"
+        aria-labelledby="offcanvasExampleLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="offcanvasExampleLabel">Member Login</h5>
 
-                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
 
-            <div class="offcanvas-body d-flex flex-column">
-                <form class="custom-form member-login-form" action="#" method="post" role="form">
+        <div class="offcanvas-body d-flex flex-column">
+            <form class="custom-form member-login-form" action="#" method="post" role="form">
 
-                    <div class="member-login-form-body">
-                        <div class="mb-4">
-                            <label class="form-label mb-2" for="member-login-number">Email</label>
+                <div class="member-login-form-body">
+                    <div class="mb-4">
+                        <label class="form-label mb-2" for="member-login-number">Email</label>
 
-                            <input type="text" name="member-login-number" id="member-login-number" class="form-control" placeholder="11002560" required>
-                        </div>
-
-                        <div class="mb-4">
-                            <label class="form-label mb-2" for="member-login-password">Password</label>
-
-                            <input type="password" name="member-login-password" id="member-login-password" pattern="[0-9a-zA-Z]{4,10}" class="form-control" placeholder="Password" required="">
-                        </div>
-
-                        <div class="form-check mb-4">
-                            <input class="form-check-input" type="checkbox" value="" id="flexCheckDefault">
-
-                            <label class="form-check-label" for="flexCheckDefault">
-                                Remember me
-                            </label>
-                        </div>
-
-                        <div class="col-lg-5 col-md-7 col-8 mx-auto">
-                            <button type="submit" class="form-control">Login</button>
-                        </div>
-
-                        <div class="text-center my-4">
-                            <a href="#">Forgotten password?</a>
-                        </div>
-
-                       <div class="text-center my-4">
-                            <a href="{{ url_for('signup') }}">No account? Sign up here!</a>
-                        </div>
+                        <input type="text" name="member-login-number" id="member-login-number" class="form-control"
+                            placeholder="11002560" required>
                     </div>
-                </form>
 
-                <div class="mt-auto mb-5">
-                    <p>
-                        <strong class="text-white me-3">Any Questions?</strong>
+                    <div class="mb-4">
+                        <label class="form-label mb-2" for="member-login-password">Password</label>
 
-                        <a href="tel: 010-020-0340" class="contact-link">
-                            65-6600-6655
-                        </a>
-                    </p>
+                        <input type="password" name="member-login-password" id="member-login-password"
+                            pattern="[0-9a-zA-Z]{4,10}" class="form-control" placeholder="Password" required="">
+                    </div>
+
+                    <div class="form-check mb-4">
+                        <input class="form-check-input" type="checkbox" value="" id="flexCheckDefault">
+
+                        <label class="form-check-label" for="flexCheckDefault">
+                            Remember me
+                        </label>
+                    </div>
+
+                    <div class="col-lg-5 col-md-7 col-8 mx-auto">
+                        <button type="submit" class="form-control">Login</button>
+                    </div>
+
+                    <div class="text-center my-4">
+                        <a href="#">Forgotten password?</a>
+                    </div>
+
+                    <div class="text-center my-4">
+                        <a href="{{ url_for('signup') }}">No account? Sign up here!</a>
+                    </div>
                 </div>
+            </form>
+
+            <div class="mt-auto mb-5">
+                <p>
+                    <strong class="text-white me-3">Any Questions?</strong>
+
+                    <a href="tel: 010-020-0340" class="contact-link">
+                        65-6600-6655
+                    </a>
+                </p>
             </div>
         </div>
+    </div>
 
     <!-- Sign Up Form -->
     <div class="signup-container">
@@ -374,36 +380,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        // Login Form Handler
-        document.getElementById('loginForm').addEventListener('submit', function (e) {
-            e.preventDefault();
-
-            const email = document.getElementById('member-login-email').value;
-            const password = document.getElementById('member-login-password').value;
-
-            // Send login request to server
-            fetch('/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`
-            })
-                .then(response => {
-                    if (response.ok) {
-                        alert('Login successful!');
-                        window.location.href = '/';
-                    } else {
-                        return response.text().then(text => {
-                            alert('Login failed: ' + text);
-                        });
-                    }
-                })
-                .catch(error => {
-                    alert('An error occurred: ' + error.message);
-                });
-        });
-
         // Sign Up Form Handler
         document.getElementById('signupForm').addEventListener('submit', function (e) {
             e.preventDefault();
@@ -472,8 +448,8 @@
             })
                 .then(response => {
                     if (response.ok) {
-                        alert('Sign up successful! Welcome to 67 Rentals.');
-                        window.location.href = '/';
+                        // Changed: redirect to registration pending page instead of home
+                        window.location.href = '/registration-pending';
                     } else {
                         return response.text().then(text => {
                             alert('Sign up failed: ' + text);
