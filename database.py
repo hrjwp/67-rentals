@@ -191,3 +191,20 @@ def mark_token_as_used(token):
             (token,)
         )
         cursor.close()
+
+
+def get_user_bookings(user_id):
+    """Get all bookings for a specific user"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        query = """
+            SELECT b.*, v.name as vehicle_name, v.image as vehicle_image, v.type as vehicle_type
+            FROM bookings b
+            LEFT JOIN vehicles v ON b.vehicle_id = v.id
+            WHERE b.user_id = %s
+            ORDER BY b.pickup_date DESC
+        """
+        cursor.execute(query, (user_id,))
+        bookings = cursor.fetchall()
+        cursor.close()
+        return bookings
