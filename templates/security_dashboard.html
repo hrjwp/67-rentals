@@ -69,10 +69,11 @@
                 </div>
 
                 <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('audit_logs') }}'">
-                    <div class="info-icon">📊</div>
+                    <div class="info-icon">🛡️</div>
                     <h3 class="info-title">Access Security Logs</h3>
                     <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
-                        View and monitor all system activity and security events
+                        Monitors RBAC violations, export blocking, copy/paste attempts,
+                        screenshot prevention, session timeouts, IP mismatches, and other security alerts.
                     </p>
                     <div style="margin-top: 20px;">
                         <a href="{{ url_for('security_logs') }}" class="cta-button">View Logs</a>
@@ -80,10 +81,11 @@
                 </div>
 
                 <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('audit_logs') }}'">
-                    <div class="info-icon">📊</div>
+                    <div class="info-icon">🚗</div>
                     <h3 class="info-title">Vehicle Fraud Logs</h3>
                     <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
-                        View and monitor all system activity and security events
+                        Tracks GPS jumps, impossible travel speeds, and fake
+                        mileage reports to detect vehicle-related fraud.
                     </p>
                     <div style="margin-top: 20px;">
                         <a href="{{ url_for('vehicle_fraud_logs') }}" class="cta-button">View Logs</a>
@@ -91,10 +93,11 @@
                 </div>
 
                 <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('audit_logs') }}'">
-                    <div class="info-icon">📊</div>
+                    <div class="info-icon">⚠️</div>
                     <h3 class="info-title">Booking Fraud Logs</h3>
                     <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
-                        View and monitor all system activity and security events
+                        Monitors rapid bookings, repeated card declines, and
+                        machine-learning risk scores to identify fraudulent booking patterns.
                     </p>
                     <div style="margin-top: 20px;">
                         <a href="{{ url_for('booking_fraud_logs') }}" class="cta-button">View Logs</a>
