@@ -18,7 +18,8 @@ from config import Config
 from database import (
     get_user_by_email, create_user, get_all_vehicles,
     get_vehicle_by_id, create_booking, get_booking_by_id,
-    update_user_password, save_reset_token, get_reset_token, mark_token_as_used
+    update_user_password, save_reset_token, get_reset_token, mark_token_as_used,
+    get_user_bookings
 )
 
 # Import data models
@@ -575,6 +576,47 @@ def cart():
                            service_fee=totals['service_fee'],
                            total=totals['total'],
                            cart_count=len(totals['cart_data']))
+
+
+@app.route('/booking-history')
+@login_required
+def booking_history():
+    """Display user's booking history"""
+    user_email = session.get('user')
+    if not user_email:
+        flash('Please login to view your bookings', 'error')
+        return redirect(url_for('login'))
+    
+    # Try to get user from database first
+    bookings = []
+    try:
+        user = get_user_by_email(user_email)
+        if user and user.get('id'):
+            # Get user bookings from database
+            bookings = get_user_bookings(user.get('id'))
+    except Exception as e:
+        # If database fails, try session-based bookings
+        print(f"Database error: {e}")
+        # Fallback to session-based bookings if available
+        pass
+    
+    # If no database bookings, check session-based bookings (for demo/testing)
+    if not bookings:
+        # Try to get bookings from session or models
+        from models import BOOKINGS
+        # Filter bookings by user email if available
+        session_bookings = []
+        for booking_id, booking in BOOKINGS.items():
+            if booking.get('customer_email') == user_email:
+                session_bookings.append(booking)
+        bookings = session_bookings
+    
+    # Get cart count for navbar
+    cart_count = get_cart_count(session)
+    
+    return render_template('booking_history.html', 
+                         bookings=bookings,
+                         cart_count=cart_count)
 
 
 @app.route('/cart_logged')
