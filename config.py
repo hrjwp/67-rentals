@@ -21,3 +21,10 @@ class Config:
     UPLOAD_FOLDER = 'static/uploads'
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
     MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+    
+    # Backup Configuration
+    BACKUP_DIR = os.environ.get('BACKUP_DIR', 'backups')
+    CLOUD_BACKUP_DIR = os.environ.get('CLOUD_BACKUP_DIR')  # Set to cloud storage path (e.g., AWS S3, Google Drive)
+    BACKUP_RETENTION_DAYS = int(os.environ.get('BACKUP_RETENTION_DAYS', '30'))  # Keep backups for 30 days
+    AUTO_BACKUP_ENABLED = os.environ.get('AUTO_BACKUP_ENABLED', 'False').lower() == 'true'
+    AUTO_BACKUP_INTERVAL_HOURS = int(os.environ.get('AUTO_BACKUP_INTERVAL_HOURS', '24'))  # Daily backups
