@@ -2,6 +2,7 @@ import mysql.connector
 from mysql.connector import Error
 from contextlib import contextmanager
 from config import Config
+from utils.encryption import encrypt_value, decrypt_value
 
 
 def create_connection():
@@ -45,6 +46,13 @@ def get_user_by_email(email):
         cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
         user = cursor.fetchone()
         cursor.close()
+        if not user:
+            return None
+
+        # Decrypt sensitive fields; fallback keeps legacy plaintext rows usable
+        for field in ("first_name", "last_name", "phone", "nric", "license_number"):
+            if field in user:
+                user[field] = decrypt_value(user[field], fallback_on_error=True)
         return user
 
 
@@ -57,13 +65,18 @@ def create_user(user_data):
                              license_number, password, nric_image, license_image, verified)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
+        encrypted_first_name = encrypt_value(user_data['first_name'])
+        encrypted_last_name = encrypt_value(user_data['last_name'])
+        encrypted_phone = encrypt_value(user_data['phone'])
+        encrypted_nric = encrypt_value(user_data['nric'])
+        encrypted_license = encrypt_value(user_data['license_number'])
         values = (
-            user_data['first_name'],
-            user_data['last_name'],
+            encrypted_first_name,
+            encrypted_last_name,
             user_data['email'],
-            user_data['phone'],
-            user_data['nric'],
-            user_data['license_number'],
+            encrypted_phone,
+            encrypted_nric,
+            encrypted_license,
             user_data['password'],
             user_data['nric_image'],
             user_data['license_image'],
