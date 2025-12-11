@@ -408,7 +408,7 @@
                 };
 
                 try {
-                    // Create payment intent on server
+                    // Create payment intent on server (card data never sent to our server)
                     const response = await fetch('/create-payment-intent', {
                         method: 'POST',
                         headers: {
@@ -423,29 +423,35 @@
                         throw new Error(data.error);
                     }
 
-                    // Confirm payment with Stripe
-                    const result = await stripe.confirmCardPayment(data.clientSecret, {
-                        payment_method: {
-                            card: cardElement,
-                            billing_details: {
-                                name: customerData.name,
-                                email: customerData.email,
-                                phone: customerData.phone,
+                    // Tokenize payment method using Stripe Elements
+                    // Card data is tokenized client-side - only token sent to Stripe
+                    const {paymentIntent, error: confirmError} = await stripe.confirmCardPayment(
+                        data.clientSecret,
+                        {
+                            payment_method: {
+                                card: cardElement,  // Stripe tokenizes this - no card data sent
+                                billing_details: {
+                                    name: customerData.name,
+                                    email: customerData.email,
+                                    phone: customerData.phone,
+                                },
                             },
-                        },
-                    });
+                        }
+                    );
 
-                    if (result.error) {
+                    if (confirmError) {
                         // Show error to customer
-                        document.getElementById('card-errors').textContent = result.error.message;
+                        document.getElementById('card-errors').textContent = confirmError.message;
                         submitButton.disabled = false;
                         document.getElementById('button-text').style.display = 'inline';
                         document.getElementById('spinner').style.display = 'none';
                     } else {
-                        // Payment succeeded
-                        if (result.paymentIntent.status === 'succeeded') {
+                        // Payment succeeded - payment method is tokenized
+                        if (paymentIntent.status === 'succeeded') {
+                            // Payment method token (pm_xxx) is stored by Stripe, not card data
+                            console.log('Payment tokenized successfully. Payment Method ID:', paymentIntent.payment_method);
                             // Redirect to success page
-                            window.location.href = '/payment-success?payment_intent=' + result.paymentIntent.id;
+                            window.location.href = '/payment-success?payment_intent=' + paymentIntent.id;
                         }
                     }
                 } catch (error) {
