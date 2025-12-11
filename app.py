@@ -4,6 +4,10 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 import stripe
 import os
+from Crypto.Cipher import AES
+import base64, os
+
+
 
 # Import configuration
 from config import Config
@@ -35,12 +39,31 @@ from utils.helpers import (
     generate_booking_id, generate_request_id, generate_refund_id,
     get_cart_count
 )
+from utils.encryption import encrypt_value, decrypt_value
 
 
 app = Flask(__name__)
 
 app.config.from_object(Config)
 stripe.api_key = Config.STRIPE_API_KEY
+
+
+def _encrypt_user_record(user_data: dict) -> dict:
+    """Encrypt sensitive fields for storage."""
+    encrypted = dict(user_data)
+    for field in ("first_name", "last_name", "phone", "nric", "license_number"):
+        if field in encrypted:
+            encrypted[field] = encrypt_value(encrypted[field])
+    return encrypted
+
+
+def _decrypt_user_record(user_data: dict) -> dict:
+    """Decrypt sensitive fields when reading."""
+    decrypted = dict(user_data)
+    for field in ("first_name", "last_name", "phone", "nric", "license_number"):
+        if field in decrypted:
+            decrypted[field] = decrypt_value(decrypted[field], fallback_on_error=True)
+    return decrypted
 
 
 
@@ -178,7 +201,7 @@ def signup():
         license_image.save(os.path.join(Config.UPLOAD_FOLDER, license_filename))
 
         # Create user account
-        user_data = {
+        user_data_plain = {
             'first_name': first_name,
             'last_name': last_name,
             'email': email,
@@ -192,7 +215,8 @@ def signup():
             'verified': False
         }
 
-        session['users'][email] = user_data
+        # Encrypt sensitive fields before storing
+        session['users'][email] = _encrypt_user_record(user_data_plain)
         session.modified = True
 
         # Redirect to registration pending page instead of logging in automatically
@@ -224,7 +248,7 @@ def login():
             flash('Invalid email or password', 'error')
             return redirect(url_for('login'))
 
-        user = users[email]
+        user = _decrypt_user_record(users[email])
 
         if not check_password_hash(user['password'], password):
             flash('Invalid email or password', 'error')
@@ -321,7 +345,9 @@ def reset_password(token):
 
         users = session.get('users', {})
         if email in users:
-            users[email]['password'] = generate_password_hash(new_password)
+            record = _decrypt_user_record(users[email])
+            record['password'] = generate_password_hash(new_password)
+            users[email] = _encrypt_user_record(record)
             session['users'] = users
             session.modified = True
 
@@ -334,6 +360,40 @@ def reset_password(token):
             return redirect(url_for('forgot_password'))
 
     return render_template('reset_password.html', token=token)
+
+
+@app.route('/encryption-proof')
+def encryption_proof():
+    """Demonstrate AES encryption/decryption via JSON only."""
+    sample = "demo string"
+    error = None
+    cipher = decrypted = None
+    round_trip = False
+    current_user_encrypted = None
+    current_user_decrypted = None
+
+    try:
+        cipher = encrypt_value(sample)
+        decrypted = decrypt_value(cipher)
+        round_trip = decrypted == sample
+
+        if 'user' in session:
+            email = session['user']
+            users = session.get('users', {})
+            if email in users:
+                current_user_encrypted = users[email]
+                current_user_decrypted = _decrypt_user_record(users[email])
+    except Exception as exc:
+        error = str(exc)
+
+    return jsonify({
+        "cipher": cipher,
+        "decrypted": decrypted,
+        "round_trip": round_trip,
+        "error": error,
+        "current_user_encrypted": current_user_encrypted,
+        "current_user_decrypted": current_user_decrypted,
+    })
 
 
 # ============================================
@@ -1124,6 +1184,34 @@ def booking_fraud_logs():
     """Page 3: Booking Fraud Logs"""
     return render_template('booking_fraud_logs.html')
 
+#AES
+
+key = os.urandom(32)
+
+def encrypt_value(plaintext):
+    cipher = AES.new(key, AES.MODE_EAX)
+    ciphertext, tag = cipher.encrypt_and_digest(plaintext.encode())
+    return base64.b64encode(cipher.nonce + tag + ciphertext).decode()
+
+def decrypt_value(token):
+    raw = base64.b64decode(token)
+    nonce = raw[:16]
+    tag = raw[16:32]
+    ciphertext = raw[32:]
+    cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
+    return cipher.decrypt_and_verify(ciphertext, tag).decode()
+
+@app.route("/test-encrypt")
+def test_encrypt():
+    sample = "hello"
+    cipher = encrypt_value(sample)
+    return {"cipher": cipher, "plain": decrypt_value(cipher)}
+
 
 if __name__ == "__main__":
+    plain = "hello123"
+    encrypted = encrypt_value(plain)
+    print("Encrypted:", encrypted)
+    print("Decrypted:", decrypt_value(encrypted))
+
     app.run(debug=True)
