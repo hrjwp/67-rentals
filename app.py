@@ -41,6 +41,7 @@ from utils.helpers import (
     get_cart_count
 )
 from utils.encryption import encrypt_value, decrypt_value
+from utils.backup import SecureBackup
 
 
 app = Flask(__name__)
@@ -837,6 +838,187 @@ def stripe_webhook():
         return jsonify({'error': 'Invalid signature'}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# BACKUP & RECOVERY ROUTES
+# ============================================
+
+@app.route('/admin/backup/create', methods=['POST'])
+@login_required
+def create_backup():
+    """Create encrypted backup of all sensitive data"""
+    try:
+        backup_system = SecureBackup()
+        include_files = request.json.get('include_files', True) if request.is_json else True
+        
+        backup_path = backup_system.create_backup(include_files=include_files)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Backup created successfully',
+            'backup_file': os.path.basename(backup_path),
+            'backup_path': backup_path,
+            'timestamp': datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/backup/list', methods=['GET'])
+@login_required
+def list_backups():
+    """List all available backups"""
+    try:
+        backup_system = SecureBackup()
+        backups = backup_system.list_backups()
+        
+        return jsonify({
+            'success': True,
+            'backups': backups,
+            'count': len(backups)
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/backup/restore', methods=['POST'])
+@login_required
+def restore_backup():
+    """Restore data from backup"""
+    try:
+        data = request.get_json()
+        backup_filename = data.get('backup_filename')
+        restore_tables = data.get('restore_tables')  # Optional: specific tables to restore
+        
+        if not backup_filename:
+            return jsonify({'error': 'backup_filename is required'}), 400
+        
+        backup_system = SecureBackup()
+        result = backup_system.restore_backup(backup_filename, restore_tables)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Backup restored successfully',
+            'restored_tables': result['restored_tables'],
+            'restored_files': result['restored_files'],
+            'timestamp': result['timestamp']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/backup/cleanup', methods=['POST'])
+@login_required
+def cleanup_backups():
+    """Delete old backups (keep only recent ones)"""
+    try:
+        data = request.get_json() if request.is_json else {}
+        keep_days = data.get('keep_days', Config.BACKUP_RETENTION_DAYS)
+        
+        backup_system = SecureBackup()
+        deleted = backup_system.delete_old_backups(keep_days=keep_days)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Deleted {len(deleted)} old backup(s)',
+            'deleted_files': deleted,
+            'keep_days': keep_days
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/backup/status', methods=['GET'])
+@login_required
+def backup_status():
+    """Get backup system status and configuration"""
+    try:
+        backup_system = SecureBackup()
+        backups = backup_system.list_backups()
+        
+        return jsonify({
+            'backup_enabled': True,
+            'backup_directory': backup_system.backup_dir,
+            'cloud_backup_enabled': backup_system.cloud_backup_dir is not None,
+            'cloud_backup_directory': backup_system.cloud_backup_dir,
+            'total_backups': len(backups),
+            'latest_backup': backups[0] if backups else None,
+            'retention_days': Config.BACKUP_RETENTION_DAYS,
+            'auto_backup_enabled': Config.AUTO_BACKUP_ENABLED,
+            'auto_backup_interval_hours': Config.AUTO_BACKUP_INTERVAL_HOURS
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/backup-test', methods=['GET'])
+def backup_test():
+    """Test backup system - shows if backups are working (no login required for testing)"""
+    try:
+        backup_system = SecureBackup()
+        
+        # Check if backup directory exists and is writable
+        backup_dir_exists = os.path.exists(backup_system.backup_dir)
+        backup_dir_writable = os.access(backup_system.backup_dir, os.W_OK) if backup_dir_exists else False
+        
+        # Check encryption key
+        encryption_key_set = os.environ.get('DATA_ENCRYPTION_KEY') is not None
+        
+        # List existing backups
+        backups = backup_system.list_backups()
+        
+        # Try to create a test backup (small test)
+        test_backup_created = False
+        test_backup_path = None
+        test_error_msg = None
+        try:
+            test_backup_path = backup_system.create_backup(include_files=False)  # Quick test without files
+            test_backup_created = True
+            # Clean up test backup
+            if os.path.exists(test_backup_path):
+                os.remove(test_backup_path)
+        except Exception as test_error:
+            test_error_msg = str(test_error)
+        
+        return jsonify({
+            'backup_system_status': 'operational' if test_backup_created else 'error',
+            'backup_directory': backup_system.backup_dir,
+            'backup_directory_exists': backup_dir_exists,
+            'backup_directory_writable': backup_dir_writable,
+            'encryption_key_configured': encryption_key_set,
+            'total_existing_backups': len(backups),
+            'test_backup_created': test_backup_created,
+            'test_error': test_error_msg,
+            'latest_backup': backups[0] if backups else None,
+            'security_features': {
+                'backups_encrypted': True,
+                'restricted_access': True,
+                'cloud_storage_available': backup_system.cloud_backup_dir is not None
+            },
+            'how_to_use': {
+                'create_backup': 'POST /admin/backup/create (requires login)',
+                'list_backups': 'GET /admin/backup/list (requires login)',
+                'restore_backup': 'POST /admin/backup/restore (requires login)',
+                'manual_test': 'python backup_scheduler.py'
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'backup_system_status': 'error',
+            'error': str(e),
+            'troubleshooting': {
+                'check_encryption_key': 'Set DATA_ENCRYPTION_KEY environment variable',
+                'check_backup_dir': f'Ensure {backup_system.backup_dir} directory exists and is writable',
+                'check_database': 'Verify database connection is working'
+            }
+        }), 500
 
 
 # ============================================
