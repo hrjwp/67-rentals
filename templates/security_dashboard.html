@@ -67,6 +67,39 @@
                         <a href="{{ url_for('audit_logs') }}" class="cta-button">View Logs</a>
                     </div>
                 </div>
+
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('audit_logs') }}'">
+                    <div class="info-icon">📊</div>
+                    <h3 class="info-title">Access Security Logs</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        View and monitor all system activity and security events
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('security_logs') }}" class="cta-button">View Logs</a>
+                    </div>
+                </div>
+
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('audit_logs') }}'">
+                    <div class="info-icon">📊</div>
+                    <h3 class="info-title">Vehicle Fraud Logs</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        View and monitor all system activity and security events
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('vehicle_fraud_logs') }}" class="cta-button">View Logs</a>
+                    </div>
+                </div>
+
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('audit_logs') }}'">
+                    <div class="info-icon">📊</div>
+                    <h3 class="info-title">Booking Fraud Logs</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        View and monitor all system activity and security events
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('booking_fraud_logs') }}" class="cta-button">View Logs</a>
+                    </div>
+                </div>
             </div>
         </div>
     </section>

@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Security Logs - 67 Rentals</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --white-color: #ffffff;
+            --primary-color: #81B29A;
+            --secondary-color: #3D405B;
+            --section-bg-color: #F4F1DE;
+            --custom-btn-bg-color: #F2CC8F;
+            --custom-btn-bg-hover-color: #E07A5F;
+            --p-color: #717275;
+            --body-font-family: 'DM Sans', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--body-font-family);
+            background: var(--section-bg-color);
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: var(--secondary-color);
+            z-index: 99;
+            padding-top: 15px;
+            padding-bottom: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .navbar-brand-text {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--white-color);
+        }
+
+        .navbar-brand-text small {
+            font-size: 14px;
+            font-weight: 400;
+            display: block;
+            line-height: 1;
+        }
+
+        .nav-link {
+            color: var(--white-color) !important;
+            font-weight: 500;
+            padding: 8px 16px !important;
+            transition: color 0.3s ease;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            color: var(--custom-btn-bg-color) !important;
+        }
+
+        .custom-btn {
+            background: var(--custom-btn-bg-color);
+            color: var(--secondary-color);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .custom-btn:hover {
+            background: var(--custom-btn-bg-hover-color);
+            color: var(--white-color);
+        }
+
+        .page-header {
+            background: var(--white-color);
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-top: 30px;
+        }
+
+        .page-header h1 {
+            color: var(--secondary-color);
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .page-header p {
+            color: var(--p-color);
+            margin: 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--white-color);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card h3 {
+            color: var(--p-color);
+            font-size: 14px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .stat-card .number {
+            font-size: 36px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .filters-section {
+            background: var(--white-color);
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .filters-section h3 {
+            margin-bottom: 20px;
+            color: var(--secondary-color);
+            font-weight: 600;
+        }
+
+        .filter-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            font-family: var(--body-font-family);
+        }
+
+        .filter-group select:focus,
+        .filter-group input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .logs-section {
+            background: var(--white-color);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .logs-section h2 {
+            color: var(--secondary-color);
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .logs-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .logs-table th {
+            background: var(--primary-color);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            border: none;
+        }
+
+        .logs-table th:first-child {
+            border-top-left-radius: 8px;
+        }
+
+        .logs-table th:last-child {
+            border-top-right-radius: 8px;
+        }
+
+        .logs-table td {
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+            color: var(--secondary-color);
+        }
+
+        .logs-table tr:hover {
+            background: var(--section-bg-color);
+        }
+
+        .logs-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .severity-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .severity-low {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .severity-medium {
+            background: var(--custom-btn-bg-color);
+            color: var(--secondary-color);
+        }
+
+        .severity-high {
+            background: var(--custom-btn-bg-hover-color);
+            color: white;
+        }
+
+        .severity-critical {
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--p-color);
+        }
+
+        .footer {
+            background: var(--secondary-color);
+            color: var(--white-color);
+            padding: 40px 0;
+            margin-top: 60px;
+        }
+
+        .footer p {
+            margin: 0;
+            color: var(--section-bg-color);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                <span class="navbar-brand-text">
+                    67
+                    <small>Rentals</small>
+                </span>
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-lg-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/security-logs">Security Logs</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/vehicle-fraud-logs">Vehicle Fraud</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/booking-fraud-logs">Booking Fraud</a>
+                    </li>
+                </ul>
+                <div class="d-none d-lg-block ms-lg-3">
+                    <a class="btn custom-btn d-flex align-items-center gap-2" href="#" role="button">
+                        <i class="bi bi-person"></i>
+                        Admin
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main>
+        <div class="container">
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1><i class="bi bi-shield-lock me-2"></i>Access Security Logs</h1>
+                <p>Monitor user behavior and security events</p>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Total Events</h3>
+                    <div class="number" id="totalEvents">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Last 24 Hours</h3>
+                    <div class="number" id="last24h">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Critical</h3>
+                    <div class="number" id="criticalCount" style="color: #E07A5F;">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>High Severity</h3>
+                    <div class="number" id="highCount" style="color: #F2CC8F;">-</div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="filters-section">
+                <h3><i class="bi bi-funnel me-2"></i>Filters</h3>
+                <div class="filter-group">
+                    <select id="severityFilter" class="form-select">
+                        <option value="">All Severities</option>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Critical">Critical</option>
+                    </select>
+
+                    <select id="eventTypeFilter" class="form-select">
+                        <option value="">All Event Types</option>
+                        <option value="RBAC Violation">RBAC Violation</option>
+                        <option value="Export Blocked">Export Blocked</option>
+                        <option value="Copy/Paste Attempt">Copy/Paste Attempt</option>
+                        <option value="Screenshot Prevented">Screenshot Prevented</option>
+                        <option value="Session Timeout">Session Timeout</option>
+                        <option value="IP Mismatch">IP Mismatch</option>
+                        <option value="Security Alert">Security Alert</option>
+                    </select>
+
+                    <input type="text" id="userIdFilter" class="form-control" placeholder="Filter by User ID">
+                </div>
+            </div>
+
+            <!-- Logs Section -->
+            <div class="logs-section">
+                <h2><i class="bi bi-list-ul me-2"></i>Security Event Logs</h2>
+                <div id="logsTable" class="loading">Loading logs...</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-6 col-12 text-center text-lg-start mb-3">
+                    <span class="navbar-brand-text">
+                        67
+                        <small>Rentals</small>
+                    </span>
+                </div>
+                <div class="col-lg-6 col-12 text-center text-lg-end">
+                    <p>Copyright © 2048 67 Rentals</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let allLogs = [];
+
+        async function loadStats() {
+            const response = await fetch('/api/security-stats');
+            const stats = await response.json();
+
+            document.getElementById('totalEvents').textContent = stats.total;
+            document.getElementById('last24h').textContent = stats.last_24h;
+            document.getElementById('criticalCount').textContent = stats.by_severity.Critical || 0;
+            document.getElementById('highCount').textContent = stats.by_severity.High || 0;
+        }
+
+        async function loadLogs() {
+            const severity = document.getElementById('severityFilter').value;
+            const eventType = document.getElementById('eventTypeFilter').value;
+            const userId = document.getElementById('userIdFilter').value;
+
+            let url = '/api/security-logs?';
+            if (severity) url += `severity=${severity}&`;
+            if (eventType) url += `event_type=${eventType}&`;
+            if (userId) url += `user_id=${userId}&`;
+
+            const response = await fetch(url);
+            allLogs = await response.json();
+
+            displayLogs(allLogs);
+        }
+
+        function displayLogs(logs) {
+            const container = document.getElementById('logsTable');
+
+            if (logs.length === 0) {
+                container.innerHTML = '<p class="loading">No logs found</p>';
+                return;
+            }
+
+            let html = `
+                <div class="table-responsive">
+                    <table class="logs-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Timestamp</th>
+                                <th>User ID</th>
+                                <th>Event Type</th>
+                                <th>Severity</th>
+                                <th>IP Address</th>
+                                <th>Description</th>
+                                <th>Action Taken</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            logs.forEach(log => {
+                html += `
+                    <tr>
+                        <td><strong>${log.id}</strong></td>
+                        <td>${log.timestamp}</td>
+                        <td>${log.user_id}</td>
+                        <td>${log.event_type}</td>
+                        <td><span class="severity-badge severity-${log.severity.toLowerCase()}">${log.severity}</span></td>
+                        <td>${log.ip_address}</td>
+                        <td>${log.description}</td>
+                        <td>${log.action_taken}</td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+
+        document.getElementById('severityFilter').addEventListener('change', loadLogs);
+        document.getElementById('eventTypeFilter').addEventListener('change', loadLogs);
+        document.getElementById('userIdFilter').addEventListener('input', loadLogs);
+
+        loadStats();
+        loadLogs();
+
+        setInterval(() => {
+            loadStats();
+            loadLogs();
+        }, 30000);
+    </script>
+</body>
+</html>

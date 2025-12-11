@@ -1108,14 +1108,22 @@ def cases():
     cart_count = get_cart_count(session)
     return render_template("submitted_cases.html", cart_count=cart_count)
 
+@app.route('/security-logs')
+def security_logs():
+    """Page 1: Access Security Logs"""
+    return render_template('security_logs.html')
 
-# ============================================
-# EVENT ROUTES
-# ============================================
+@app.route('/vehicle-fraud-logs')
+def vehicle_fraud_logs():
+    """Page 2: Vehicle Fraud Logs"""
+    return render_template('vehicle_fraud_logs.html')
 
-# ============================================
-# RUN APPLICATION
-# ============================================
+
+@app.route('/booking-fraud-logs')
+def booking_fraud_logs():
+    """Page 3: Booking Fraud Logs"""
+    return render_template('booking_fraud_logs.html')
+
 
 if __name__ == "__main__":
     app.run(debug=True)
