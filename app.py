@@ -1547,5 +1547,5 @@ if __name__ == "__main__":
     print("Encrypted:", encrypted)
     print("Decrypted:", decrypt_value(encrypted))
 
-    # HTTPS enabled - visit https://127.0.0.1:5000 and accept browser warning once
-    app.run(debug=True, ssl_context="adhoc")
+    # Run without HTTPS - change to ssl_context="adhoc" to enable HTTPS
+    app.run(debug=True, host='127.0.0.1', port=5000)
