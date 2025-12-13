@@ -246,21 +246,21 @@
         </div>
 
         <div class="offcanvas-body d-flex flex-column">
-            <form class="custom-form member-login-form" action="#" method="post" role="form">
+            <form class="custom-form member-login-form" action="{{ url_for('login') }}" method="post" role="form">
 
                 <div class="member-login-form-body">
                     <div class="mb-4">
                         <label class="form-label mb-2" for="member-login-email">Email</label>
 
-                        <input type="email" name="member-login-email" id="member-login-email" class="form-control"
+                        <input type="email" name="email" id="member-login-email" class="form-control"
                             placeholder="example@email.com" required>
                     </div>
 
                     <div class="mb-4">
                         <label class="form-label mb-2" for="member-login-password">Password</label>
 
-                        <input type="password" name="member-login-password" id="member-login-password"
-                            pattern="[0-9a-zA-Z]{4,10}" class="form-control" placeholder="Password" required="">
+                        <input type="password" name="password" id="member-login-password"
+                             class="form-control" placeholder="Password" required="">
                     </div>
 
                     <div class="form-check mb-4">
@@ -297,6 +297,20 @@
         </div>
     </div>
 
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="container mt-4">
+        {% for category, message in messages %}
+        <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show"
+            role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
     <!-- Sign Up Form -->
     <div class="signup-container">
         <div class="container">
@@ -304,7 +318,7 @@
                 <h2>Create Your Account</h2>
                 <p>Join 67 Rentals and start your journey today</p>
 
-                <form id="signupForm" enctype="multipart/form-data">
+                <form id="signupForm" action="{{ url_for('signup') }}" method="post" enctype="multipart/form-data">
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -323,6 +337,18 @@
                     <div class="mb-3">
                         <label for="email" class="form-label">Email Address</label>
                         <input type="email" class="form-control" id="email" name="email" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="nric" class="form-label">NRIC / FIN Number</label>
+                        <input type="text" class="form-control" id="nric" name="nric" placeholder="e.g., S1234567D"
+                            required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="license" class="form-label">Driver's License Number</label>
+                        <input type="text" class="form-control" id="license" name="license" placeholder="e.g., S1234567"
+                            required>
                     </div>
 
                     <div class="mb-3">
@@ -380,87 +406,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        // Sign Up Form Handler
-        document.getElementById('signupForm').addEventListener('submit', function (e) {
-            e.preventDefault();
-
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
-            const phone = document.getElementById('phone').value;
-
-            // Validate passwords match
-            if (password !== confirmPassword) {
-                alert('Passwords do not match!');
-                return;
-            }
-
-            // Validate phone number (8 digits, starts with 6, 8, or 9)
-            const phonePattern = /^[689]\d{7}$/;
-            if (!phonePattern.test(phone)) {
-                alert('Invalid phone number. Must be 8 digits starting with 6, 8, or 9.');
-                return;
-            }
-
-            // Validate password strength
-            if (password.length < 8) {
-                alert('Password must be at least 8 characters long.');
-                return;
-            }
-            if (!/[A-Z]/.test(password)) {
-                alert('Password must contain at least one uppercase letter.');
-                return;
-            }
-            if (!/[a-z]/.test(password)) {
-                alert('Password must contain at least one lowercase letter.');
-                return;
-            }
-            if (!/\d/.test(password)) {
-                alert('Password must contain at least one number.');
-                return;
-            }
-            if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-                alert('Password must contain at least one special character.');
-                return;
-            }
-
-            // Check if files are uploaded
-            const nricImage = document.getElementById('nricImage').files[0];
-            const licenseImage = document.getElementById('licenseImage').files[0];
-
-            if (!nricImage || !licenseImage) {
-                alert('Please upload both NRIC and Driver\'s License images.');
-                return;
-            }
-
-            // Validate file size (max 5MB per file)
-            if (nricImage.size > 5 * 1024 * 1024 || licenseImage.size > 5 * 1024 * 1024) {
-                alert('Image files must be less than 5MB each.');
-                return;
-            }
-
-            // Create FormData and submit to server
-            const formData = new FormData(this);
-
-            // Send to server
-            fetch('/signup', {
-                method: 'POST',
-                body: formData
-            })
-                .then(response => {
-                    if (response.ok) {
-                        // Changed: redirect to registration pending page instead of home
-                        window.location.href = '/registration-pending';
-                    } else {
-                        return response.text().then(text => {
-                            alert('Sign up failed: ' + text);
-                        });
-                    }
-                })
-                .catch(error => {
-                    alert('An error occurred: ' + error.message);
-                });
-        });
-
         // Function to close login modal and scroll to signup
         function closeLoginAndScrollToSignup(event) {
             event.preventDefault();

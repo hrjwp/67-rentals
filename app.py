@@ -16,10 +16,11 @@ from config import Config
 # Import database functions
 
 from database import (
-    get_user_by_email, create_user, get_all_vehicles,
+    get_user_by_email, create_user_with_documents, get_all_vehicles,
     get_vehicle_by_id, create_booking, get_booking_by_id,
     update_user_password, save_reset_token, get_reset_token, mark_token_as_used,
-    get_user_bookings
+    get_user_bookings, get_signup_tickets, set_signup_status, get_user_documents,
+    get_db_connection
 )
 
 # Import data models
@@ -124,37 +125,37 @@ def signup_sel():
 # ============================================
 @app.route('/signup_seller', methods=['GET', 'POST'])
 def signup_seller():
+    if request.method == 'GET':
+        return render_template('signup_seller.html')
+
     if request.method == 'POST':
         try:
             errors = []
-            
+
             # Get form data
             first_name = request.form.get('firstName', '').strip()
             last_name = request.form.get('lastName', '').strip()
             email = request.form.get('email', '').strip().lower()
             phone = request.form.get('phone', '').strip()
             password = request.form.get('password', '')
-            
+
             # Get uploaded files
             nric_image = request.files.get('nricImage')
             license_image = request.files.get('licenseImage')
             vehicle_card_image = request.files.get('vehicleCardImage')
             insurance_image = request.files.get('insuranceImage')
-            
+
             # Validate all required fields are present
             if not all([first_name, last_name, email, phone, password]):
                 errors.append('All personal information fields are required')
-            
+
             if not all([nric_image, license_image, vehicle_card_image, insurance_image]):
                 errors.append('All document images are required')
-            
-            # Check if user already exists
-            if 'users' not in session:
-                session['users'] = {}
-            
-            if email in session['users']:
+
+            existing = get_user_by_email(email)
+            if existing:
                 errors.append('Email already registered')
-            
+
             # Validate file types and sizes
             for file_field, file_name in [
                 (nric_image, 'NRIC image'),
@@ -167,56 +168,62 @@ def signup_seller():
                         errors.append(f'{file_name} must be a valid image file (png, jpg, jpeg, gif)')
                     elif not validate_file_size(file_field):
                         errors.append(f'{file_name} must be less than 5MB')
-            
+
             # If there are validation errors, return them
             if errors:
                 for error in errors:
                     flash(error, 'error')
                 return redirect(url_for('signup_seller'))
-            
+
             # Create upload directory if it doesn't exist
             if not os.path.exists(Config.UPLOAD_FOLDER):
                 os.makedirs(Config.UPLOAD_FOLDER)
-            
+
             # Save files with secure filenames
             nric_filename = secure_filename(f"{email}_nric_{nric_image.filename}")
             license_filename = secure_filename(f"{email}_license_{license_image.filename}")
             vehicle_card_filename = secure_filename(f"{email}_vehicle_{vehicle_card_image.filename}")
             insurance_filename = secure_filename(f"{email}_insurance_{insurance_image.filename}")
-            
-            # Save to upload folder
+
+            # Capture bytes and save to upload folder
+            nric_bytes = nric_image.read()
+            license_bytes = license_image.read()
+            vehicle_card_bytes = vehicle_card_image.read()
+            insurance_bytes = insurance_image.read()
+
+            # Reset streams and save to disk
+            nric_image.seek(0); license_image.seek(0); vehicle_card_image.seek(0); insurance_image.seek(0)
             nric_image.save(os.path.join(Config.UPLOAD_FOLDER, nric_filename))
             license_image.save(os.path.join(Config.UPLOAD_FOLDER, license_filename))
             vehicle_card_image.save(os.path.join(Config.UPLOAD_FOLDER, vehicle_card_filename))
             insurance_image.save(os.path.join(Config.UPLOAD_FOLDER, insurance_filename))
-            
-            # Create seller account data
+
+            documents = {
+                'nric_image': {'filename': nric_filename, 'mime': nric_image.mimetype, 'data': nric_bytes, 'path': nric_filename},
+                'license_image': {'filename': license_filename, 'mime': license_image.mimetype, 'data': license_bytes, 'path': license_filename},
+                'vehicle_card_image': {'filename': vehicle_card_filename, 'mime': vehicle_card_image.mimetype, 'data': vehicle_card_bytes, 'path': vehicle_card_filename},
+                'insurance_image': {'filename': insurance_filename, 'mime': insurance_image.mimetype, 'data': insurance_bytes, 'path': insurance_filename}
+            }
+
             seller_data_plain = {
                 'first_name': first_name,
                 'last_name': last_name,
                 'email': email,
                 'phone': phone,
-                'password': generate_password_hash(password),
-                'nric_image': nric_filename,
-                'license_image': license_filename,
-                'vehicle_card_image': vehicle_card_filename,
-                'insurance_image': insurance_filename,
-                'user_type': 'seller',  # Set user type as seller
-                'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'verified': False  # Pending admin approval
+                'password_hash': generate_password_hash(password),
+                'user_type': 'seller',
+                'documents': documents
             }
-            
-            # Encrypt and store seller data
-            session['users'][email] = _encrypt_user_record(seller_data_plain)
-            session.modified = True
-            
+
+            create_user_with_documents(seller_data_plain)
+
             flash('Seller registration submitted successfully! Please wait for admin approval.', 'success')
             return redirect(url_for('registration_pending'))
-            
+
         except Exception as e:
             flash(f'An error occurred during registration: {str(e)}', 'error')
             return redirect(url_for('signup_seller'))
-    
+
     return render_template('signup_seller.html')
 
 
@@ -226,6 +233,9 @@ def signup_seller():
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     """Sign up page with comprehensive validation including NRIC checksum"""
+    if request.method == 'GET':
+        return render_template('signup.html')
+
     if request.method == 'POST':
         errors = []
 
@@ -262,13 +272,9 @@ def signup():
 
         if not nric:
             errors.append('NRIC number is required')
-        elif not validate_nric(nric):
-            errors.append('Invalid NRIC. Must start with S, T, F, G, or M, followed by 7 digits and a valid checksum letter')
 
         if not license_number:
             errors.append('Driver\'s license number is required')
-        elif not validate_license(license_number):
-            errors.append('Invalid license number format')
 
         if not password:
             errors.append('Password is required')
@@ -298,11 +304,8 @@ def signup():
         elif not validate_file_size(license_image):
             errors.append('License image must be less than 5MB')
 
-        # Check if user already exists
-        if 'users' not in session:
-            session['users'] = {}
-
-        if email in session['users']:
+        existing = get_user_by_email(email)
+        if existing:
             errors.append('Email already registered')
 
         # If there are validation errors, return them
@@ -315,14 +318,18 @@ def signup():
         if not os.path.exists(Config.UPLOAD_FOLDER):
             os.makedirs(Config.UPLOAD_FOLDER)
 
-        # Save uploaded files
+        # Save uploaded files (disk) and capture bytes for DB storage
         nric_filename = secure_filename(f"{email}_nric_{nric_image.filename}")
         license_filename = secure_filename(f"{email}_license_{license_image.filename}")
+
+        nric_bytes = nric_image.read()
+        license_bytes = license_image.read()
+        nric_image.seek(0)
+        license_image.seek(0)
 
         nric_image.save(os.path.join(Config.UPLOAD_FOLDER, nric_filename))
         license_image.save(os.path.join(Config.UPLOAD_FOLDER, license_filename))
 
-        # Create user account
         user_data_plain = {
             'first_name': first_name,
             'last_name': last_name,
@@ -330,17 +337,16 @@ def signup():
             'phone': phone,
             'nric': nric,
             'license_number': license_number,
-            'password': generate_password_hash(password),
-            'nric_image': nric_filename,
-            'license_image': license_filename,
-            'user_type': 'user',  # Set user type as regular user
-            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'verified': False  # Pending admin approval
+            'password_hash': generate_password_hash(password),
+            'user_type': 'user',
+            'documents': {
+                'nric_image': {'filename': nric_filename, 'mime': nric_image.mimetype, 'data': nric_bytes, 'path': nric_filename},
+                'license_image': {'filename': license_filename, 'mime': license_image.mimetype, 'data': license_bytes, 'path': license_filename}
+            }
         }
 
-        # Encrypt sensitive fields before storing
-        session['users'][email] = _encrypt_user_record(user_data_plain)
-        session.modified = True
+        # Persist to DB with pending status for admin review
+        create_user_with_documents(user_data_plain)
 
         # Redirect to registration pending page
         flash('Registration submitted successfully! Please wait for admin approval.', 'success')
@@ -371,26 +377,23 @@ def login():
         flash('Email and password are required', 'error')
         return redirect(request.referrer or url_for('index'))
 
-    users = session.get('users', {})
-
-    if email not in users:
+    user = get_user_by_email(email)
+    if not user or not check_password_hash(user.get('password_hash', ''), password):
         flash('Invalid email or password', 'error')
         return redirect(request.referrer or url_for('index'))
 
-    user = _decrypt_user_record(users[email])
-
     # Check if user account is verified/approved
-    if not user.get('verified', False):
+    if not user.get('verified'):
         flash('Your account is pending approval. Please wait for admin verification.', 'error')
         return redirect(url_for('registration_pending'))
 
-    if not check_password_hash(user['password'], password):
-        flash('Invalid email or password', 'error')
-        return redirect(request.referrer or url_for('index'))
+    # Clear any stale flashes from earlier flows before setting the success message
+    session.pop('_flashes', None)
 
     # Login successful
     session['user'] = email
-    session['user_name'] = f"{user['first_name']} {user['last_name']}"
+    session['user_id'] = user.get('user_id')
+    session['user_name'] = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
     session['user_type'] = user.get('user_type', 'user')  # Get user type from stored data
     session.modified = True
 
@@ -414,6 +417,7 @@ def login():
 def logout():
     """Handle user logout"""
     session.pop('user', None)
+    session.pop('user_id', None)
     session.pop('user_name', None)
     session.pop('user_type', None)
     session.modified = True
@@ -431,36 +435,41 @@ def admin_panel():
     if 'user' not in session or session.get('user_type') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('index'))
-    
-    # Get all users
-    users = session.get('users', {})
-    
-    # Separate users by status and type
-    pending_users = []
-    pending_sellers = []
-    approved_users = []
-    approved_sellers = []
-    
-    for email, encrypted_data in users.items():
-        user = _decrypt_user_record(encrypted_data)
-        user['email'] = email  # Add email to user dict for display
-        
-        if user.get('user_type') == 'admin':
-            continue  # Skip admin accounts
-        
-        if not user.get('verified', False):
-            # Pending approval
-            if user.get('user_type') == 'seller':
-                pending_sellers.append(user)
-            else:
-                pending_users.append(user)
-        else:
-            # Approved
-            if user.get('user_type') == 'seller':
-                approved_sellers.append(user)
-            else:
-                approved_users.append(user)
-    
+
+    # Clear any lingering flashes from prior login attempts to keep the admin view clean
+    session.pop('_flashes', None)
+
+    def adapt(ticket):
+        docs = ticket.get('documents', {})
+        def doc_url(doc):
+            if not doc or not isinstance(doc, dict) or not doc.get('id'):
+                return None
+            return url_for('admin_document', doc_id=doc['id'])
+        return {
+            'ticket_id': ticket.get('ticket_id'),
+            'first_name': ticket.get('first_name'),
+            'last_name': ticket.get('last_name'),
+            'email': ticket.get('email'),
+            'phone': ticket.get('phone'),
+            'nric': ticket.get('nric'),
+            'license_number': ticket.get('license_number'),
+            'user_type': ticket.get('user_type'),
+            'created_at': ticket.get('submitted_at'),
+            'status': ticket.get('status'),
+            'nric_image': doc_url(docs.get('nric_image')),
+            'license_image': doc_url(docs.get('license_image')),
+            'vehicle_card_image': doc_url(docs.get('vehicle_card_image')),
+            'insurance_image': doc_url(docs.get('insurance_image')),
+        }
+
+    pending_tickets = get_signup_tickets(status='pending')
+    approved_tickets = get_signup_tickets(status='approved')
+
+    pending_users = [adapt(t) for t in pending_tickets if t.get('user_type') == 'user']
+    pending_sellers = [adapt(t) for t in pending_tickets if t.get('user_type') == 'seller']
+    approved_users = [adapt(t) for t in approved_tickets if t.get('user_type') == 'user']
+    approved_sellers = [adapt(t) for t in approved_tickets if t.get('user_type') == 'seller']
+
     return render_template('admin_panel.html',
                          pending_users=pending_users,
                          pending_sellers=pending_sellers,
@@ -471,76 +480,66 @@ def admin_panel():
 # ============================================
 # ADMIN APPROVE USER
 # ============================================
-@app.route('/admin/approve/<email>', methods=['POST'])
-def admin_approve_user(email):
+@app.route('/admin/approve/<int:ticket_id>', methods=['POST'])
+def admin_approve_user(ticket_id):
     """Approve a pending user registration"""
-    # Check if user is logged in and is admin
     if 'user' not in session or session.get('user_type') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('index'))
-    
-    users = session.get('users', {})
-    
-    if email not in users:
-        flash('User not found', 'error')
-        return redirect(url_for('admin_panel'))
-    
-    # Decrypt, update, and re-encrypt
-    user_data = _decrypt_user_record(users[email])
-    user_data['verified'] = True
-    user_data['verified_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
-    session['users'][email] = _encrypt_user_record(user_data)
-    session.modified = True
-    
-    user_type = user_data.get('user_type', 'user')
-    flash(f'{user_type.capitalize()} {email} has been approved successfully!', 'success')
+
+    ok = set_signup_status(ticket_id, 'approved', reviewer=session.get('user'))
+    if ok:
+        flash('Signup approved successfully!', 'success')
+    else:
+        flash('Signup ticket not found.', 'error')
     return redirect(url_for('admin_panel'))
 
 
 # ============================================
 # ADMIN REJECT USER
 # ============================================
-@app.route('/admin/reject/<email>', methods=['POST'])
-def admin_reject_user(email):
+@app.route('/admin/reject/<int:ticket_id>', methods=['POST'])
+def admin_reject_user(ticket_id):
     """Reject and delete a pending user registration"""
-    # Check if user is logged in and is admin
     if 'user' not in session or session.get('user_type') != 'admin':
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('index'))
-    
-    users = session.get('users', {})
-    
-    if email not in users:
-        flash('User not found', 'error')
-        return redirect(url_for('admin_panel'))
-    
-    # Get user data to delete uploaded files
-    user_data = _decrypt_user_record(users[email])
-    
-    # Delete uploaded files
-    files_to_delete = [
-        user_data.get('nric_image'),
-        user_data.get('license_image'),
-        user_data.get('vehicle_card_image'),  # For sellers
-        user_data.get('insurance_image')  # For sellers
-    ]
-    
-    for filename in files_to_delete:
-        if filename:
-            filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
-            if os.path.exists(filepath):
-                try:
-                    os.remove(filepath)
-                except Exception as e:
-                    print(f"Error deleting file {filepath}: {e}")
-    
-    # Remove user from session
-    del session['users'][email]
-    session.modified = True
-    
-    flash(f'User {email} has been rejected and removed.', 'success')
+
+    ok = set_signup_status(ticket_id, 'rejected', reviewer=session.get('user'))
+    if ok:
+        flash('Signup rejected.', 'success')
+    else:
+        flash('Signup ticket not found.', 'error')
     return redirect(url_for('admin_panel'))
+
+
+# ============================================
+# ADMIN DOCUMENT SERVE
+# ============================================
+from flask import send_file
+from io import BytesIO
+@app.route('/admin/document/<int:doc_id>')
+def admin_document(doc_id):
+    """Serve a stored document from DB to admin."""
+    from mysql.connector import Error
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT file_name, mime_type, file_data FROM user_documents WHERE id = %s",
+                (doc_id,)
+            )
+            row = cursor.fetchone()
+            cursor.close()
+            if not row or not row.get('file_data'):
+                return "File not found", 404
+            return send_file(
+                BytesIO(row['file_data']),
+                download_name=row.get('file_name') or f'doc_{doc_id}',
+                mimetype=row.get('mime_type') or 'application/octet-stream'
+            )
+    except Error as exc:
+        return f"Error retrieving file: {exc}", 500
 
 
 # ============================================
@@ -558,8 +557,14 @@ def user_home():
     if session.get('user_type') != 'user':
         flash('Access denied. This page is for regular users only.', 'error')
         return redirect(url_for('index'))
-    
-    return render_template('user_home.html')
+
+    default_pickup = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+    default_return = (datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d')
+    cart_count = get_cart_count(session)
+    return render_template('index_logged.html',
+                           default_pickup=default_pickup,
+                           default_return=default_return,
+                           cart_count=cart_count)
 
 
 # ============================================
@@ -578,7 +583,7 @@ def seller_dashboard():
         flash('Access denied. This page is for sellers only.', 'error')
         return redirect(url_for('index'))
     
-    return render_template('seller_dashboard.html')
+    return render_template('seller_index.html')
 
 
 # ============================================
@@ -592,27 +597,24 @@ def create_admin():
         password = request.form.get('password', '')
         first_name = request.form.get('first_name', '').strip()
         last_name = request.form.get('last_name', '').strip()
-        
-        if 'users' not in session:
-            session['users'] = {}
-        
-        if email in session['users']:
+
+        existing = get_user_by_email(email)
+        if existing:
             flash('Admin already exists!', 'error')
             return redirect(url_for('index'))
-        
+
         admin_data = {
             'first_name': first_name,
             'last_name': last_name,
             'email': email,
-            'password': generate_password_hash(password),
+            'password_hash': generate_password_hash(password),
             'user_type': 'admin',
-            'verified': True,  # Admin is automatically verified
-            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            'documents': {}
         }
-        
-        session['users'][email] = _encrypt_user_record(admin_data)
-        session.modified = True
-        
+
+        _, ticket_id = create_user_with_documents(admin_data)
+        set_signup_status(ticket_id, 'approved', reviewer='system')
+
         flash('Admin account created successfully! You can now log in.', 'success')
         return redirect(url_for('index'))
     
@@ -740,9 +742,8 @@ def forgot_password():
         if not email or not validate_email(email):
             return "Invalid email address", 400
 
-        users = session.get('users', {})
-
-        if email not in users:
+        user = get_user_by_email(email)
+        if not user:
             flash('If an account exists with that email, you will receive a password reset link.', 'info')
             return render_template('forgot_password.html')
 
@@ -798,13 +799,9 @@ def reset_password(token):
             flash(message, 'error')
             return render_template('reset_password.html', token=token)
 
-        users = session.get('users', {})
-        if email in users:
-            record = _decrypt_user_record(users[email])
-            record['password'] = generate_password_hash(new_password)
-            users[email] = _encrypt_user_record(record)
-            session['users'] = users
-            session.modified = True
+        user = get_user_by_email(email)
+        if user:
+            update_user_password(email, generate_password_hash(new_password))
 
             PASSWORD_RESET_TOKENS[token]['used'] = True
 
@@ -1043,9 +1040,9 @@ def booking_history():
     bookings = []
     try:
         user = get_user_by_email(user_email)
-        if user and user.get('id'):
+        if user and user.get('user_id'):
             # Get user bookings from database
-            bookings = get_user_bookings(user.get('id'))
+            bookings = get_user_bookings(user.get('user_id'))
     except Exception as e:
         # If database fails, try session-based bookings
         print(f"Database error: {e}")
@@ -2000,4 +1997,4 @@ if __name__ == "__main__":
     print("Decrypted:", decrypt_value(encrypted))
 
     # Run without HTTPS - change to ssl_context="adhoc" to enable HTTPS
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    app.run(debug=True, host='127.0.0.1', port=5001)

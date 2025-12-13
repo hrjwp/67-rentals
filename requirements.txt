@@ -1,0 +1,3 @@
+stripe
+pycryptodome
+mysql-connector-python

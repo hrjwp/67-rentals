@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import mysql.connector
 from mysql.connector import Error
+from db_config import DB_CONFIG
 
 from config import Config
 from utils.encryption import encrypt_value, decrypt_value
@@ -33,13 +34,7 @@ class SecureBackup:
     def get_db_connection(self):
         """Get database connection"""
         try:
-            return mysql.connector.connect(
-                host="mysql-67rentals-mymail-e67.e.aivencloud.com",
-                user="avnadmin",
-                password="AVNS_zofo1mZWBotNQUe8XAx",
-                database="defaultdb",
-                port="11215"
-            )
+            return mysql.connector.connect(**DB_CONFIG)
         except Error as e:
             raise Exception(f"Database connection failed: {e}")
     
@@ -348,4 +343,3 @@ class SecureBackup:
                     deleted.append(filename)
         
         return deleted
-

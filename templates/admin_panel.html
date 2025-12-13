@@ -414,25 +414,28 @@
                         <div class="documents-section">
                             <p class="documents-title">Uploaded Documents:</p>
                             <div class="document-links">
-                                <a href="{{ url_for('static', filename='uploads/' + user.nric_image) }}" target="_blank"
+                                {% if user.nric_image %}
+                                <a href="{{ user.nric_image }}" target="_blank"
                                     class="doc-link">
                                     <i class="bi bi-file-image"></i> NRIC Image
                                 </a>
-                                <a href="{{ url_for('static', filename='uploads/' + user.license_image) }}"
-                                    target="_blank" class="doc-link">
+                                {% endif %}
+                                {% if user.license_image %}
+                                <a href="{{ user.license_image }}" target="_blank" class="doc-link">
                                     <i class="bi bi-file-image"></i> License Image
                                 </a>
+                                {% endif %}
                             </div>
                         </div>
                         <div class="action-buttons">
-                            <form action="{{ url_for('admin_approve_user', email=user.email) }}" method="POST"
+                            <form action="{{ url_for('admin_approve_user', ticket_id=user.ticket_id) }}" method="POST"
                                 style="display: inline;">
                                 <button type="submit" class="btn-approve"
                                     onclick="return confirm('Approve this user registration?')">
                                     <i class="bi bi-check-circle"></i> Approve
                                 </button>
                             </form>
-                            <form action="{{ url_for('admin_reject_user', email=user.email) }}" method="POST"
+                            <form action="{{ url_for('admin_reject_user', ticket_id=user.ticket_id) }}" method="POST"
                                 style="display: inline;">
                                 <button type="submit" class="btn-reject"
                                     onclick="return confirm('Reject and delete this user registration?')">
@@ -479,33 +482,41 @@
                         <div class="documents-section">
                             <p class="documents-title">Uploaded Documents:</p>
                             <div class="document-links">
-                                <a href="{{ url_for('static', filename='uploads/' + seller.nric_image) }}"
+                                {% if seller.nric_image %}
+                                <a href="{{ seller.nric_image }}"
                                     target="_blank" class="doc-link">
                                     <i class="bi bi-file-image"></i> NRIC
                                 </a>
-                                <a href="{{ url_for('static', filename='uploads/' + seller.license_image) }}"
+                                {% endif %}
+                                {% if seller.license_image %}
+                                <a href="{{ seller.license_image }}"
                                     target="_blank" class="doc-link">
                                     <i class="bi bi-file-image"></i> License
                                 </a>
-                                <a href="{{ url_for('static', filename='uploads/' + seller.vehicle_card_image) }}"
+                                {% endif %}
+                                {% if seller.vehicle_card_image %}
+                                <a href="{{ seller.vehicle_card_image }}"
                                     target="_blank" class="doc-link">
                                     <i class="bi bi-file-image"></i> Vehicle Card
                                 </a>
-                                <a href="{{ url_for('static', filename='uploads/' + seller.insurance_image) }}"
+                                {% endif %}
+                                {% if seller.insurance_image %}
+                                <a href="{{ seller.insurance_image }}"
                                     target="_blank" class="doc-link">
                                     <i class="bi bi-file-image"></i> Insurance
                                 </a>
+                                {% endif %}
                             </div>
                         </div>
                         <div class="action-buttons">
-                            <form action="{{ url_for('admin_approve_user', email=seller.email) }}" method="POST"
+                            <form action="{{ url_for('admin_approve_user', ticket_id=seller.ticket_id) }}" method="POST"
                                 style="display: inline;">
                                 <button type="submit" class="btn-approve"
                                     onclick="return confirm('Approve this seller registration?')">
                                     <i class="bi bi-check-circle"></i> Approve
                                 </button>
                             </form>
-                            <form action="{{ url_for('admin_reject_user', email=seller.email) }}" method="POST"
+                            <form action="{{ url_for('admin_reject_user', ticket_id=seller.ticket_id) }}" method="POST"
                                 style="display: inline;">
                                 <button type="submit" class="btn-reject"
                                     onclick="return confirm('Reject and delete this seller registration?')">

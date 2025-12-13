@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Seller Dashboard - 67 Rentals</title>
+    <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/bootstrap-icons.css') }}" rel="stylesheet">
+    <style>
+        body { background: #f5f7fb; }
+        .hero { background: linear-gradient(135deg, #2c3e50, #2980b9); color: #fff; padding: 40px 20px; }
+        .card { border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">Seller Dashboard</h1>
+                    <p class="mb-0">Welcome{{ ' ' + session.get('user_name','') if session.get('user_name') else '' }}</p>
+                </div>
+                <a class="btn btn-light btn-sm" href="{{ url_for('logout') }}">Logout</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container my-4">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="card p-3">
+                    <h5 class="mb-1">Manage Listings</h5>
+                    <p class="text-muted small mb-3">Add or update your vehicles.</p>
+                    <a class="btn btn-primary btn-sm" href="{{ url_for('manage_listings') }}">Open Listings</a>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card p-3">
+                    <h5 class="mb-1">Cancellation Requests</h5>
+                    <p class="text-muted small mb-3">Review pending cancellations.</p>
+                    <a class="btn btn-primary btn-sm" href="{{ url_for('seller_cancellation_requests') }}">View Requests</a>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card p-3">
+                    <h5 class="mb-1">Listings Gallery</h5>
+                    <p class="text-muted small mb-3">See your vehicles as customers do.</p>
+                    <a class="btn btn-primary btn-sm" href="{{ url_for('vehicle_listing_seller_logged') }}">View Gallery</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
