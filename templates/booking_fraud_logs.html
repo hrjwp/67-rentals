@@ -27,6 +27,11 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            /* Security: Prevent text selection */
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
         }
 
         body {
@@ -35,12 +40,154 @@
             min-height: 100vh;
         }
 
+        /* --- Security Overlays Start --- */
+        .security-banner {
+            background: #ff6b6b;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            font-weight: 600;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            font-size: 14px;
+        }
+
+        .session-timer {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 9999;
+            font-weight: 600;
+            color: var(--secondary-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        .timer-warning {
+            background: #ff6b6b !important;
+            color: white !important;
+            animation: pulse 1s infinite;
+            border-color: #ff6b6b;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .watermark-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9997;
+            overflow: hidden;
+        }
+
+        .watermark-text {
+            position: absolute;
+            font-size: 80px;
+            font-weight: bold;
+            color: rgba(61, 64, 91, 0.05);
+            white-space: nowrap;
+            transform: rotate(-20deg);
+        }
+
+        .watermark-text:nth-child(1) { top: 10%; left: 5%; }
+        .watermark-text:nth-child(2) { top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-20deg); }
+        .watermark-text:nth-child(3) { bottom: 10%; right: 5%; }
+
+        .blocked-action {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #ff6b6b;
+            color: white;
+            padding: 30px 50px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+            z-index: 10001;
+            text-align: center;
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translate(-50%, -60%); opacity: 0; }
+            to { transform: translate(-50%, -50%); opacity: 1; }
+        }
+
+        .session-expired {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(61, 64, 91, 0.95);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10002;
+        }
+
+        .expired-content {
+            background: white;
+            padding: 50px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .expired-content h1 { color: #ff6b6b; margin-bottom: 20px; }
+        .expired-content .btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-weight: 600;
+        }
+
+        .activity-log {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            max-width: 300px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            z-index: 9998;
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        .activity-log h4 { margin-bottom: 10px; color: var(--secondary-color); font-weight: 700; }
+        .activity-item { padding: 5px 0; border-bottom: 1px solid #e0e0e0; color: #666; }
+        /* --- Security Overlays End --- */
+
         .navbar {
             background: var(--secondary-color);
             z-index: 99;
             padding-top: 15px;
             padding-bottom: 15px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-top: 40px; /* Push down to fit security banner */
         }
 
         .navbar-brand-text {
@@ -352,7 +499,38 @@
     </style>
 </head>
 <body>
-    <!-- Navbar -->
+    <div class="security-banner">
+        🔒 SECURE DATABASE ACCESS - Data Copying Disabled - Session: <span id="sessionId"></span>
+    </div>
+
+    <div class="session-timer" id="sessionTimer">
+        ⏱️ Session: <span id="timeLeft">15:00</span>
+    </div>
+
+    <div class="watermark-overlay">
+        <div class="watermark-text">CONFIDENTIAL</div>
+        <div class="watermark-text">CONFIDENTIAL</div>
+        <div class="watermark-text">CONFIDENTIAL</div>
+    </div>
+
+    <div class="blocked-action" id="blockedAlert">
+        <h2>🚫 Action Blocked</h2>
+        <p id="blockedMessage">This action has been blocked for security reasons.</p>
+    </div>
+
+    <div class="session-expired" id="sessionExpired">
+        <div class="expired-content">
+            <h1>⏰ Session Expired</h1>
+            <p>Your session has timed out for security reasons.</p>
+            <p style="margin-top: 15px; color: #666;">All attempted actions have been logged.</p>
+            <button class="btn" onclick="location.reload()">Login Again</button>
+        </div>
+    </div>
+
+    <div class="activity-log" id="activityLog">
+        <h4>🔍 Security Activity</h4>
+        <div id="logEntries"></div>
+    </div>
     <nav class="navbar navbar-expand-lg">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="/">
@@ -391,16 +569,13 @@
         </div>
     </nav>
 
-    <!-- Main Content -->
     <main>
         <div class="container">
-            <!-- Page Header -->
             <div class="page-header">
                 <h1><i class="bi bi-calendar-check me-2"></i>Booking Fraud Detection Logs</h1>
                 <p>Monitor rapid bookings, card declines, and ML risk scores</p>
             </div>
 
-            <!-- Stats Grid -->
             <div class="stats-grid">
                 <div class="stat-card">
                     <h3>Total Events</h3>
@@ -420,7 +595,6 @@
                 </div>
             </div>
 
-            <!-- Filters -->
             <div class="filters-section">
                 <h3><i class="bi bi-funnel me-2"></i>Filters</h3>
                 <div class="filter-group">
@@ -450,7 +624,6 @@
                 </div>
             </div>
 
-            <!-- Logs Section -->
             <div class="logs-section">
                 <h2><i class="bi bi-list-ul me-2"></i>Booking Fraud Logs</h2>
                 <div id="logsContainer" class="loading">Loading logs...</div>
@@ -458,7 +631,6 @@
         </div>
     </main>
 
-    <!-- Footer -->
     <footer class="footer">
         <div class="container">
             <div class="row">
@@ -477,6 +649,201 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // --- Security Scripts Start ---
+        const SESSION_DURATION = 900; // 15 minutes
+        let sessionTimeRemaining = SESSION_DURATION;
+        let sessionInterval;
+        let activityLogs = [];
+        let screenshotAttempts = 0;
+
+        // Generate unique session ID
+        const sessionId = 'SID-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+        document.getElementById('sessionId').textContent = sessionId;
+
+        function logActivity(action, severity = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            activityLogs.unshift({action, timestamp, severity});
+
+            if (activityLogs.length > 10) activityLogs.pop();
+
+            const logContainer = document.getElementById('logEntries');
+            logContainer.innerHTML = activityLogs.map(log =>
+                `<div class="activity-item" style="color: ${log.severity === 'warning' ? '#E07A5F' : '#666'}">
+                    ${log.timestamp} - ${log.action}
+                </div>`
+            ).join('');
+        }
+
+        function showBlockedAlert(message) {
+            const alert = document.getElementById('blockedAlert');
+            document.getElementById('blockedMessage').textContent = message;
+            alert.style.display = 'block';
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 2000);
+        }
+
+        function startSessionTimer() {
+            sessionInterval = setInterval(() => {
+                sessionTimeRemaining--;
+
+                const minutes = Math.floor(sessionTimeRemaining / 60);
+                const seconds = sessionTimeRemaining % 60;
+                const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+                document.getElementById('timeLeft').textContent = timeDisplay;
+
+                const timerEl = document.getElementById('sessionTimer');
+                if (sessionTimeRemaining <= 60) {
+                    timerEl.classList.add('timer-warning');
+                }
+
+                if (sessionTimeRemaining <= 0) {
+                    clearInterval(sessionInterval);
+                    document.getElementById('sessionExpired').style.display = 'flex';
+                    logActivity('Session expired - Auto logout', 'warning');
+                }
+            }, 1000);
+        }
+
+        function resetSessionTimer() {
+            sessionTimeRemaining = SESSION_DURATION;
+            document.getElementById('sessionTimer').classList.remove('timer-warning');
+        }
+
+        // Security event handlers
+        document.addEventListener('copy', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Copying data is not allowed for security reasons.');
+            logActivity('Copy attempt blocked', 'warning');
+        });
+
+        document.addEventListener('cut', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Cutting data is not allowed for security reasons.');
+            logActivity('Cut attempt blocked', 'warning');
+        });
+
+        document.addEventListener('paste', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Pasting is not allowed in this secure area.');
+            logActivity('Paste attempt blocked', 'warning');
+        });
+
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Right-click menu is disabled in secure areas.');
+            logActivity('Context menu blocked', 'warning');
+        });
+
+        document.addEventListener('keydown', (e) => {
+            // Block F12 (DevTools)
+            if (e.keyCode === 123) {
+                e.preventDefault();
+                showBlockedAlert('Developer tools are disabled.');
+                logActivity('DevTools access blocked', 'warning');
+                return false;
+            }
+
+            // Block Ctrl+Shift+I/J/C
+            if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) {
+                e.preventDefault();
+                showBlockedAlert('Developer tools are disabled.');
+                logActivity('DevTools shortcut blocked', 'warning');
+                return false;
+            }
+
+            // Block Ctrl+U (View Source)
+            if (e.ctrlKey && e.key === 'u') {
+                e.preventDefault();
+                showBlockedAlert('Viewing source code is disabled.');
+                logActivity('View source blocked', 'warning');
+                return false;
+            }
+
+            // Block Ctrl+S (Save Page)
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                showBlockedAlert('Saving pages is disabled.');
+                logActivity('Save page blocked', 'warning');
+                return false;
+            }
+
+            // Block Ctrl+P (Print)
+            if (e.ctrlKey && e.key === 'p') {
+                e.preventDefault();
+                showBlockedAlert('Printing is disabled for security reasons.');
+                logActivity('Print attempt blocked', 'warning');
+                return false;
+            }
+
+            // Print Screen Detection
+            if (e.key === 'PrintScreen') {
+                navigator.clipboard.writeText(''); // Clear clipboard
+                screenshotAttempts++;
+                showBlockedAlert(`Screenshot attempt detected. Session: ${sessionId}`);
+                logActivity(`Screenshot attempt #${screenshotAttempts}`, 'warning');
+                document.body.style.filter = 'invert(1)';
+                setTimeout(() => { document.body.style.filter = 'none'; }, 100);
+            }
+
+            // Any key press resets timer
+            resetSessionTimer();
+        });
+
+        // Detect Snipping Tool (Windows Key + Shift + S) and other combinations
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 's' && e.shiftKey && e.metaKey) {
+                screenshotAttempts++;
+                showBlockedAlert(`Snipping tool detected! Attempt #${screenshotAttempts} logged.`);
+                logActivity(`Snipping tool attempt #${screenshotAttempts}`, 'warning');
+            }
+        });
+
+        // Detect visibility change (often triggered by screen capture tools overlaying the window)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                screenshotAttempts++;
+                logActivity(`Window hidden (potential screenshot #${screenshotAttempts})`, 'warning');
+                document.body.style.filter = 'blur(10px)';
+            } else {
+                document.body.style.filter = 'none';
+            }
+        });
+
+        // Detect focus loss (often happens when clicking "New" on Snipping Tool)
+        window.addEventListener('blur', () => {
+            logActivity('Window lost focus - possible screenshot tool active', 'warning');
+        });
+
+        window.addEventListener('beforeprint', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Printing is disabled for security reasons.');
+            logActivity('Print blocked', 'warning');
+            return false;
+        });
+
+        // Monitor for Screen Recording API usage
+        setInterval(() => {
+            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                const now = Date.now();
+                if (!window.lastCaptureWarning || now - window.lastCaptureWarning > 60000) {
+                    window.lastCaptureWarning = now;
+                    logActivity('Screen capture API detected - monitoring', 'warning');
+                }
+            }
+        }, 30000);
+
+        // Mouse interaction resets timer
+        document.addEventListener('mousemove', resetSessionTimer);
+        document.addEventListener('click', resetSessionTimer);
+        document.addEventListener('scroll', resetSessionTimer);
+
+        window.addEventListener('beforeunload', (e) => {
+            logActivity(`Session ended - ${screenshotAttempts} screenshot attempts detected`, 'info');
+        });
+        // --- Security Scripts End ---
+
         async function loadStats() {
             const response = await fetch('/api/booking-fraud-stats');
             const stats = await response.json();
@@ -503,6 +870,7 @@
             const logs = await response.json();
 
             displayLogs(logs);
+            // NOTE: Do NOT reset session timer here to avoid infinite session loops
         }
 
         function displayLogs(logs) {
@@ -617,8 +985,11 @@
         document.getElementById('userIdFilter').addEventListener('input', loadLogs);
         document.getElementById('riskFilter').addEventListener('change', loadLogs);
 
+        // Init
         loadStats();
         loadLogs();
+        startSessionTimer();
+        logActivity(`Secure session started - ${sessionId}`, 'info');
 
         setInterval(() => {
             loadStats();

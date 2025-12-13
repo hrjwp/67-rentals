@@ -1997,4 +1997,4 @@ if __name__ == "__main__":
     print("Decrypted:", decrypt_value(encrypted))
 
     # Run without HTTPS - change to ssl_context="adhoc" to enable HTTPS
-    app.run(debug=True, host='127.0.0.1', port=5001)
+    app.run(debug=True, host='127.0.0.1', port=5000)
