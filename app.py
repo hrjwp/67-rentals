@@ -44,6 +44,7 @@ from utils.helpers import (
 )
 from utils.encryption import encrypt_value, decrypt_value
 from utils.backup import SecureBackup
+from utils.file_security import validate_uploaded_file, sanitize_filename
 
 
 app = Flask(__name__)
@@ -170,6 +171,11 @@ def signup_seller():
                         errors.append(f'{file_name} must be a valid image file (png, jpg, jpeg, gif)')
                     elif not validate_file_size(file_field):
                         errors.append(f'{file_name} must be less than 5MB')
+                    else:
+                        # Enhanced security: Verify file content matches extension (magic number check)
+                        is_valid, error_msg, detected_type = validate_uploaded_file(file_field)
+                        if not is_valid:
+                            errors.append(f'{file_name}: {error_msg}')
 
             # If there are validation errors, return them
             if errors:
@@ -182,10 +188,16 @@ def signup_seller():
                 os.makedirs(Config.UPLOAD_FOLDER)
 
             # Save files with secure filenames
-            nric_filename = secure_filename(f"{email}_nric_{nric_image.filename}")
-            license_filename = secure_filename(f"{email}_license_{license_image.filename}")
-            vehicle_card_filename = secure_filename(f"{email}_vehicle_{vehicle_card_image.filename}")
-            insurance_filename = secure_filename(f"{email}_insurance_{insurance_image.filename}")
+            # Sanitize filenames for security
+            safe_nric_filename = sanitize_filename(nric_image.filename)
+            safe_license_filename = sanitize_filename(license_image.filename)
+            safe_vehicle_card_filename = sanitize_filename(vehicle_card_image.filename)
+            safe_insurance_filename = sanitize_filename(insurance_image.filename)
+            
+            nric_filename = secure_filename(f"{email}_nric_{safe_nric_filename}")
+            license_filename = secure_filename(f"{email}_license_{safe_license_filename}")
+            vehicle_card_filename = secure_filename(f"{email}_vehicle_{safe_vehicle_card_filename}")
+            insurance_filename = secure_filename(f"{email}_insurance_{safe_insurance_filename}")
 
             # Capture bytes and save to upload folder
             nric_bytes = nric_image.read()
@@ -298,6 +310,11 @@ def signup():
             errors.append('NRIC image must be a valid image file (png, jpg, jpeg, gif)')
         elif not validate_file_size(nric_image):
             errors.append('NRIC image must be less than 5MB')
+        else:
+            # Enhanced security: Verify file content matches extension (magic number check)
+            is_valid, error_msg, detected_type = validate_uploaded_file(nric_image)
+            if not is_valid:
+                errors.append(f'NRIC image: {error_msg}')
 
         if not license_image or license_image.filename == '':
             errors.append('Driver\'s license image is required')
@@ -305,6 +322,11 @@ def signup():
             errors.append('License image must be a valid image file (png, jpg, jpeg, gif)')
         elif not validate_file_size(license_image):
             errors.append('License image must be less than 5MB')
+        else:
+            # Enhanced security: Verify file content matches extension (magic number check)
+            is_valid, error_msg, detected_type = validate_uploaded_file(license_image)
+            if not is_valid:
+                errors.append(f'License image: {error_msg}')
 
         existing = get_user_by_email(email)
         if existing:
@@ -321,8 +343,11 @@ def signup():
             os.makedirs(Config.UPLOAD_FOLDER)
 
         # Save uploaded files (disk) and capture bytes for DB storage
-        nric_filename = secure_filename(f"{email}_nric_{nric_image.filename}")
-        license_filename = secure_filename(f"{email}_license_{license_image.filename}")
+        # Sanitize filenames for security
+        safe_nric_filename = sanitize_filename(nric_image.filename)
+        safe_license_filename = sanitize_filename(license_image.filename)
+        nric_filename = secure_filename(f"{email}_nric_{safe_nric_filename}")
+        license_filename = secure_filename(f"{email}_license_{safe_license_filename}")
 
         nric_bytes = nric_image.read()
         license_bytes = license_image.read()
@@ -1511,6 +1536,309 @@ def backup_test():
                 'check_backup_dir': f'Ensure {backup_system.backup_dir} directory exists and is writable',
                 'check_database': 'Verify database connection is working'
             }
+        }), 500
+
+
+@app.route('/backup-recovery-test', methods=['GET'])
+def backup_recovery_test():
+    """Test both backup creation AND recovery/restore capability (no login required for testing)"""
+    import zipfile
+    import shutil
+    
+    try:
+        backup_system = SecureBackup()
+        
+        # Initialize results
+        results = {
+            'backup_test': {'passed': False, 'message': '', 'details': {}},
+            'recovery_test': {'passed': False, 'message': '', 'details': {}},
+            'overall_status': 'error'
+        }
+        
+        test_backup_path = None
+        decrypted_path = None
+        extract_dir = None
+        
+        try:
+            # ========================================
+            # TEST 1: BACKUP CREATION
+            # ========================================
+            try:
+                test_backup_path = backup_system.create_backup(include_files=False)  # Quick test
+                
+                if os.path.exists(test_backup_path):
+                    file_size = os.path.getsize(test_backup_path)
+                    results['backup_test'] = {
+                        'passed': True,
+                        'message': 'Backup created successfully',
+                        'details': {
+                            'backup_file': os.path.basename(test_backup_path),
+                            'file_size_bytes': file_size,
+                            'encrypted': test_backup_path.endswith('.encrypted')
+                        }
+                    }
+                else:
+                    results['backup_test'] = {
+                        'passed': False,
+                        'message': 'Backup file was not created',
+                        'details': {}
+                    }
+                    return jsonify(results), 500
+                    
+            except Exception as e:
+                results['backup_test'] = {
+                    'passed': False,
+                    'message': f'Backup creation failed: {str(e)}',
+                    'details': {}
+                }
+                return jsonify(results), 500
+            
+            # ========================================
+            # TEST 2: RECOVERY (DECRYPTION & EXTRACTION)
+            # ========================================
+            try:
+                # Test decryption
+                decrypted_path = backup_system.decrypt_backup_file(test_backup_path)
+                
+                if not os.path.exists(decrypted_path):
+                    results['recovery_test'] = {
+                        'passed': False,
+                        'message': 'Decryption failed - file not created',
+                        'details': {}
+                    }
+                    return jsonify(results), 500
+                
+                # Test extraction and data reading
+                extract_dir = os.path.join(backup_system.backup_dir, 'test_extract_recovery')
+                os.makedirs(extract_dir, exist_ok=True)
+                
+                with zipfile.ZipFile(decrypted_path, 'r') as backup_zip:
+                    backup_zip.extractall(extract_dir)
+                    
+                    # Check metadata
+                    metadata_path = os.path.join(extract_dir, 'backup_metadata.json')
+                    metadata_readable = False
+                    if os.path.exists(metadata_path):
+                        with open(metadata_path, 'r') as f:
+                            metadata = json.load(f)
+                        metadata_readable = True
+                    
+                    # Check database backup
+                    db_path = os.path.join(extract_dir, 'database_backup.json')
+                    db_readable = False
+                    tables_count = 0
+                    if os.path.exists(db_path):
+                        with open(db_path, 'r') as f:
+                            db_data = json.load(f)
+                        db_readable = True
+                        tables_count = len(db_data.get('tables_backed_up', []))
+                
+                results['recovery_test'] = {
+                    'passed': True,
+                    'message': 'Recovery test passed - backup can be decrypted and data extracted',
+                    'details': {
+                        'decryption_successful': True,
+                        'extraction_successful': True,
+                        'metadata_readable': metadata_readable,
+                        'database_readable': db_readable,
+                        'tables_in_backup': tables_count,
+                        'files_extracted': len(os.listdir(extract_dir))
+                    }
+                }
+                
+            except Exception as e:
+                results['recovery_test'] = {
+                    'passed': False,
+                    'message': f'Recovery test failed: {str(e)}',
+                    'details': {}
+                }
+                return jsonify(results), 500
+            
+            # Determine overall status
+            if results['backup_test']['passed'] and results['recovery_test']['passed']:
+                results['overall_status'] = 'operational'
+            elif results['backup_test']['passed']:
+                results['overall_status'] = 'partial'  # Backup works but recovery doesn't
+            else:
+                results['overall_status'] = 'error'
+            
+            # Add summary
+            results['summary'] = {
+                'backup_works': results['backup_test']['passed'],
+                'recovery_works': results['recovery_test']['passed'],
+                'system_ready': results['overall_status'] == 'operational'
+            }
+            
+            return jsonify(results), 200
+            
+        finally:
+            # Cleanup test files
+            if extract_dir and os.path.exists(extract_dir):
+                shutil.rmtree(extract_dir, ignore_errors=True)
+            if decrypted_path and os.path.exists(decrypted_path):
+                try:
+                    os.remove(decrypted_path)
+                except:
+                    pass
+            if test_backup_path and os.path.exists(test_backup_path):
+                try:
+                    os.remove(test_backup_path)
+                except:
+                    pass
+    
+    except Exception as e:
+        return jsonify({
+            'overall_status': 'error',
+            'error': str(e),
+            'backup_test': {'passed': False, 'message': 'Test failed to run'},
+            'recovery_test': {'passed': False, 'message': 'Test failed to run'}
+        }), 500
+
+
+@app.route('/file-security-test', methods=['GET'])
+def file_security_test():
+    """Test file upload security features (no login required for testing)"""
+    try:
+        from utils.file_security import (
+            verify_file_magic_number, detect_file_type, 
+            validate_image_file, sanitize_filename
+        )
+        import base64
+        
+        results = {
+            'security_features': {
+                'magic_number_verification': True,
+                'image_validation': True,
+                'filename_sanitization': True,
+                'file_spoofing_detection': True
+            },
+            'tests': []
+        }
+        
+        all_passed = True
+        
+        # Test 1: Magic number verification
+        try:
+            # Create fake PNG (should fail - not real PNG)
+            fake_png = b'FAKE_PNG_DATA_NOT_REAL\x89\x50\x4E\x47'
+            is_valid, detected = verify_file_magic_number(fake_png, 'png')
+            if is_valid:
+                raise Exception("Fake PNG was incorrectly accepted")
+            
+            # Real PNG header
+            real_png = b'\x89\x50\x4E\x47\x0D\x0A\x1A\x0A' + b'VALID_PNG_DATA'
+            is_valid, detected = verify_file_magic_number(real_png, 'png')
+            if not is_valid:
+                raise Exception("Real PNG was incorrectly rejected")
+            
+            results['tests'].append({
+                'test_name': 'Magic Number Verification',
+                'passed': True,
+                'description': 'Detects file type from content, not just extension'
+            })
+        except Exception as e:
+            all_passed = False
+            results['tests'].append({
+                'test_name': 'Magic Number Verification',
+                'passed': False,
+                'error': str(e)
+            })
+        
+        # Test 2: File type detection
+        try:
+            jpg_data = b'\xFF\xD8\xFF\xE0\x00\x10JFIF'
+            detected = detect_file_type(jpg_data)
+            if detected != 'jpg':
+                raise Exception(f"Expected 'jpg', got '{detected}'")
+            
+            png_data = b'\x89\x50\x4E\x47\x0D\x0A\x1A\x0A'
+            detected = detect_file_type(png_data)
+            if detected != 'png':
+                raise Exception(f"Expected 'png', got '{detected}'")
+            
+            results['tests'].append({
+                'test_name': 'File Type Detection',
+                'passed': True,
+                'description': 'Correctly identifies file types from content'
+            })
+        except Exception as e:
+            all_passed = False
+            results['tests'].append({
+                'test_name': 'File Type Detection',
+                'passed': False,
+                'error': str(e)
+            })
+        
+        # Test 3: Filename sanitization
+        try:
+            dangerous_names = [
+                ('../../etc/passwd.jpg', 'etc_passwd.jpg'),
+                ('file<script>.jpg', 'file_script_.jpg'),
+                ('file\x00null.jpg', 'filenull.jpg'),
+                ('normal_file.jpg', 'normal_file.jpg')
+            ]
+            
+            for dangerous, expected_safe in dangerous_names:
+                sanitized = sanitize_filename(dangerous)
+                if '../' in sanitized or '<' in sanitized or '\x00' in sanitized:
+                    raise Exception(f"Filename not properly sanitized: {sanitized}")
+            
+            results['tests'].append({
+                'test_name': 'Filename Sanitization',
+                'passed': True,
+                'description': 'Removes dangerous characters and path traversal attempts'
+            })
+        except Exception as e:
+            all_passed = False
+            results['tests'].append({
+                'test_name': 'Filename Sanitization',
+                'passed': False,
+                'error': str(e)
+            })
+        
+        # Test 4: Image validation
+        try:
+            # Invalid image (too small)
+            tiny_file = b'X' * 50
+            is_valid, error = validate_image_file(tiny_file)
+            if is_valid:
+                raise Exception("Tiny file was incorrectly accepted as valid image")
+            
+            # Valid JPEG (minimal structure)
+            valid_jpg = b'\xFF\xD8\xFF\xE0\x00\x10JFIF' + b'X' * 200 + b'\xFF\xD9'
+            is_valid, error = validate_image_file(valid_jpg)
+            if not is_valid:
+                raise Exception(f"Valid JPEG was rejected: {error}")
+            
+            results['tests'].append({
+                'test_name': 'Image Validation',
+                'passed': True,
+                'description': 'Validates image structure, not just file extension'
+            })
+        except Exception as e:
+            all_passed = False
+            results['tests'].append({
+                'test_name': 'Image Validation',
+                'passed': False,
+                'error': str(e)
+            })
+        
+        results['overall_status'] = 'operational' if all_passed else 'error'
+        results['summary'] = {
+            'total_tests': len(results['tests']),
+            'passed_tests': sum(1 for t in results['tests'] if t.get('passed', False)),
+            'failed_tests': sum(1 for t in results['tests'] if not t.get('passed', False)),
+            'file_security_working': all_passed
+        }
+        
+        status_code = 200 if all_passed else 500
+        return jsonify(results), status_code
+        
+    except Exception as e:
+        return jsonify({
+            'overall_status': 'error',
+            'error': str(e),
+            'message': 'File security test failed to run'
         }), 500
 
 
