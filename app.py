@@ -94,7 +94,9 @@ def index_logged():
     return render_template('index_logged.html',
                            default_pickup=default_pickup,
                            default_return=default_return,
-                           cart_count=cart_count)
+                           cart_count=cart_count,
+                           user_email=session.get('user'),
+                           user_name=session.get('user_name'))
 
 
 # ============================================
