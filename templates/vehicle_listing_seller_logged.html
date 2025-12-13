@@ -306,7 +306,7 @@
                     </div>
 
                     <div class="offcanvas-body d-flex flex-column">
-                        <form class="custom-form member-login-form" action="{{ url_for('login') }}" method="post" role="form">
+                        <form class="custom-form member-login-form" action="#" method="post" role="form">
 
                             <div class="member-login-form-body">
                                 <div class="mb-4">
@@ -318,7 +318,7 @@
                                 <div class="mb-4">
                                     <label class="form-label mb-2" for="member-login-password">Password</label>
 
-                                    <input type="password" name="password" id="member-login-password"  class="form-control" placeholder="Password" required="">
+                                    <input type="password" name="member-login-password" id="member-login-password" pattern="[0-9a-zA-Z]{4,10}" class="form-control" placeholder="Password" required="">
                                 </div>
 
                                 <div class="form-check mb-4">
