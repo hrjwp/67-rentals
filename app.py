@@ -103,7 +103,126 @@ def index_logged():
 # ============================================
 # AUTHENTICATION ROUTES
 # ============================================
+#signup selection page
+# ============================================
+# SIGNUP SELECTION PAGE
+# ============================================
+# ============================================
+# UPDATED ROUTES WITH NEW NAMES
+# ============================================
 
+# ============================================
+# SIGNUP SELECTION PAGE
+# ============================================
+@app.route('/signup_sel', methods=['GET', 'POST'])
+def signup_sel():
+    return render_template('signup_sel.html')
+
+
+# ============================================
+# SELLER SIGNUP
+# ============================================
+@app.route('/signup_seller', methods=['GET', 'POST'])
+def signup_seller():
+    if request.method == 'POST':
+        try:
+            errors = []
+            
+            # Get form data
+            first_name = request.form.get('firstName', '').strip()
+            last_name = request.form.get('lastName', '').strip()
+            email = request.form.get('email', '').strip().lower()
+            phone = request.form.get('phone', '').strip()
+            password = request.form.get('password', '')
+            
+            # Get uploaded files
+            nric_image = request.files.get('nricImage')
+            license_image = request.files.get('licenseImage')
+            vehicle_card_image = request.files.get('vehicleCardImage')
+            insurance_image = request.files.get('insuranceImage')
+            
+            # Validate all required fields are present
+            if not all([first_name, last_name, email, phone, password]):
+                errors.append('All personal information fields are required')
+            
+            if not all([nric_image, license_image, vehicle_card_image, insurance_image]):
+                errors.append('All document images are required')
+            
+            # Check if user already exists
+            if 'users' not in session:
+                session['users'] = {}
+            
+            if email in session['users']:
+                errors.append('Email already registered')
+            
+            # Validate file types and sizes
+            for file_field, file_name in [
+                (nric_image, 'NRIC image'),
+                (license_image, 'License image'),
+                (vehicle_card_image, 'Vehicle card image'),
+                (insurance_image, 'Insurance image')
+            ]:
+                if file_field and file_field.filename != '':
+                    if not allowed_file(file_field.filename):
+                        errors.append(f'{file_name} must be a valid image file (png, jpg, jpeg, gif)')
+                    elif not validate_file_size(file_field):
+                        errors.append(f'{file_name} must be less than 5MB')
+            
+            # If there are validation errors, return them
+            if errors:
+                for error in errors:
+                    flash(error, 'error')
+                return redirect(url_for('signup_seller'))
+            
+            # Create upload directory if it doesn't exist
+            if not os.path.exists(Config.UPLOAD_FOLDER):
+                os.makedirs(Config.UPLOAD_FOLDER)
+            
+            # Save files with secure filenames
+            nric_filename = secure_filename(f"{email}_nric_{nric_image.filename}")
+            license_filename = secure_filename(f"{email}_license_{license_image.filename}")
+            vehicle_card_filename = secure_filename(f"{email}_vehicle_{vehicle_card_image.filename}")
+            insurance_filename = secure_filename(f"{email}_insurance_{insurance_image.filename}")
+            
+            # Save to upload folder
+            nric_image.save(os.path.join(Config.UPLOAD_FOLDER, nric_filename))
+            license_image.save(os.path.join(Config.UPLOAD_FOLDER, license_filename))
+            vehicle_card_image.save(os.path.join(Config.UPLOAD_FOLDER, vehicle_card_filename))
+            insurance_image.save(os.path.join(Config.UPLOAD_FOLDER, insurance_filename))
+            
+            # Create seller account data
+            seller_data_plain = {
+                'first_name': first_name,
+                'last_name': last_name,
+                'email': email,
+                'phone': phone,
+                'password': generate_password_hash(password),
+                'nric_image': nric_filename,
+                'license_image': license_filename,
+                'vehicle_card_image': vehicle_card_filename,
+                'insurance_image': insurance_filename,
+                'user_type': 'seller',  # Set user type as seller
+                'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'verified': False  # Pending admin approval
+            }
+            
+            # Encrypt and store seller data
+            session['users'][email] = _encrypt_user_record(seller_data_plain)
+            session.modified = True
+            
+            flash('Seller registration submitted successfully! Please wait for admin approval.', 'success')
+            return redirect(url_for('registration_pending'))
+            
+        except Exception as e:
+            flash(f'An error occurred during registration: {str(e)}', 'error')
+            return redirect(url_for('signup_seller'))
+    
+    return render_template('signup_seller.html')
+
+
+# ============================================
+# USER SIGNUP
+# ============================================
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     """Sign up page with comprehensive validation including NRIC checksum"""
@@ -214,69 +333,402 @@ def signup():
             'password': generate_password_hash(password),
             'nric_image': nric_filename,
             'license_image': license_filename,
+            'user_type': 'user',  # Set user type as regular user
             'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'verified': False
+            'verified': False  # Pending admin approval
         }
 
         # Encrypt sensitive fields before storing
         session['users'][email] = _encrypt_user_record(user_data_plain)
         session.modified = True
 
-        # Redirect to registration pending page instead of logging in automatically
+        # Redirect to registration pending page
         flash('Registration submitted successfully! Please wait for admin approval.', 'success')
         return redirect(url_for('registration_pending'))
 
     return render_template('signup.html')
 
 
+# ============================================
+# REGISTRATION PENDING PAGE
+# ============================================
 @app.route('/registration-pending')
 def registration_pending():
     """Registration pending approval page"""
     return render_template('pending_reg.html')
 
-@app.route('/login', methods=['GET', 'POST'])
+
+# ============================================
+# LOGIN ROUTE
+# ============================================
+@app.route('/login', methods=['POST'])
 def login():
-    """Login page"""
+    """Handle login from offcanvas form"""
+    email = request.form.get('email', '').strip().lower()
+    password = request.form.get('password', '')
+
+    if not email or not password:
+        flash('Email and password are required', 'error')
+        return redirect(request.referrer or url_for('index'))
+
+    users = session.get('users', {})
+
+    if email not in users:
+        flash('Invalid email or password', 'error')
+        return redirect(request.referrer or url_for('index'))
+
+    user = _decrypt_user_record(users[email])
+
+    # Check if user account is verified/approved
+    if not user.get('verified', False):
+        flash('Your account is pending approval. Please wait for admin verification.', 'error')
+        return redirect(url_for('registration_pending'))
+
+    if not check_password_hash(user['password'], password):
+        flash('Invalid email or password', 'error')
+        return redirect(request.referrer or url_for('index'))
+
+    # Login successful
+    session['user'] = email
+    session['user_name'] = f"{user['first_name']} {user['last_name']}"
+    session['user_type'] = user.get('user_type', 'user')  # Get user type from stored data
+    session.modified = True
+
+    flash(f"Welcome back, {user['first_name']}!", 'success')
+    
+    # Redirect based on user type
+    user_type = user.get('user_type', 'user')
+    
+    if user_type == 'admin':
+        return redirect(url_for('admin_panel'))  # Redirect admins to admin panel
+    elif user_type == 'seller':
+        return redirect(url_for('seller_dashboard'))  # Redirect sellers to seller dashboard
+    else:  # user_type == 'user'
+        return redirect(url_for('user_home'))  # Redirect users to user home page
+
+
+# ============================================
+# LOGOUT ROUTE
+# ============================================
+@app.route('/logout')
+def logout():
+    """Handle user logout"""
+    session.pop('user', None)
+    session.pop('user_name', None)
+    session.pop('user_type', None)
+    session.modified = True
+    flash('You have been logged out successfully.', 'success')
+    return redirect(url_for('index'))
+
+
+# ============================================
+# ADMIN PANEL (RENAMED FROM admin_dashboard)
+# ============================================
+@app.route('/admin/panel')
+def admin_panel():
+    """Admin panel to view and approve pending registrations"""
+    # Check if user is logged in and is admin
+    if 'user' not in session or session.get('user_type') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('index'))
+    
+    # Get all users
+    users = session.get('users', {})
+    
+    # Separate users by status and type
+    pending_users = []
+    pending_sellers = []
+    approved_users = []
+    approved_sellers = []
+    
+    for email, encrypted_data in users.items():
+        user = _decrypt_user_record(encrypted_data)
+        user['email'] = email  # Add email to user dict for display
+        
+        if user.get('user_type') == 'admin':
+            continue  # Skip admin accounts
+        
+        if not user.get('verified', False):
+            # Pending approval
+            if user.get('user_type') == 'seller':
+                pending_sellers.append(user)
+            else:
+                pending_users.append(user)
+        else:
+            # Approved
+            if user.get('user_type') == 'seller':
+                approved_sellers.append(user)
+            else:
+                approved_users.append(user)
+    
+    return render_template('admin_panel.html',
+                         pending_users=pending_users,
+                         pending_sellers=pending_sellers,
+                         approved_users=approved_users,
+                         approved_sellers=approved_sellers)
+
+
+# ============================================
+# ADMIN APPROVE USER
+# ============================================
+@app.route('/admin/approve/<email>', methods=['POST'])
+def admin_approve_user(email):
+    """Approve a pending user registration"""
+    # Check if user is logged in and is admin
+    if 'user' not in session or session.get('user_type') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('index'))
+    
+    users = session.get('users', {})
+    
+    if email not in users:
+        flash('User not found', 'error')
+        return redirect(url_for('admin_panel'))
+    
+    # Decrypt, update, and re-encrypt
+    user_data = _decrypt_user_record(users[email])
+    user_data['verified'] = True
+    user_data['verified_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    session['users'][email] = _encrypt_user_record(user_data)
+    session.modified = True
+    
+    user_type = user_data.get('user_type', 'user')
+    flash(f'{user_type.capitalize()} {email} has been approved successfully!', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+# ============================================
+# ADMIN REJECT USER
+# ============================================
+@app.route('/admin/reject/<email>', methods=['POST'])
+def admin_reject_user(email):
+    """Reject and delete a pending user registration"""
+    # Check if user is logged in and is admin
+    if 'user' not in session or session.get('user_type') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('index'))
+    
+    users = session.get('users', {})
+    
+    if email not in users:
+        flash('User not found', 'error')
+        return redirect(url_for('admin_panel'))
+    
+    # Get user data to delete uploaded files
+    user_data = _decrypt_user_record(users[email])
+    
+    # Delete uploaded files
+    files_to_delete = [
+        user_data.get('nric_image'),
+        user_data.get('license_image'),
+        user_data.get('vehicle_card_image'),  # For sellers
+        user_data.get('insurance_image')  # For sellers
+    ]
+    
+    for filename in files_to_delete:
+        if filename:
+            filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
+            if os.path.exists(filepath):
+                try:
+                    os.remove(filepath)
+                except Exception as e:
+                    print(f"Error deleting file {filepath}: {e}")
+    
+    # Remove user from session
+    del session['users'][email]
+    session.modified = True
+    
+    flash(f'User {email} has been rejected and removed.', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+# ============================================
+# USER HOME PAGE (RENAMED FROM index_logged)
+# ============================================
+@app.route('/user/home')
+def user_home():
+    """Home page for logged-in regular users"""
+    # Check if user is logged in
+    if 'user' not in session:
+        flash('Please log in to access this page.', 'error')
+        return redirect(url_for('index'))
+    
+    # Optional: Check if user type is 'user'
+    if session.get('user_type') != 'user':
+        flash('Access denied. This page is for regular users only.', 'error')
+        return redirect(url_for('index'))
+    
+    return render_template('user_home.html')
+
+
+# ============================================
+# SELLER DASHBOARD (RENAMED FROM seller_index)
+# ============================================
+@app.route('/seller/dashboard')
+def seller_dashboard():
+    """Dashboard page for logged-in sellers"""
+    # Check if user is logged in
+    if 'user' not in session:
+        flash('Please log in to access this page.', 'error')
+        return redirect(url_for('index'))
+    
+    # Check if user type is 'seller'
+    if session.get('user_type') != 'seller':
+        flash('Access denied. This page is for sellers only.', 'error')
+        return redirect(url_for('index'))
+    
+    return render_template('seller_dashboard.html')
+
+
+# ============================================
+# CREATE INITIAL ADMIN ACCOUNT (HELPER)
+# ============================================
+@app.route('/create-admin-secret-route-12345', methods=['GET', 'POST'])
+def create_admin():
+    """One-time route to create initial admin account - REMOVE after first admin is created"""
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
-
-        if not email or not password:
-            flash('Email and password are required', 'error')
-            return redirect(url_for('login'))
-
-        users = session.get('users', {})
-
-        if email not in users:
-            flash('Invalid email or password', 'error')
-            return redirect(url_for('login'))
-
-        user = _decrypt_user_record(users[email])
-
-        if not check_password_hash(user['password'], password):
-            flash('Invalid email or password', 'error')
-            return redirect(url_for('login'))
-
-        # Login successful
-        session['user'] = email
-        session['user_name'] = f"{user['first_name']} {user['last_name']}"
+        first_name = request.form.get('first_name', '').strip()
+        last_name = request.form.get('last_name', '').strip()
+        
+        if 'users' not in session:
+            session['users'] = {}
+        
+        if email in session['users']:
+            flash('Admin already exists!', 'error')
+            return redirect(url_for('index'))
+        
+        admin_data = {
+            'first_name': first_name,
+            'last_name': last_name,
+            'email': email,
+            'password': generate_password_hash(password),
+            'user_type': 'admin',
+            'verified': True,  # Admin is automatically verified
+            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        session['users'][email] = _encrypt_user_record(admin_data)
         session.modified = True
-
-        flash(f"Welcome back, {user['first_name']}!", 'success')
+        
+        flash('Admin account created successfully! You can now log in.', 'success')
         return redirect(url_for('index'))
+    
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Create Admin Account</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                max-width: 500px;
+                margin: 50px auto;
+                padding: 20px;
+                background-color: #f5f5f5;
+            }
+            .form-container {
+                background: white;
+                padding: 30px;
+                border-radius: 10px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }
+            h2 {
+                color: #2c3e50;
+                margin-bottom: 20px;
+            }
+            input {
+                width: 100%;
+                padding: 10px;
+                margin: 10px 0;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                box-sizing: border-box;
+            }
+            button {
+                width: 100%;
+                padding: 12px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                font-size: 16px;
+                cursor: pointer;
+                margin-top: 10px;
+            }
+            button:hover {
+                background-color: #2980b9;
+            }
+            .warning {
+                background-color: #fff3cd;
+                border: 1px solid #ffc107;
+                color: #856404;
+                padding: 10px;
+                border-radius: 5px;
+                margin-bottom: 20px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="form-container">
+            <h2> Create Admin Account</h2>
+            <div class="warning">
+                <strong> Important:</strong> Remove this route after creating your admin account!
+            </div>
+            <form method="post">
+                <input type="text" name="first_name" placeholder="First Name" required>
+                <input type="text" name="last_name" placeholder="Last Name" required>
+                <input type="email" name="email" placeholder="Email" required>
+                <input type="password" name="password" placeholder="Password" required>
+                <button type="submit">Create Admin Account</button>
+            </form>
+        </div>
+    </body>
+    </html>
+    '''
 
-    return render_template('login.html')
+
+# ============================================
+# ROLE-BASED ACCESS CONTROL DECORATOR (OPTIONAL)
+# ============================================
+from functools import wraps
+
+def role_required(*allowed_roles):
+    """Decorator to restrict access to specific user roles"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if 'user' not in session:
+                flash('Please log in to access this page', 'error')
+                return redirect(url_for('index'))
+            
+            if 'user_type' not in session or session['user_type'] not in allowed_roles:
+                flash('You do not have permission to access this page', 'error')
+                return redirect(url_for('index'))
+            
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 
-@app.route('/logout')
-def logout():
-    """Logout user"""
-    session.pop('user', None)
-    session.pop('user_name', None)
-    session.modified = True
+# ============================================
+# EXAMPLE USAGE OF ROLE DECORATOR
+# ============================================
+# @app.route('/admin/users')
+# @role_required('admin')
+# def admin_users():
+#     # Admin-only code
+#     pass
+#
+# @app.route('/seller/products')
+# @role_required('seller', 'admin')
+# def seller_products():
+#     # Seller and admin can access
+#     pass
 
-    flash('You have been logged out successfully.', 'success')
-    return redirect(url_for('index'))
+
 
 
 @app.route('/forgot-password', methods=['GET', 'POST'])

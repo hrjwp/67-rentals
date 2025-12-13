@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - User Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #27ae60;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --light-bg: #ecf0f1;
+        }
+
+        body {
+            background-color: var(--light-bg);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .admin-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .admin-header h1 {
+            margin: 0;
+            font-weight: 600;
+        }
+
+        .admin-header .admin-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .stats-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            transition: transform 0.2s;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        }
+
+        .stats-card .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .stats-card .stat-label {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stats-card.pending {
+            border-left: 4px solid var(--warning-color);
+        }
+
+        .stats-card.approved {
+            border-left: 4px solid var(--success-color);
+        }
+
+        .section-card {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .user-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid #dee2e6;
+            transition: all 0.2s;
+        }
+
+        .user-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: var(--secondary-color);
+        }
+
+        .user-card .user-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .user-card .user-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin: 0;
+        }
+
+        .user-card .user-type-badge {
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .badge-seller {
+            background-color: #e8f4f8;
+            color: #2980b9;
+        }
+
+        .badge-user {
+            background-color: #e8f8f5;
+            color: #16a085;
+        }
+
+        .user-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .detail-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .detail-item i {
+            color: var(--secondary-color);
+            font-size: 1.1rem;
+        }
+
+        .detail-item span {
+            color: #555;
+            font-size: 0.95rem;
+        }
+
+        .documents-section {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .documents-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--primary-color);
+        }
+
+        .document-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .doc-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.4rem 0.8rem;
+            background-color: #e3f2fd;
+            color: #1976d2;
+            border-radius: 5px;
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .doc-link:hover {
+            background-color: #bbdefb;
+            color: #0d47a1;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .btn-approve {
+            background-color: var(--success-color);
+            border: none;
+            color: white;
+            padding: 0.6rem 1.2rem;
+            border-radius: 5px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-approve:hover {
+            background-color: #229954;
+            transform: translateY(-1px);
+        }
+
+        .btn-reject {
+            background-color: var(--danger-color);
+            border: none;
+            color: white;
+            padding: 0.6rem 1.2rem;
+            border-radius: 5px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-reject:hover {
+            background-color: #c0392b;
+            transform: translateY(-1px);
+        }
+
+        .btn-view {
+            background-color: var(--secondary-color);
+            border: none;
+            color: white;
+            padding: 0.6rem 1.2rem;
+            border-radius: 5px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-view:hover {
+            background-color: #2980b9;
+            transform: translateY(-1px);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #95a5a6;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .logout-btn {
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 2px solid white;
+            color: white;
+            padding: 0.5rem 1.5rem;
+            border-radius: 5px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .logout-btn:hover {
+            background-color: white;
+            color: var(--primary-color);
+        }
+
+        .nav-tabs .nav-link {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .nav-tabs .nav-link.active {
+            color: var(--secondary-color);
+            font-weight: 600;
+        }
+
+        .tab-content {
+            margin-top: 2rem;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Admin Header -->
+    <div class="admin-header">
+        <div class="container">
+            <div class="admin-info">
+                <div>
+                    <h1><i class="bi bi-shield-check"></i> Admin Control Panel</h1>
+                    <p class="mb-0">Welcome, {{ session.user_name }}</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('logout') }}" class="logout-btn">
+                        <i class="bi bi-box-arrow-right"></i> Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show"
+            role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- Statistics -->
+        <div class="row">
+            <div class="col-md-3">
+                <div class="stats-card pending">
+                    <p class="stat-number text-warning">{{ pending_users|length + pending_sellers|length }}</p>
+                    <p class="stat-label">Pending Approvals</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card pending">
+                    <p class="stat-number text-warning">{{ pending_users|length }}</p>
+                    <p class="stat-label">Pending Users</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card pending">
+                    <p class="stat-number text-warning">{{ pending_sellers|length }}</p>
+                    <p class="stat-label">Pending Sellers</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card approved">
+                    <p class="stat-number text-success">{{ approved_users|length + approved_sellers|length }}</p>
+                    <p class="stat-label">Total Approved</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs Navigation -->
+        <ul class="nav nav-tabs" id="adminTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending"
+                    type="button" role="tab">
+                    <i class="bi bi-clock-history"></i> Pending Approvals
+                    {% if pending_users|length + pending_sellers|length > 0 %}
+                    <span class="badge bg-warning text-dark ms-2">{{ pending_users|length + pending_sellers|length
+                        }}</span>
+                    {% endif %}
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="approved-tab" data-bs-toggle="tab" data-bs-target="#approved" type="button"
+                    role="tab">
+                    <i class="bi bi-check-circle"></i> Approved Users
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content" id="adminTabsContent">
+            <!-- Pending Approvals Tab -->
+            <div class="tab-pane fade show active" id="pending" role="tabpanel">
+                <!-- Pending Users -->
+                <div class="section-card">
+                    <h2 class="section-title">
+                        <i class="bi bi-person-fill-exclamation"></i> Pending Users
+                    </h2>
+                    {% if pending_users|length > 0 %}
+                    {% for user in pending_users %}
+                    <div class="user-card">
+                        <div class="user-header">
+                            <h3 class="user-name">{{ user.first_name }} {{ user.last_name }}</h3>
+                            <span class="user-type-badge badge-user">USER</span>
+                        </div>
+                        <div class="user-details">
+                            <div class="detail-item">
+                                <i class="bi bi-envelope-fill"></i>
+                                <span>{{ user.email }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="bi bi-telephone-fill"></i>
+                                <span>{{ user.phone }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="bi bi-card-heading"></i>
+                                <span>NRIC: {{ user.nric }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="bi bi-credit-card-2-front"></i>
+                                <span>License: {{ user.license_number }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="bi bi-calendar-check"></i>
+                                <span>{{ user.created_at }}</span>
+                            </div>
+                        </div>
+                        <div class="documents-section">
+                            <p class="documents-title">Uploaded Documents:</p>
+                            <div class="document-links">
+                                <a href="{{ url_for('static', filename='uploads/' + user.nric_image) }}" target="_blank"
+                                    class="doc-link">
+                                    <i class="bi bi-file-image"></i> NRIC Image
+                                </a>
+                                <a href="{{ url_for('static', filename='uploads/' + user.license_image) }}"
+                                    target="_blank" class="doc-link">
+                                    <i class="bi bi-file-image"></i> License Image
+                                </a>
+                            </div>
+                        </div>
+                        <div class="action-buttons">
+                            <form action="{{ url_for('admin_approve_user', email=user.email) }}" method="POST"
+                                style="display: inline;">
+                                <button type="submit" class="btn-approve"
+                                    onclick="return confirm('Approve this user registration?')">
+                                    <i class="bi bi-check-circle"></i> Approve
+                                </button>
+                            </form>
+                            <form action="{{ url_for('admin_reject_user', email=user.email) }}" method="POST"
+                                style="display: inline;">
+                                <button type="submit" class="btn-reject"
+                                    onclick="return confirm('Reject and delete this user registration?')">
+                                    <i class="bi bi-x-circle"></i> Reject
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="empty-state">
+                        <i class="bi bi-inbox"></i>
+                        <p>No pending user registrations</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Pending Sellers -->
+                <div class="section-card">
+                    <h2 class="section-title">
+                        <i class="bi bi-shop"></i> Pending Sellers
+                    </h2>
+                    {% if pending_sellers|length > 0 %}
+                    {% for seller in pending_sellers %}
+                    <div class="user-card">
+                        <div class="user-header">
+                            <h3 class="user-name">{{ seller.first_name }} {{ seller.last_name }}</h3>
+                            <span class="user-type-badge badge-seller">SELLER</span>
+                        </div>
+                        <div class="user-details">
+                            <div class="detail-item">
+                                <i class="bi bi-envelope-fill"></i>
+                                <span>{{ seller.email }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="bi bi-telephone-fill"></i>
+                                <span>{{ seller.phone }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="bi bi-calendar-check"></i>
+                                <span>{{ seller.created_at }}</span>
+                            </div>
+                        </div>
+                        <div class="documents-section">
+                            <p class="documents-title">Uploaded Documents:</p>
+                            <div class="document-links">
+                                <a href="{{ url_for('static', filename='uploads/' + seller.nric_image) }}"
+                                    target="_blank" class="doc-link">
+                                    <i class="bi bi-file-image"></i> NRIC
+                                </a>
+                                <a href="{{ url_for('static', filename='uploads/' + seller.license_image) }}"
+                                    target="_blank" class="doc-link">
+                                    <i class="bi bi-file-image"></i> License
+                                </a>
+                                <a href="{{ url_for('static', filename='uploads/' + seller.vehicle_card_image) }}"
+                                    target="_blank" class="doc-link">
+                                    <i class="bi bi-file-image"></i> Vehicle Card
+                                </a>
+                                <a href="{{ url_for('static', filename='uploads/' + seller.insurance_image) }}"
+                                    target="_blank" class="doc-link">
+                                    <i class="bi bi-file-image"></i> Insurance
+                                </a>
+                            </div>
+                        </div>
+                        <div class="action-buttons">
+                            <form action="{{ url_for('admin_approve_user', email=seller.email) }}" method="POST"
+                                style="display: inline;">
+                                <button type="submit" class="btn-approve"
+                                    onclick="return confirm('Approve this seller registration?')">
+                                    <i class="bi bi-check-circle"></i> Approve
+                                </button>
+                            </form>
+                            <form action="{{ url_for('admin_reject_user', email=seller.email) }}" method="POST"
+                                style="display: inline;">
+                                <button type="submit" class="btn-reject"
+                                    onclick="return confirm('Reject and delete this seller registration?')">
+                                    <i class="bi bi-x-circle"></i> Reject
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="empty-state">
+                        <i class="bi bi-inbox"></i>
+                        <p>No pending seller registrations</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Approved Users Tab -->
+            <div class="tab-pane fade" id="approved" role="tabpanel">
+                <!-- Approved Users -->
+                <div class="section-card">
+                    <h2 class="section-title">
+                        <i class="bi bi-person-check-fill"></i> Approved Users
+                    </h2>
+                    {% if approved_users|length > 0 %}
+                    {% for user in approved_users %}
+                    <div class="user-card">
+                        <div class="user-header">
+                            <h3 class="user-name">{{ user.first_name }} {{ user.last_name }}</h3>
+                            <span class="user-type-badge badge-user">USER</span>
+                        </div>
+                        <div class="user-details">
+                            <div class="detail-item">
+                                <i class="bi bi-envelope-fill"></i>
+                                <span>{{ user.email }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="bi bi-telephone-fill"></i>
+                                <span>{{ user.phone }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="bi bi-calendar-check"></i>
+                                <span>Registered: {{ user.created_at }}</span>
+                            </div>
+                            {% if user.verified_at %}
+                            <div class="detail-item">
+                                <i class="bi bi-check-circle-fill text-success"></i>
+                                <span>Verified: {{ user.verified_at }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="empty-state">
+                        <i class="bi bi-inbox"></i>
+                        <p>No approved users yet</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Approved Sellers -->
+                <div class="section-card">
+                    <h2 class="section-title">
+                        <i class="bi bi-shop-window"></i> Approved Sellers
+                    </h2>
+                    {% if approved_sellers|length > 0 %}
+                    {% for seller in approved_sellers %}
+                    <div class="user-card">
+                        <div class="user-header">
+                            <h3 class="user-name">{{ seller.first_name }} {{ seller.last_name }}</h3>
+                            <span class="user-type-badge badge-seller">SELLER</span>
+                        </div>
+                        <div class="user-details">
+                            <div class="detail-item">
+                                <i class="bi bi-envelope-fill"></i>
+                                <span>{{ seller.email }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="bi bi-telephone-fill"></i>
+                                <span>{{ seller.phone }}</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="bi bi-calendar-check"></i>
+                                <span>Registered: {{ seller.created_at }}</span>
+                            </div>
+                            {% if seller.verified_at %}
+                            <div class="detail-item">
+                                <i class="bi bi-check-circle-fill text-success"></i>
+                                <span>Verified: {{ seller.verified_at }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="empty-state">
+                        <i class="bi bi-inbox"></i>
+                        <p>No approved sellers yet</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

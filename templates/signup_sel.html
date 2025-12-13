@@ -6,16 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="">
     <meta name="author" content="">
-    <title>67 Rentals - Choose Account Type</title>
+    <title>67 Rentals - Sign Up</title>
 
     <!-- CSS FILES -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap"
         rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/bootstrap-icons.css') }}" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/templatemo-tiya-golf-club.css') }}" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
 
     <style>
         :root {
@@ -135,190 +134,175 @@
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255, 255, 255, 1)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
         }
 
-        /* Selection Container */
-        .selection-container {
+        /* Sign Up Container */
+        .signup-container {
             min-height: calc(100vh - 100px);
             display: flex;
             align-items: center;
-            padding: 80px 0;
+            padding: 50px 0;
         }
 
-        .selection-header {
-            text-align: center;
-            margin-bottom: 60px;
-        }
-
-        .selection-header h1 {
-            color: var(--secondary-color);
-            font-weight: var(--font-weight-bold);
-            font-size: 42px;
-            margin-bottom: 15px;
-        }
-
-        .selection-header p {
-            color: var(--p-color);
-            font-size: 20px;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        .account-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 40px;
+        .signup-card {
+            background: var(--white-color);
+            border-radius: var(--border-radius-medium);
+            padding: 60px 50px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
             max-width: 900px;
             margin: 0 auto;
         }
 
-        .account-card {
-            background: var(--white-color);
-            border-radius: var(--border-radius-medium);
-            padding: 50px 40px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        .signup-header {
             text-align: center;
-            transition: all 0.4s ease;
-            cursor: pointer;
+            margin-bottom: 40px;
+        }
+
+        .signup-header h1 {
+            color: var(--secondary-color);
+            font-weight: var(--font-weight-bold);
+            font-size: 32px;
+            margin-bottom: 15px;
+        }
+
+        .signup-header p {
+            color: var(--p-color);
+            font-size: var(--p-font-size);
+        }
+
+        .user-type-selection {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .user-type-card {
+            background: var(--section-bg-color);
+            border: 3px solid var(--primary-color);
+            border-radius: var(--border-radius-medium);
+            padding: 40px 30px;
+            text-align: center;
+            transition: all 0.3s ease;
             position: relative;
-            overflow: hidden;
         }
 
-        .account-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 5px;
-            background: linear-gradient(90deg, var(--primary-color), var(--custom-btn-bg-color));
-            transform: scaleX(0);
-            transition: transform 0.4s ease;
+        .user-type-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
         }
 
-        .account-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-        }
-
-        .account-card:hover::before {
-            transform: scaleX(1);
-        }
-
-        .card-icon {
+        .user-type-icon {
             width: 100px;
             height: 100px;
-            background: linear-gradient(135deg, var(--primary-color), var(--custom-btn-bg-color));
+            background: linear-gradient(135deg, var(--custom-btn-bg-color), var(--primary-color));
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 30px;
-            transition: all 0.4s ease;
+            margin: 0 auto 25px;
+            transition: all 0.3s ease;
         }
 
-        .account-card:hover .card-icon {
-            transform: scale(1.1) rotate(5deg);
-            box-shadow: 0 10px 30px rgba(129, 178, 154, 0.4);
+        .user-type-card:hover .user-type-icon {
+            transform: scale(1.1);
         }
 
-        .card-icon i {
+        .user-type-icon i {
             font-size: 50px;
             color: var(--white-color);
         }
 
-        .account-card h2 {
+        .user-type-card h3 {
             color: var(--secondary-color);
+            font-size: 24px;
             font-weight: var(--font-weight-bold);
-            font-size: 28px;
             margin-bottom: 15px;
         }
 
-        .account-card p {
+        .user-type-card p {
             color: var(--p-color);
             font-size: 16px;
-            line-height: 1.8;
-            margin-bottom: 25px;
-            min-height: 80px;
+            line-height: 1.6;
+            margin-bottom: 20px;
         }
 
-        .features-list {
+        .user-type-card ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
             text-align: left;
-            margin-bottom: 30px;
         }
 
-        .features-list li {
+        .user-type-card ul li {
             color: var(--p-color);
-            font-size: 15px;
             padding: 8px 0;
             padding-left: 30px;
             position: relative;
+            font-size: 14px;
         }
 
-        .features-list li:before {
+        .user-type-card ul li:before {
             content: "✓";
             position: absolute;
             left: 0;
             color: var(--primary-color);
             font-weight: var(--font-weight-bold);
-            font-size: 18px;
+            font-size: 16px;
         }
 
-        .signup-btn {
+
+        .btn-signup {
             background: var(--custom-btn-bg-color);
             border: none;
             border-radius: var(--border-radius-large);
             color: var(--white-color);
             font-weight: var(--font-weight-bold);
-            padding: 15px 40px;
-            font-size: 18px;
+            padding: 12px 30px;
+            font-size: 16px;
             transition: all 0.3s;
+            cursor: pointer;
             text-decoration: none;
             display: inline-block;
-            width: 100%;
+            margin-top: 20px;
         }
 
-        .signup-btn:hover {
+        .btn-signup:hover {
             background: var(--custom-btn-bg-hover-color);
             color: var(--white-color);
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(224, 122, 95, 0.3);
         }
 
-        .back-link {
+        .login-link {
             text-align: center;
-            margin-top: 40px;
-        }
-
-        .back-link a {
+            margin-top: 30px;
             color: var(--p-color);
-            text-decoration: none;
-            font-size: 16px;
-            transition: color 0.3s;
         }
 
-        .back-link a:hover {
+        .login-link a {
             color: var(--primary-color);
+            font-weight: var(--font-weight-bold);
+            text-decoration: none;
+        }
+
+        .login-link a:hover {
+            color: var(--custom-btn-bg-hover-color);
         }
 
         @media screen and (max-width: 768px) {
-            .selection-header h1 {
-                font-size: 32px;
+            .signup-card {
+                padding: 40px 25px;
             }
 
-            .selection-header p {
-                font-size: 18px;
+            .signup-header h1 {
+                font-size: 26px;
             }
 
-            .account-cards {
+            .user-type-selection {
                 grid-template-columns: 1fr;
-                gap: 30px;
             }
 
-            .account-card {
-                padding: 40px 30px;
-            }
-
-            .account-card p {
-                min-height: auto;
+            .user-type-card {
+                padding: 30px 20px;
             }
         }
     </style>
@@ -329,8 +313,7 @@
     <nav class="navbar navbar-expand-lg">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="/">
-                <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid"
-                    alt="67 Rentals">
+                <img src="logo.png" class="navbar-brand-image img-fluid" alt="67 Rentals">
                 <span class="navbar-brand-text">
                     67
                     <small>Rentals</small>
@@ -350,21 +333,24 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-lg-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="/">Home</a>
+                        <a class="nav-link click-scroll" href="/#section_1">Home</a>
                     </li>
+
                     <li class="nav-item">
-                        <a class="nav-link" href="#section_2">About</a>
+                        <a class="nav-link click-scroll" href="/#section_2">About</a>
                     </li>
+
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('vehicle_listing') }}">Vehicles</a>
+                        <a class="nav-link click-scroll" href="/vehicles">Vehicles</a>
                     </li>
+
                     <li class="nav-item">
-                        <a class="nav-link" href="#section_4">Contact Us</a>
+                        <a class="nav-link click-scroll" href="/#section_4">Contact Us</a>
                     </li>
+
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('cart') }}">
-                            <i class="bi bi-cart3"></i> Cart
-                        </a>
+                        <a class="nav-link" href="/cart">
+                            <i class="bi bi-cart3"></i> Cart</a>
                     </li>
                 </ul>
 
@@ -396,7 +382,7 @@
                     <div class="mb-4">
                         <label class="form-label mb-2" for="member-login-password">Password</label>
                         <input type="password" name="member-login-password" id="member-login-password"
-                            class="form-control" placeholder="Password" required="">
+                            pattern="[0-9a-zA-Z]{4,10}" class="form-control" placeholder="Password" required="">
                     </div>
 
                     <div class="form-check mb-4">
@@ -411,74 +397,74 @@
                     </div>
 
                     <div class="text-center my-4">
-                        <a href="{{ url_for('forgot_password') }}">Forgotten password?</a>
+                        <a href="/forgot-password">Forgotten password?</a>
                     </div>
 
                     <div class="text-center my-4">
-                        <a href="{{ url_for('signup_selection') }}">No account? Sign up here!</a>
+                        <a href="/signup">No account? Sign up here!</a>
                     </div>
                 </div>
             </form>
             <div class="mt-auto mb-5">
                 <p>
                     <strong class="text-white me-3">Any Questions?</strong>
-                    <a href="tel:6566006655" class="contact-link">65-6600-6655</a>
+                    <a href="tel: 6566006655" class="contact-link">
+                        65-6600-6655
+                    </a>
                 </p>
             </div>
         </div>
     </div>
 
-    <!-- Selection Container -->
-    <div class="selection-container">
+    <!-- Sign Up Container -->
+    <div class="signup-container">
         <div class="container">
-            <div class="selection-header">
-                <h1>Choose Your Account Type</h1>
-                <p>Select the account type that best fits your needs. You can start renting or listing vehicles today!
-                </p>
-            </div>
-
-            <div class="account-cards">
-                <!-- User Account Card -->
-                <div class="account-card">
-                    <div class="card-icon">
-                        <i class="bi bi-person-circle"></i>
-                    </div>
-                    <h2>Renter Account</h2>
-                    <p>Perfect for individuals looking to rent vehicles for personal use</p>
-
-                    <ul class="features-list">
-                        <li>Browse available vehicles</li>
-                        <li>Book cars and motorcycles</li>
-                        <li>Manage your bookings</li>
-                        <li>Track rental history</li>
-                        <li>24/7 customer support</li>
-                    </ul>
-
-                    <a href="{{ url_for('signup') }}?type=user" class="signup-btn">Sign Up as Renter</a>
+            <div class="signup-card">
+                <div class="signup-header">
+                    <h1>Join 67 Rentals</h1>
+                    <p>Choose your account type to get started</p>
                 </div>
 
-                <!-- Seller Account Card -->
-                <div class="account-card">
-                    <div class="card-icon">
-                        <i class="bi bi-shop"></i>
+                <div class="user-type-selection">
+                    <!-- Renter Card -->
+                    <div class="user-type-card">
+                        <div class="user-type-icon">
+                            <i class="bi bi-person-circle"></i>
+                        </div>
+                        <h3>I Want to Rent</h3>
+                        <p>Looking for a vehicle to rent for your needs</p>
+                        <ul>
+                            <li>Browse available vehicles</li>
+                            <li>Book instantly online</li>
+                            <li>Flexible rental periods</li>
+                            <li>24/7 customer support</li>
+                            <li>Verified vehicle owners</li>
+                        </ul>
+                        <a href="{{ url_for('signup') }}" class="btn-signup">Sign Up as Renter</a>
                     </div>
-                    <h2>Owner Account</h2>
-                    <p>Ideal for vehicle owners who want to list and rent out their vehicles</p>
 
-                    <ul class="features-list">
-                        <li>List your vehicles</li>
-                        <li>Set your own prices</li>
-                        <li>Manage bookings</li>
-                        <li>Track your earnings</li>
-                        <li>Analytics dashboard</li>
-                    </ul>
-
-                    <a href="{{ url_for('signup') }}?type=seller" class="signup-btn">Sign Up as Owner</a>
+                    <!-- Seller Card -->
+                    <div class="user-type-card">
+                        <div class="user-type-icon">
+                            <i class="bi bi-car-front-fill"></i>
+                        </div>
+                        <h3>I Want to List My Vehicle</h3>
+                        <p>Own a vehicle and want to earn extra income</p>
+                        <ul>
+                            <li>List your vehicle for free</li>
+                            <li>Set your own rental prices</li>
+                            <li>Reach thousands of renters</li>
+                            <li>Secure payment processing</li>
+                            <li>Insurance coverage options</li>
+                        </ul>
+                        <a href="{{ url_for('signup_seller') }}" class="btn-signup">Sign Up as Seller</a>
+                    </div>
                 </div>
-            </div>
 
-            <div class="back-link">
-                <a href="/"><i class="bi bi-arrow-left"></i> Back to Home</a>
+                <div class="login-link">
+                    Already have an account? <a href="#" data-bs-toggle="offcanvas"
+                        data-bs-target="#offcanvasExample">Login here</a>
+                </div>
             </div>
         </div>
     </div>

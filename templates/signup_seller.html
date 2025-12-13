@@ -346,6 +346,20 @@
                     </div>
 
                     <div class="mb-3">
+                        <label for="vehicleCardImage" class="form-label">Upload Vehicle Card Image</label>
+                        <input type="file" class="form-control" id="vehicleCardImage" name="vehicleCardImage"
+                            accept="image/*,application/pdf" required>
+                        <small class="text-muted">Please upload a clear photo of your vehicle card (Max 5MB)</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="insuranceImage" class="form-label">Upload Insurance Image</label>
+                        <input type="file" class="form-control" id="insuranceImage" name="insuranceImage"
+                            accept="image/*,application/pdf" required>
+                        <small class="text-muted">Please upload a clear photo of your insurance (Max 5MB)</small>
+                    </div>
+
+                    <div class="mb-3">
                         <label for="password" class="form-label">Password</label>
                         <input type="password" class="form-control" id="password" name="password" required>
                         <small class="text-muted">At least 8 characters with uppercase, lowercase, number and special
@@ -426,14 +440,17 @@
             // Check if files are uploaded
             const nricImage = document.getElementById('nricImage').files[0];
             const licenseImage = document.getElementById('licenseImage').files[0];
+            const vehicleCardImage = document.getElementById('vehicleCardImage').files[0];
+            const insuranceImage = document.getElementById('insuranceImage').files[0];
 
-            if (!nricImage || !licenseImage) {
-                alert('Please upload both NRIC and Driver\'s License images.');
+            if (!nricImage || !licenseImage || !vehicleCardImage || !insuranceImage) {
+                alert('Please upload all required documents.');
                 return;
             }
 
             // Validate file size (max 5MB per file)
-            if (nricImage.size > 5 * 1024 * 1024 || licenseImage.size > 5 * 1024 * 1024) {
+            if (nricImage.size > 5 * 1024 * 1024 || licenseImage.size > 5 * 1024 * 1024 ||
+                vehicleCardImage.size > 5 * 1024 * 1024 || insuranceImage.size > 5 * 1024 * 1024) {
                 alert('Image files must be less than 5MB each.');
                 return;
             }
