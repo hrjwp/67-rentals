@@ -430,11 +430,11 @@ def login():
     user_type = user.get('user_type', 'user')
     
     if user_type == 'admin':
-        return redirect(url_for('admin_panel'))  # Redirect admins to admin panel
+        return redirect(url_for('dashboard'))  # Redirect admins to admin panel
     elif user_type == 'seller':
-        return redirect(url_for('seller_dashboard'))  # Redirect sellers to seller dashboard
+        return redirect(url_for('seller_index'))  # Redirect sellers to seller dashboard
     else:  # user_type == 'user'
-        return redirect(url_for('user_home'))  # Redirect users to user home page
+        return redirect(url_for('index_logged'))  # Redirect users to user home page
 
 
 # ============================================
