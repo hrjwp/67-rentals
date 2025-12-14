@@ -8,8 +8,6 @@ import json
 from Crypto.Cipher import AES
 import base64
 
-
-
 # Import configuration
 from config import Config
 
@@ -20,8 +18,12 @@ from database import (
     get_vehicle_by_id, create_booking, get_booking_by_id,
     update_user_password, save_reset_token, get_reset_token, mark_token_as_used,
     get_user_bookings, get_signup_tickets, set_signup_status, get_user_documents,
-    get_db_connection
+    get_db_connection, get_security_logs, get_vehicle_fraud_logs, get_booking_fraud_logs,
+    get_security_stats, get_vehicle_fraud_stats, get_booking_fraud_stats,
+    add_security_log, add_vehicle_fraud_log, add_booking_fraud_log
 )
+
+
 
 # Import data models
 from models import (
@@ -2338,6 +2340,255 @@ def test_encrypt():
     sample = "hello"
     cipher = encrypt_value(sample)
     return {"cipher": cipher, "plain": decrypt_value(cipher)}
+
+
+#fraud detection stuff
+# Assuming the necessary imports (Flask, datetime, and all database functions) are at the top
+
+@app.route('/api/security-logs')
+def get_security_logs_route():
+    # NOTE: The function name is changed to avoid conflict with the imported function
+    """Get security logs with filtering"""
+    severity = request.args.get('severity')
+    event_type = request.args.get('event_type')
+    user_id = request.args.get('user_id')
+    limit = request.args.get('limit', 100, type=int)
+
+    try:
+        # CORRECTED: Calling the imported function directly
+        logs = get_security_logs(
+            severity=severity,
+            event_type=event_type,
+            user_id=user_id,
+            limit=limit
+        )
+
+        # Format timestamps for JSON
+        formatted_logs = []
+        for log in logs:
+            log_copy = log.copy()
+            if isinstance(log_copy['timestamp'], datetime):
+                log_copy['timestamp'] = log_copy['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+            formatted_logs.append(log_copy)
+
+        return jsonify(formatted_logs)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/vehicle-fraud-logs')
+def get_vehicle_fraud_logs_route():
+    """Get vehicle fraud logs with filtering"""
+    severity = request.args.get('severity')
+    event_type = request.args.get('event_type')
+    user_id = request.args.get('user_id')
+    min_risk = request.args.get('min_risk', type=float)
+    limit = request.args.get('limit', 100, type=int)
+
+    try:
+        # CORRECTED: Calling the imported function directly
+        logs = get_vehicle_fraud_logs(
+            severity=severity,
+            event_type=event_type,
+            user_id=user_id,
+            min_risk=min_risk,
+            limit=limit
+        )
+
+        # Format timestamps and decimals for JSON
+        formatted_logs = []
+        for log in logs:
+            log_copy = log.copy()
+            if isinstance(log_copy['timestamp'], datetime):
+                log_copy['timestamp'] = log_copy['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+            if 'risk_score' in log_copy and log_copy['risk_score']:
+                # The float conversion is correct for JSON serialization
+                log_copy['risk_score'] = float(log_copy['risk_score'])
+            formatted_logs.append(log_copy)
+
+        return jsonify(formatted_logs)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/booking-fraud-logs')
+def get_booking_fraud_logs_route():
+    """Get booking fraud logs with filtering"""
+    severity = request.args.get('severity')
+    event_type = request.args.get('event_type')
+    user_id = request.args.get('user_id')
+    min_risk = request.args.get('min_risk', type=float)
+    limit = request.args.get('limit', 100, type=int)
+
+    try:
+        # CORRECTED: Calling the imported function directly
+        logs = get_booking_fraud_logs(
+            severity=severity,
+            event_type=event_type,
+            user_id=user_id,
+            min_risk=min_risk,
+            limit=limit
+        )
+
+        # Format timestamps and decimals for JSON
+        formatted_logs = []
+        for log in logs:
+            log_copy = log.copy()
+            if isinstance(log_copy['timestamp'], datetime):
+                log_copy['timestamp'] = log_copy['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+            if 'risk_score' in log_copy and log_copy['risk_score']:
+                log_copy['risk_score'] = float(log_copy['risk_score'])
+            formatted_logs.append(log_copy)
+
+        return jsonify(formatted_logs)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/security-stats')
+def get_security_stats_route():
+    """Get security statistics"""
+    try:
+        # CORRECTED: Calling the imported function directly
+        stats = get_security_stats()
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/vehicle-fraud-stats')
+def get_vehicle_fraud_stats_route():
+    """Get vehicle fraud statistics"""
+    try:
+        # CORRECTED: Calling the imported function directly
+        stats = get_vehicle_fraud_stats()
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/booking-fraud-stats')
+def get_booking_fraud_stats_route():
+    """Get booking fraud statistics"""
+    try:
+        # CORRECTED: Calling the imported function directly
+        stats = get_booking_fraud_stats()
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============= EXAMPLE: Logging new fraud events =============
+
+@app.route('/api/log-security-event', methods=['POST'])
+def log_security_event():
+    """API endpoint to log a new security event"""
+    try:
+        data = request.get_json()
+
+        # CORRECTED: Calling the imported function directly
+        log_id = add_security_log(
+            user_id=data['user_id'],
+            event_type=data['event_type'],
+            severity=data['severity'],
+            description=data['description'],
+            ip_address=data.get('ip_address'),
+            device_info=data.get('device_info'),
+            action_taken=data.get('action_taken')
+        )
+
+        return jsonify({
+            'success': True,
+            'log_id': log_id,
+            'message': 'Security event logged successfully'
+        }), 201
+
+    except KeyError as e:
+        return jsonify({
+            'success': False,
+            'error': f'Missing required field: {str(e)}'
+        }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/log-vehicle-fraud', methods=['POST'])
+def log_vehicle_fraud():
+    """API endpoint to log a new vehicle fraud event"""
+    try:
+        data = request.get_json()
+
+        # CORRECTED: Calling the imported function directly
+        log_id = add_vehicle_fraud_log(
+            user_id=data['user_id'],
+            vehicle_id=data['vehicle_id'],
+            event_type=data['event_type'],
+            severity=data['severity'],
+            risk_score=data['risk_score'],
+            description=data['description'],
+            action_taken=data.get('action_taken'),
+            gps_data=data.get('gps_data'),
+            mileage_data=data.get('mileage_data')
+        )
+
+        return jsonify({
+            'success': True,
+            'log_id': log_id,
+            'message': 'Vehicle fraud logged successfully'
+        }), 201
+
+    except KeyError as e:
+        return jsonify({
+            'success': False,
+            'error': f'Missing required field: {str(e)}'
+        }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/log-booking-fraud', methods=['POST'])
+def log_booking_fraud():
+    """API endpoint to log a new booking fraud event"""
+    try:
+        data = request.get_json()
+
+        # CORRECTED: Calling the imported function directly
+        log_id = add_booking_fraud_log(
+            user_id=data['user_id'],
+            booking_id=data['booking_id'],
+            vehicle_id=data['vehicle_id'],
+            event_type=data['event_type'],
+            severity=data['severity'],
+            risk_score=data['risk_score'],
+            description=data['description'],
+            action_taken=data.get('action_taken'),
+            booking_data=data.get('booking_data'),
+            payment_data=data.get('payment_data'),
+            ml_indicators=data.get('ml_indicators')
+        )
+
+        return jsonify({
+            'success': True,
+            'log_id': log_id,
+            'message': 'Booking fraud logged successfully'
+        }), 201
+
+    except KeyError as e:
+        return jsonify({
+            'success': False,
+            'error': f'Missing required field: {str(e)}'
+        }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 if __name__ == "__main__":

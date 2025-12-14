@@ -4,6 +4,8 @@ from contextlib import contextmanager
 from config import Config
 from db_config import DB_CONFIG
 from utils.encryption import encrypt_value, decrypt_value
+import json
+from typing import List, Dict, Any
 
 
 def create_connection():
@@ -422,3 +424,392 @@ def get_user_bookings(user_id):
 
 # Ensure tables/columns exist when module is imported
 ensure_schema()
+
+
+
+# ============= SECURITY LOGS =============
+
+def add_security_log(user_id: str, event_type: str, severity: str,
+                     description: str, ip_address: str = None,
+                     device_info: str = None, action_taken: str = None) -> int:
+    """Add a security log entry"""
+    # CORRECTED: Use get_db_connection() instead of self.get_connection()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        query = """
+            INSERT INTO security_logs 
+            (user_id, event_type, severity, description, ip_address, device_info, action_taken)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """
+
+        cursor.execute(query, (user_id, event_type, severity, description,
+                               ip_address, device_info, action_taken))
+        conn.commit()
+        log_id = cursor.lastrowid
+        cursor.close()
+
+        return log_id
+
+def get_security_logs(severity: str = None, event_type: str = None,
+                      user_id: str = None, limit: int = 100) -> List[Dict]:
+    """Retrieve security logs with optional filters"""
+    # CORRECTED: Use get_db_connection() instead of self.get_connection()
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+
+        query = "SELECT * FROM security_logs WHERE 1=1"
+        params = []
+
+        if severity:
+            query += " AND severity = %s"
+            params.append(severity)
+        if event_type:
+            query += " AND event_type = %s"
+            params.append(event_type)
+        if user_id:
+            query += " AND user_id = %s"
+            params.append(user_id)
+
+        query += " ORDER BY timestamp DESC LIMIT %s"
+        params.append(limit)
+
+        cursor.execute(query, params)
+        logs = cursor.fetchall()
+        cursor.close()
+
+        return logs
+
+# ============= VEHICLE FRAUD LOGS =============
+
+def add_vehicle_fraud_log(user_id: str, vehicle_id: str, event_type: str,
+                          severity: str, risk_score: float, description: str,
+                          action_taken: str = None, gps_data: Dict = None,
+                          mileage_data: Dict = None) -> int:
+    """Add a vehicle fraud log entry"""
+    # CORRECTED: Use get_db_connection() instead of self.get_connection()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        # Extract GPS data if provided
+        prev_location = gps_data.get('prev_location') if gps_data else None
+        current_location = gps_data.get('current_location') if gps_data else None
+        distance_km = gps_data.get('distance_km') if gps_data else None
+        speed_kmh = gps_data.get('speed_kmh') if gps_data else None
+
+        # Extract mileage data if provided
+        reported_mileage = mileage_data.get('reported') if mileage_data else None
+        gps_calculated_mileage = mileage_data.get('gps_calculated') if mileage_data else None
+        discrepancy_percent = mileage_data.get('discrepancy_percent') if mileage_data else None
+
+        query = """
+            INSERT INTO vehicle_fraud_logs 
+            (user_id, vehicle_id, event_type, severity, risk_score, description, action_taken,
+             prev_location, current_location, distance_km, speed_kmh,
+             reported_mileage, gps_calculated_mileage, discrepancy_percent)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+
+        cursor.execute(query, (user_id, vehicle_id, event_type, severity, risk_score,
+                               description, action_taken, prev_location, current_location,
+                               distance_km, speed_kmh, reported_mileage,
+                               gps_calculated_mileage, discrepancy_percent))
+        conn.commit()
+        log_id = cursor.lastrowid
+        cursor.close()
+
+        return log_id
+
+def get_vehicle_fraud_logs(severity: str = None, event_type: str = None,
+                           user_id: str = None, min_risk: float = None,
+                           limit: int = 100) -> List[Dict]:
+    """Retrieve vehicle fraud logs with optional filters"""
+    # CORRECTED: Use get_db_connection() instead of self.get_connection()
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+
+        query = "SELECT * FROM vehicle_fraud_logs WHERE 1=1"
+        params = []
+
+        if severity:
+            query += " AND severity = %s"
+            params.append(severity)
+        if event_type:
+            query += " AND event_type = %s"
+            params.append(event_type)
+        if user_id:
+            query += " AND user_id = %s"
+            params.append(user_id)
+        if min_risk is not None:
+            query += " AND risk_score >= %s"
+            params.append(min_risk)
+
+        query += " ORDER BY timestamp DESC LIMIT %s"
+        params.append(limit)
+
+        cursor.execute(query, params)
+        logs = cursor.fetchall()
+        cursor.close()
+
+        # Convert to format matching your Flask app
+        for log in logs:
+            if log.get('prev_location'):
+                log['gps_data'] = {
+                    'prev_location': log['prev_location'],
+                    'current_location': log['current_location'],
+                    'distance_km': float(log['distance_km']) if log['distance_km'] else None,
+                    'speed_kmh': float(log['speed_kmh']) if log['speed_kmh'] else None
+                }
+
+            if log.get('reported_mileage'):
+                log['mileage_data'] = {
+                    'reported': log['reported_mileage'],
+                    'gps_calculated': log['gps_calculated_mileage'],
+                    'discrepancy_percent': float(log['discrepancy_percent']) if log['discrepancy_percent'] else None
+                }
+
+        return logs
+
+# ============= BOOKING FRAUD LOGS =============
+
+def add_booking_fraud_log(user_id: str, booking_id: str, vehicle_id: str,
+                          event_type: str, severity: str, risk_score: float,
+                          description: str, action_taken: str = None,
+                          booking_data: Dict = None, payment_data: Dict = None,
+                          ml_indicators: List[str] = None) -> int:
+    """Add a booking fraud log entry"""
+    # CORRECTED: Use get_db_connection() instead of self.get_connection()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        # Extract booking data
+        bookings_count_last_hour = booking_data.get('count_last_hour') if booking_data else None
+        bookings_count_last_day = booking_data.get('count_last_day') if booking_data else None
+        avg_interval_minutes = booking_data.get('avg_interval_minutes') if booking_data else None
+
+        # Extract payment data
+        decline_count = payment_data.get('decline_count') if payment_data else None
+        cards_attempted = payment_data.get('cards_attempted') if payment_data else None
+        last_decline_reason = payment_data.get('last_decline_reason') if payment_data else None
+
+        # Convert ml_indicators to JSON
+        ml_indicators_json = json.dumps(ml_indicators) if ml_indicators else None
+
+        query = """
+            INSERT INTO booking_fraud_logs 
+            (user_id, booking_id, vehicle_id, event_type, severity, risk_score,
+             description, action_taken, bookings_count_last_hour, bookings_count_last_day,
+             avg_interval_minutes, decline_count, cards_attempted, last_decline_reason,
+             ml_indicators)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+
+        cursor.execute(query, (user_id, booking_id, vehicle_id, event_type, severity,
+                               risk_score, description, action_taken,
+                               bookings_count_last_hour, bookings_count_last_day,
+                               avg_interval_minutes, decline_count, cards_attempted,
+                               last_decline_reason, ml_indicators_json))
+        conn.commit()
+        log_id = cursor.lastrowid
+        cursor.close()
+
+        return log_id
+
+def get_booking_fraud_logs(severity: str = None, event_type: str = None,
+                           user_id: str = None, min_risk: float = None,
+                           limit: int = 100) -> List[Dict]:
+    """Retrieve booking fraud logs with optional filters"""
+    # CORRECTED: Use get_db_connection() instead of self.get_connection()
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+
+        query = "SELECT * FROM booking_fraud_logs WHERE 1=1"
+        params = []
+
+        if severity:
+            query += " AND severity = %s"
+            params.append(severity)
+        if event_type:
+            query += " AND event_type = %s"
+            params.append(event_type)
+        if user_id:
+            query += " AND user_id = %s"
+            params.append(user_id)
+        if min_risk is not None:
+            query += " AND risk_score >= %s"
+            params.append(min_risk)
+
+        query += " ORDER BY timestamp DESC LIMIT %s"
+        params.append(limit)
+
+        cursor.execute(query, params)
+        logs = cursor.fetchall()
+        cursor.close()
+
+        # Format to match Flask app structure
+        for log in logs:
+            if log.get('bookings_count_last_hour'):
+                log['booking_data'] = {
+                    'count_last_hour': log['bookings_count_last_hour'],
+                    'count_last_day': log['bookings_count_last_day'],
+                    'avg_interval_minutes': float(log['avg_interval_minutes']) if log[
+                        'avg_interval_minutes'] else None
+                }
+
+            if log.get('decline_count'):
+                log['payment_data'] = {
+                    'decline_count': log['decline_count'],
+                    'cards_attempted': log['cards_attempted'],
+                    'last_decline_reason': log['last_decline_reason']
+                }
+
+            if log.get('ml_indicators'):
+                log['ml_indicators'] = json.loads(log['ml_indicators'])
+
+        return logs
+
+# ============= STATISTICS =============
+
+def get_security_stats() -> Dict[str, Any]:
+    """Get security log statistics"""
+    # CORRECTED: Use get_db_connection() instead of self.get_connection()
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+
+        # Total count
+        cursor.execute("SELECT COUNT(*) as total FROM security_logs")
+        total = cursor.fetchone()['total']
+
+        # Last 24 hours
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM security_logs 
+            WHERE timestamp > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        """)
+        last_24h = cursor.fetchone()['count']
+
+        # By severity
+        cursor.execute("""
+            SELECT severity, COUNT(*) as count 
+            FROM security_logs 
+            GROUP BY severity
+        """)
+        by_severity = {row['severity']: row['count'] for row in cursor.fetchall()}
+
+        # By type
+        cursor.execute("""
+            SELECT event_type, COUNT(*) as count 
+            FROM security_logs 
+            GROUP BY event_type
+        """)
+        by_type = {row['event_type']: row['count'] for row in cursor.fetchall()}
+
+        cursor.close()
+
+        return {
+            'total': total,
+            'last_24h': last_24h,
+            'by_severity': by_severity,
+            'by_type': by_type
+        }
+
+def get_vehicle_fraud_stats() -> Dict[str, Any]:
+    """Get vehicle fraud statistics"""
+    # CORRECTED: Use get_db_connection() instead of self.get_connection()
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("SELECT COUNT(*) as total FROM vehicle_fraud_logs")
+        total = cursor.fetchone()['total']
+
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM vehicle_fraud_logs 
+            WHERE timestamp > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        """)
+        last_24h = cursor.fetchone()['count']
+
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM vehicle_fraud_logs 
+            WHERE risk_score >= 0.8
+        """)
+        high_risk = cursor.fetchone()['count']
+
+        cursor.execute("""
+            SELECT AVG(risk_score) as avg_score FROM vehicle_fraud_logs
+        """)
+        avg_risk = cursor.fetchone()['avg_score'] or 0
+
+        cursor.execute("""
+            SELECT severity, COUNT(*) as count 
+            FROM vehicle_fraud_logs 
+            GROUP BY severity
+        """)
+        by_severity = {row['severity']: row['count'] for row in cursor.fetchall()}
+
+        cursor.execute("""
+            SELECT event_type, COUNT(*) as count 
+            FROM vehicle_fraud_logs 
+            GROUP BY event_type
+        """)
+        by_type = {row['event_type']: row['count'] for row in cursor.fetchall()}
+
+        cursor.close()
+
+        return {
+            'total': total,
+            'last_24h': last_24h,
+            'high_risk': high_risk,
+            'avg_risk_score': float(avg_risk),
+            'by_severity': by_severity,
+            'by_type': by_type
+        }
+
+def get_booking_fraud_stats() -> Dict[str, Any]:
+    """Get booking fraud statistics"""
+    # CORRECTED: Use get_db_connection() instead of self.get_connection()
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("SELECT COUNT(*) as total FROM booking_fraud_logs")
+        total = cursor.fetchone()['total']
+
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM booking_fraud_logs 
+            WHERE timestamp > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        """)
+        last_24h = cursor.fetchone()['count']
+
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM booking_fraud_logs 
+            WHERE risk_score >= 0.8
+        """)
+        high_risk = cursor.fetchone()['count']
+
+        cursor.execute("""
+            SELECT AVG(risk_score) as avg_score FROM booking_fraud_logs
+        """)
+        avg_risk = cursor.fetchone()['avg_score'] or 0
+
+        cursor.execute("""
+            SELECT severity, COUNT(*) as count 
+            FROM booking_fraud_logs 
+            GROUP BY severity
+        """)
+        by_severity = {row['severity']: row['count'] for row in cursor.fetchall()}
+
+        cursor.execute("""
+            SELECT event_type, COUNT(*) as count 
+            FROM booking_fraud_logs 
+            GROUP BY event_type
+        """)
+        by_type = {row['event_type']: row['count'] for row in cursor.fetchall()}
+
+        cursor.close()
+
+        return {
+            'total': total,
+            'last_24h': last_24h,
+            'high_risk': high_risk,
+            'avg_risk_score': float(avg_risk),
+            'by_severity': by_severity,
+            'by_type': by_type
+        }
