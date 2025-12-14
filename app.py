@@ -1137,6 +1137,28 @@ def add_to_cart(vehicle_id):
 
     return redirect(url_for('cart'))
 
+@app.route('/add-to-cart-logged/<int:vehicle_id>', methods=['POST'])
+def add_to_cart_logged(vehicle_id):
+    """Add a vehicle to cart"""
+    vehicle = VEHICLES.get(vehicle_id)
+
+    if not vehicle:
+        return jsonify({'error': 'Vehicle not found'}), 404
+
+    pickup_date = request.form.get('pickup_date', (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d'))
+    return_date = request.form.get('return_date', (datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d'))
+
+    if 'cart' not in session:
+        session['cart'] = {}
+
+    session['cart'][str(vehicle_id)] = {
+        'pickup_date': pickup_date,
+        'return_date': return_date
+    }
+    session.modified = True
+
+    return redirect(url_for('cart_logged'))
+
 
 @app.route('/update-cart/<int:vehicle_id>', methods=['POST'])
 def update_cart(vehicle_id):

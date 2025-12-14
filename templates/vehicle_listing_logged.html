@@ -419,7 +419,7 @@
                             <span class="price">${{ vehicle.price }}/day</span>
                             <div class="border-button">
                                 <a href="{{ vehicle.detail_url }}" class="btn btn-view-more">View More</a>
-                                <form action="{{ url_for('add_to_cart', vehicle_id=vehicle.id) }}" method="POST">
+                                <form action="{{ url_for('add_to_cart_logged', vehicle_id=vehicle.id) }}" method="POST">
                                     <button type="submit" class="btn custom-btn">Book Now</button>
                                 </form>
                             </div>
