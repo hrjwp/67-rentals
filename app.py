@@ -1135,7 +1135,11 @@ def add_to_cart(vehicle_id):
     }
     session.modified = True
 
-    return redirect(url_for('cart'))
+    # Redirect based on login status
+    if 'user' in session:
+        return redirect(url_for('cart_logged'))
+    else:
+        return redirect(url_for('cart'))
 
 @app.route('/add-to-cart-logged/<int:vehicle_id>', methods=['POST'])
 def add_to_cart_logged(vehicle_id):
@@ -1203,7 +1207,6 @@ def clear_cart():
 def api_cart_count():
     """API endpoint to get current cart count"""
     return jsonify({'count': get_cart_count(session)})
-
 
 # ============================================
 # CHECKOUT & PAYMENT ROUTES
