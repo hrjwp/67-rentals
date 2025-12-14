@@ -399,16 +399,15 @@
                 document.getElementById('button-text').style.display = 'none';
                 document.getElementById('spinner').style.display = 'inline-block';
 
-                // Get customer details
+                // Get customer details (NO LICENSE FIELD)
                 const customerData = {
                     name: document.getElementById('first-name').value + ' ' + document.getElementById('last-name').value,
                     email: document.getElementById('email').value,
-                    phone: document.getElementById('phone').value,
-                    license: document.getElementById('license').value,
+                    phone: document.getElementById('phone').value
                 };
 
                 try {
-                    // Create payment intent on server (card data never sent to our server)
+                    // Create payment intent on server
                     const response = await fetch('/create-payment-intent', {
                         method: 'POST',
                         headers: {
@@ -423,13 +422,12 @@
                         throw new Error(data.error);
                     }
 
-                    // Tokenize payment method using Stripe Elements
-                    // Card data is tokenized client-side - only token sent to Stripe
+                    // Confirm card payment with Stripe
                     const {paymentIntent, error: confirmError} = await stripe.confirmCardPayment(
                         data.clientSecret,
                         {
                             payment_method: {
-                                card: cardElement,  // Stripe tokenizes this - no card data sent
+                                card: cardElement,
                                 billing_details: {
                                     name: customerData.name,
                                     email: customerData.email,
@@ -446,10 +444,9 @@
                         document.getElementById('button-text').style.display = 'inline';
                         document.getElementById('spinner').style.display = 'none';
                     } else {
-                        // Payment succeeded - payment method is tokenized
+                        // Payment succeeded
                         if (paymentIntent.status === 'succeeded') {
-                            // Payment method token (pm_xxx) is stored by Stripe, not card data
-                            console.log('Payment tokenized successfully. Payment Method ID:', paymentIntent.payment_method);
+                            console.log('Payment successful. Payment Method ID:', paymentIntent.payment_method);
                             // Redirect to success page
                             window.location.href = '/payment-success?payment_intent=' + paymentIntent.id;
                         }

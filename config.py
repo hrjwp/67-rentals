@@ -14,8 +14,8 @@ class Config:
     PREFERRED_URL_SCHEME = 'http'
 
     # Stripe
-    STRIPE_API_KEY = 'sk_test_51SVUC6Cddk4teDLIfl8dquKj8ZAFQYyyuKQ7Oizda4SampGMLUENpCpIG3r33VnHV8zER3vqBZelZclbeCy76bGp00gXIme9XE'
-    STRIPE_PUBLIC_KEY = 'pk_test_51SVUC6Cddk4teDLIlq20hYCe9zbzZw1pUExM6fFGMTQCUZajqdyIaJbdSdRQD5gKibRmXYhQ0EochV9WKwYyUVwP00Ww3hpFsJ'
+    STRIPE_API_KEY = 'sk_test_51Qt62CEu3QerzS1yLWYhnwyX9UfVX2joIEDmUghjcCI1rY1mfscebN6bKttdNw0N446QucqKwOGoNGYZsVaYffx800HM2RGjR1'
+    STRIPE_PUBLIC_KEY = 'pk_test_51Qt62CEu3QerzS1yyA1sCZ5WXb4gimBa6RrAOiqzUkb2H4CvEda5qs2d1VNU7yPh6L5kS4XaE5BJwJJtGxPWhdZ100WgIyODq8'
 
     # File Upload
     UPLOAD_FOLDER = 'static/uploads'

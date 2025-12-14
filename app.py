@@ -1219,31 +1219,25 @@ def create_payment_intent():
         totals = calculate_cart_totals(cart_items, VEHICLES)
 
         # Encrypt sensitive customer data before storing in Stripe metadata
-        # This ensures PII is protected even in Stripe's system
         encrypted_name = encrypt_value(data.get('name')) if data.get('name') else None
         encrypted_email = encrypt_value(data.get('email')) if data.get('email') else None
         encrypted_phone = encrypt_value(data.get('phone')) if data.get('phone') else None
-        encrypted_license = encrypt_value(data.get('license')) if data.get('license') else None
+        # REMOVED: encrypted_license line
 
         # Create payment intent with tokenized payment method support
-        # Card data never touches our server - Stripe handles tokenization
         intent = stripe.PaymentIntent.create(
             amount=int(totals['total'] * 100),  # Amount in cents
             currency='sgd',
-            payment_method_types=['card'],  # Explicitly use card tokenization
+            payment_method_types=['card'],
             metadata={
                 # Store encrypted PII - decrypted only when needed
                 'customer_name_encrypted': encrypted_name or '',
                 'customer_email_encrypted': encrypted_email or '',
                 'customer_phone_encrypted': encrypted_phone or '',
-                'license_number_encrypted': encrypted_license or '',
+                # REMOVED: license_number_encrypted
                 'booking_type': 'vehicle_rental',
             },
             description='67 Rentals Vehicle Booking',
-            # Enable automatic payment methods for better tokenization
-            automatic_payment_methods={
-                'enabled': True,
-            },
         )
 
         return jsonify({
@@ -1252,6 +1246,7 @@ def create_payment_intent():
         })
 
     except Exception as e:
+        print(f"Payment intent error: {str(e)}")
         return jsonify({'error': str(e)}), 403
 
 
