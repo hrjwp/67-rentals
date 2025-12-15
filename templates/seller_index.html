@@ -29,6 +29,12 @@
 <!-- Navbar -->
             <nav class="navbar navbar-expand-lg">
                 <div class="container">
+                    {% set seller_name = session.get('user_name') or session.get('user') %}
+                    {% if seller_name %}
+                        {% set seller_name = seller_name.split('@')[0] %}
+                    {% else %}
+                        {% set seller_name = 'Seller' %}
+                    {% endif %}
                     <a class="navbar-brand d-flex align-items-center" href="#">
                         <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="67 Rentals">
                         <span class="navbar-brand-text">
@@ -66,13 +72,25 @@
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ url_for('cart') }}"><i class="bi bi-cart3"></i> Cart</a>
                             </li>
+
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('logout') }}">
+                                    <i class="bi bi-box-arrow-right me-1"></i>Logout
+                                </a>
+                            </li>
                         </ul>
 
                         <div class="d-none d-lg-block ms-lg-3">
-                            <a class="btn custom-btn custom-border-btn d-flex align-items-center gap-2" role="button">
-                                <i class="bi bi-person"></i>
-                                Seller
-                            </a>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="btn custom-btn custom-border-btn d-flex align-items-center gap-2">
+                                    <i class="bi bi-person"></i>
+                                    {{ seller_name }}
+                                </div>
+                                <a class="btn custom-btn custom-border-btn d-flex align-items-center gap-2" href="{{ url_for('logout') }}">
+                                    <i class="bi bi-box-arrow-right"></i>
+                                    Logout
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
