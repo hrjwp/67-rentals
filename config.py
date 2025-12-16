@@ -8,10 +8,11 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-here-change-in-production')
     # AES data encryption key (URL-safe base64, 16/24/32 bytes when decoded)
     DATA_ENCRYPTION_KEY = os.environ.get('DATA_ENCRYPTION_KEY')
-    SESSION_COOKIE_SECURE = False  # Disable for local HTTP; enable True in production
+    # Session cookie settings - will be overridden by app.py based on HTTPS usage
+    SESSION_COOKIE_SECURE = False  # Will be set dynamically based on HTTPS
     SESSION_COOKIE_HTTPONLY = True     # block JS access to cookies
     SESSION_COOKIE_SAMESITE = 'Lax'    # CSRF-hardening for most flows
-    PREFERRED_URL_SCHEME = 'http'
+    PREFERRED_URL_SCHEME = 'http'  # Will be set dynamically
 
     # Stripe
     STRIPE_API_KEY = 'sk_test_51Qt62CEu3QerzS1yLWYhnwyX9UfVX2joIEDmUghjcCI1rY1mfscebN6bKttdNw0N446QucqKwOGoNGYZsVaYffx800HM2RGjR1'
