@@ -70,10 +70,8 @@ def calculate_cart_totals(cart_items, vehicles):
 
 
 def generate_booking_id():
-    """Generate a unique booking ID"""
-    from models import BOOKINGS
-    booking_count = len(BOOKINGS) + 1
-    return f"BK{booking_count:03d}"
+    """Generate unique booking ID"""
+    return f"BK-{datetime.now().strftime('%Y%m%d')}-{str(int(datetime.now().timestamp()))[-6:]}"
 
 
 def generate_request_id(prefix='CR'):
