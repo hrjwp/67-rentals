@@ -26,6 +26,7 @@
                 color: #ffffff;
                 font-size: 28px;
                 font-weight: 700;
+                line-height: 1;
             }
 
             .navbar-brand-text small {
@@ -42,6 +43,15 @@
 
             .nav-link:hover {
                 color: #F2CC8F !important;
+            }
+
+            .nav-link.active {
+                color: #F2CC8F !important;
+            }
+
+            .navbar-brand-image {
+                width: 50px;
+                margin-right: 10px;
             }
 
             .cases-section {
@@ -126,7 +136,7 @@
                 display: inline-block;
             }
 
-            .status-pending {
+            .status-pending-review {
                 background-color: #fff3cd;
                 color: #856404;
             }
@@ -191,6 +201,7 @@
                 border-radius: 5px;
                 font-weight: 600;
                 transition: all 0.3s ease;
+                cursor: pointer;
             }
 
             .btn-under-review:hover {
@@ -205,6 +216,7 @@
                 border-radius: 5px;
                 font-weight: 600;
                 transition: all 0.3s ease;
+                cursor: pointer;
             }
 
             .btn-resolve:hover {
@@ -219,6 +231,7 @@
                 border-radius: 5px;
                 font-weight: 600;
                 transition: all 0.3s ease;
+                cursor: pointer;
             }
 
             .btn-delete:hover {
@@ -353,27 +366,6 @@
                 background-color: #f8d7da;
                 color: #842029;
             }
-            .navbar-brand-image {
-                width: 50px;
-                margin-right: 10px;
-            }
-
-            .navbar-brand-text {
-                color: #ffffff;
-                font-size: 28px;
-                font-weight: 700;
-                line-height: 1;
-            }
-
-            .navbar-brand-text small {
-                display: block;
-                font-size: 14px;
-                font-weight: 400;
-            }
-            /* Put this at the VERY END of your <style> section */
-            .nav-link.active {
-                color: #F2CC8F !important;
-            }
         </style>
     </head>
 
@@ -461,12 +453,9 @@
                         </div>
                     </div>
                     <div class="row mt-3">
-                        <div class="col-12 d-flex justify-content-between">
+                        <div class="col-12 d-flex justify-content-end">
                             <button class="btn btn-outline-secondary" onclick="resetFilters()">
                                 <i class="bi bi-arrow-clockwise"></i> Reset Filters
-                            </button>
-                            <button class="btn btn-outline-danger" onclick="clearAllReports()">
-                                <i class="bi bi-trash"></i> Clear All Reports
                             </button>
                         </div>
                     </div>
@@ -481,22 +470,35 @@
                 <div id="emptyState" class="empty-state" style="display: none;">
                     <i class="bi bi-inbox"></i>
                     <h3>No Incident Reports Found</h3>
-                    <p>There are no incident reports submitted yet.sub</p>
+                    <p>There are no incident reports submitted yet.</p>
+                    <a href="{{ url_for('report') }}" class="btn-new-report">
+                        <i class="bi bi-flag"></i> File a New Incident Report
+                    </a>
                 </div>
             </div>
         </section>
 
-
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.0/jquery.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
         <script>
-            let allReports = [];
+            // Initialize with server-side data
+            let allReports = {{ reports|tojson|safe if reports else '[]' }};
+
+            function formatCaseNumber(reportId) {
+                // Format as IR + 9-digit padded ID (e.g., IR000000001, IR000000123)
+                if (!reportId) return 'N/A';
+                return 'IR' + String(reportId).padStart(9, '0');
+            }
 
             function loadReports() {
-                const reportsJSON = localStorage.getItem('incidentReports');
-                allReports = reportsJSON ? JSON.parse(reportsJSON) : [];
-                displayReports(allReports);
-                updateStatistics();
+                if (allReports && allReports.length > 0) {
+                    displayReports(allReports);
+                    updateStatistics();
+                } else {
+                    const emptyState = document.getElementById('emptyState');
+                    const casesList = document.getElementById('casesList');
+                    if (emptyState) emptyState.style.display = 'block';
+                    if (casesList) casesList.innerHTML = '';
+                }
             }
 
             function updateStatistics() {
@@ -534,6 +536,8 @@
                 const casesList = document.getElementById('casesList');
                 const emptyState = document.getElementById('emptyState');
 
+                if (!casesList || !emptyState) return;
+
                 if (reports.length === 0) {
                     casesList.innerHTML = '';
                     emptyState.style.display = 'block';
@@ -541,148 +545,6 @@
                 }
 
                 emptyState.style.display = 'none';
-
-                const casesHTML = reports.map(report => {
-                    const date = new Date(report.timestamp);
-                    const formattedDate = date.toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    });
-
-                    const incidentTypeLabels = {
-                        'accident': 'Traffic Accident',
-                        'damage': 'Vehicle Damage',
-                        'theft': 'Theft or Break-in',
-                        'mechanical': 'Mechanical Breakdown',
-                        'vandalism': 'Vandalism',
-                        'other': 'Other'
-                    };
-
-                    return `
-                        <div class="case-card severity-${report.severity_level}">
-                            <div class="case-header">
-                                <div>
-                                    <div class="case-id"><i class="bi bi-hash"></i> ${report.id}</div>
-                                    <small style="color: #717275;"><i class="bi bi-calendar3"></i> Submitted: ${formattedDate}</small>
-                                </div>
-                                <div class="d-flex gap-2 align-items-center flex-wrap">
-                                    <span class="severity-indicator severity-${report.severity_level}">
-                                        ${report.severity_level}
-                                    </span>
-                                    <span class="status-badge status-${report.status.toLowerCase().replace(' ', '-')}">
-                                        ${report.status}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div class="case-info">
-                                <div class="info-item">
-                                    <i class="bi bi-person-fill"></i>
-                                    <div>
-                                        <div class="info-label">Reported By</div>
-                                        <div class="info-value">${report.full_name}</div>
-                                    </div>
-                                </div>
-                                <div class="info-item">
-                                    <i class="bi bi-telephone-fill"></i>
-                                    <div>
-                                        <div class="info-label">Contact</div>
-                                        <div class="info-value">${report.contact_number}</div>
-                                    </div>
-                                </div>
-                                <div class="info-item">
-                                    <i class="bi bi-envelope-fill"></i>
-                                    <div>
-                                        <div class="info-label">Email</div>
-                                        <div class="info-value">${report.email}</div>
-                                    </div>
-                                </div>
-                                <div class="info-item">
-                                    <i class="bi bi-car-front-fill"></i>
-                                    <div>
-                                        <div class="info-label">Vehicle</div>
-                                        <div class="info-value">${report.vehicle_name}</div>
-                                    </div>
-                                </div>
-                                <div class="info-item">
-                                    <i class="bi bi-calendar-event"></i>
-                                    <div>
-                                        <div class="info-label">Incident Date</div>
-                                        <div class="info-value">${report.incident_date} at ${report.incident_time}</div>
-                                    </div>
-                                </div>
-                                <div class="info-item">
-                                    <i class="bi bi-geo-alt-fill"></i>
-                                    <div>
-                                        <div class="info-label">Location</div>
-                                        <div class="info-value">${report.incident_location}</div>
-                                    </div>
-                                </div>
-                                <div class="info-item">
-                                    <i class="bi bi-exclamation-triangle-fill"></i>
-                                    <div>
-                                        <div class="info-label">Incident Type</div>
-                                        <div class="info-value">${incidentTypeLabels[report.incident_type] || report.incident_type}</div>
-                                    </div>
-                                </div>
-                                <div class="info-item">
-                                    <i class="bi bi-file-earmark-text"></i>
-                                    <div>
-                                        <div class="info-label">Booking ID</div>
-                                        <div class="info-value">${report.booking_id}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="case-description">
-                                <strong style="color: #3D405B;">Incident Description:</strong><br>
-                                ${report.incident_description}
-                            </div>
-
-                            ${report.files_count > 0 ? `
-                                <div class="attached-images">
-                                    <h6><i class="bi bi-paperclip"></i> Attached Files (${report.files_count})</h6>
-                                    <div class="image-placeholder">
-                                        <i class="bi bi-file-earmark-image"></i>
-                                        <p class="mb-0"><strong>${report.files_count} file(s) attached</strong></p>
-                                        <small>Files cannot be displayed in this view</small>
-                                    </div>
-                                </div>
-                            ` : ''}
-
-                            <div class="d-flex gap-2 mt-3 flex-wrap">
-                                ${report.status === 'Pending Review' ? `
-                                    <button class="btn-under-review" onclick="updateStatus('${report.id}', 'Under Review')">
-                                        <i class="bi bi-eye"></i> Mark as Under Review
-                                    </button>
-                                ` : ''}
-                                ${report.status === 'Under Review' ? `
-                                    <button class="btn-resolve" onclick="updateStatus('${report.id}', 'Resolved')">
-                                        <i class="bi bi-check-circle"></i> Mark as Resolved
-                                    </button>
-                                ` : ''}
-                                ${report.status === 'Resolved' ? `
-                                    <button class="btn-under-review" onclick="updateStatus('${report.id}', 'Pending Review')">
-                                        <i class="bi bi-arrow-clockwise"></i> Reopen Case
-                                    </button>
-                                ` : ''}
-                                <button class="btn-delete" onclick="deleteReport('${report.id}')">
-                                    <i class="bi bi-trash"></i> Delete
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-
-                casesList.innerHTML = casesHTML;
-            }
-
-            function viewDetails(reportId) {
-                const report = allReports.find(r => r.id === reportId);
-                if (!report) return;
 
                 const incidentTypeLabels = {
                     'accident': 'Traffic Accident',
@@ -693,55 +555,139 @@
                     'other': 'Other'
                 };
 
-                let detailsHTML = `
-                    <strong>Report ID:</strong> ${report.id}<br>
-                    <strong>Submitted:</strong> ${new Date(report.timestamp).toLocaleString()}<br><br>
+                const casesHTML = reports.map(report => {
+                    const severity = (report.severity_level || 'minor').toLowerCase();
+                    const statusClass = (report.status || 'Pending Review').toLowerCase().replace(' ', '-');
+                    const filesCount = report.files ? report.files.length : 0;
 
-                    <strong>Personal Information:</strong><br>
-                    Name: ${report.full_name}<br>
-                    Contact: ${report.contact_number}<br>
-                    Email: ${report.email}<br><br>
+                    return `
+                        <div class="case-card severity-${severity}">
+                            <div class="case-header">
+                                <div>
+                                    <div class="case-id"><i class="bi bi-hash"></i> ${formatCaseNumber(report.id)}</div>
+                                    <small style="color: #717275;"><i class="bi bi-calendar3"></i> Submitted: ${report.created_at || 'N/A'}</small>
+                                </div>
+                                <div class="d-flex gap-2 align-items-center flex-wrap">
+                                    <span class="severity-indicator severity-${severity}">
+                                        ${report.severity_level || 'minor'}
+                                    </span>
+                                    <span class="status-badge status-${statusClass}">
+                                        ${report.status || 'Pending Review'}
+                                    </span>
+                                </div>
+                            </div>
 
-                    <strong>Booking Information:</strong><br>
-                    Booking ID: ${report.booking_id}<br>
-                    Vehicle: ${report.vehicle_name}<br>
-                    License Plate: ${report.license_plate || 'N/A'}<br><br>
+                            <div class="case-info">
+                                <div class="info-item">
+                                    <i class="bi bi-person-fill"></i>
+                                    <div>
+                                        <div class="info-label">Reported By</div>
+                                        <div class="info-value">${report.full_name || 'N/A'}</div>
+                                    </div>
+                                </div>
+                                <div class="info-item">
+                                    <i class="bi bi-telephone-fill"></i>
+                                    <div>
+                                        <div class="info-label">Contact</div>
+                                        <div class="info-value">${report.contact_number || 'N/A'}</div>
+                                    </div>
+                                </div>
+                                <div class="info-item">
+                                    <i class="bi bi-envelope-fill"></i>
+                                    <div>
+                                        <div class="info-label">Email</div>
+                                        <div class="info-value">${report.email || 'N/A'}</div>
+                                    </div>
+                                </div>
+                                <div class="info-item">
+                                    <i class="bi bi-car-front-fill"></i>
+                                    <div>
+                                        <div class="info-label">Vehicle</div>
+                                        <div class="info-value">${report.vehicle_name || 'N/A'}</div>
+                                    </div>
+                                </div>
+                                <div class="info-item">
+                                    <i class="bi bi-calendar-event"></i>
+                                    <div>
+                                        <div class="info-label">Incident Date</div>
+                                        <div class="info-value">${report.incident_date || 'N/A'} at ${report.incident_time || 'N/A'}</div>
+                                    </div>
+                                </div>
+                                <div class="info-item">
+                                    <i class="bi bi-geo-alt-fill"></i>
+                                    <div>
+                                        <div class="info-label">Location</div>
+                                        <div class="info-value">${report.incident_location || 'N/A'}</div>
+                                    </div>
+                                </div>
+                                <div class="info-item">
+                                    <i class="bi bi-exclamation-triangle-fill"></i>
+                                    <div>
+                                        <div class="info-label">Incident Type</div>
+                                        <div class="info-value">${incidentTypeLabels[report.incident_type] || report.incident_type || 'N/A'}</div>
+                                    </div>
+                                </div>
+                                <div class="info-item">
+                                    <i class="bi bi-file-earmark-text"></i>
+                                    <div>
+                                        <div class="info-label">Booking ID</div>
+                                        <div class="info-value">${report.booking_id || 'N/A'}</div>
+                                    </div>
+                                </div>
+                            </div>
 
-                    <strong>Incident Details:</strong><br>
-                    Date: ${report.incident_date} at ${report.incident_time}<br>
-                    Location: ${report.incident_location}<br>
-                    Type: ${incidentTypeLabels[report.incident_type] || report.incident_type}<br>
-                    Severity: ${report.severity_level}<br>
-                    Description: ${report.incident_description}<br><br>
+                            <div class="case-description">
+                                <strong style="color: #3D405B;">Incident Description:</strong><br>
+                                ${report.incident_description || 'No description provided'}
+                            </div>
 
-                    <strong>Additional Information:</strong><br>
-                    Injuries: ${report.injuries}<br>
-                    Authorities Contacted: ${report.authorities_contacted}<br>
-                    Police Report: ${report.police_report || 'N/A'}<br>
-                    Other Parties: ${report.other_parties || 'N/A'}<br>
-                    Witnesses: ${report.witnesses || 'N/A'}<br>
-                    Files Attached: ${report.files_count}
-                `;
+                            ${filesCount > 0 ? `
+                                <div class="attached-images">
+                                    <h6><i class="bi bi-paperclip"></i> Attached Files (${filesCount})</h6>
+                                    <div class="image-placeholder">
+                                        <i class="bi bi-file-earmark-image"></i>
+                                        <p class="mb-0"><strong>${filesCount} file(s) attached</strong></p>
+                                        <small>Files are stored securely on the server</small>
+                                    </div>
+                                </div>
+                            ` : ''}
 
-                alert(detailsHTML);
-            }
+                            <div class="d-flex gap-2 mt-3 flex-wrap">
+                                ${report.status === 'Pending Review' ? `
+                                    <form method="post" action="/cases/${report.id}/status" style="display: inline;">
+                                        <input type="hidden" name="status" value="Under Review">
+                                        <button class="btn-under-review" type="submit">
+                                            <i class="bi bi-eye"></i> Mark as Under Review
+                                        </button>
+                                    </form>
+                                ` : ''}
+                                ${report.status === 'Under Review' ? `
+                                    <form method="post" action="/cases/${report.id}/status" style="display: inline;">
+                                        <input type="hidden" name="status" value="Resolved">
+                                        <button class="btn-resolve" type="submit">
+                                            <i class="bi bi-check-circle"></i> Mark as Resolved
+                                        </button>
+                                    </form>
+                                ` : ''}
+                                ${report.status === 'Resolved' ? `
+                                    <form method="post" action="/cases/${report.id}/status" style="display: inline;">
+                                        <input type="hidden" name="status" value="Pending Review">
+                                        <button class="btn-under-review" type="submit">
+                                            <i class="bi bi-arrow-clockwise"></i> Reopen Case
+                                        </button>
+                                    </form>
+                                ` : ''}
+                                <form method="post" action="/cases/${report.id}/delete" onsubmit="return confirm('Are you sure you want to delete this incident report? This action cannot be undone.');" style="display: inline;">
+                                    <button class="btn-delete" type="submit">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
 
-            function deleteReport(reportId) {
-                if (confirm('Are you sure you want to delete this incident report? This action cannot be undone.')) {
-                    allReports = allReports.filter(r => r.id !== reportId);
-                    localStorage.setItem('incidentReports', JSON.stringify(allReports));
-                    loadReports();
-                }
-            }
-
-            function clearAllReports() {
-                if (confirm('Are you sure you want to delete ALL incident reports? This action cannot be undone.')) {
-                    if (confirm('This will permanently delete all ' + allReports.length + ' reports. Are you absolutely sure?')) {
-                        localStorage.removeItem('incidentReports');
-                        allReports = [];
-                        loadReports();
-                    }
-                }
+                casesList.innerHTML = casesHTML;
             }
 
             function filterReports() {
@@ -756,15 +702,15 @@
                 }
 
                 if (severityFilter !== 'all') {
-                    filtered = filtered.filter(r => r.severity_level === severityFilter);
+                    filtered = filtered.filter(r => (r.severity_level || '').toLowerCase() === severityFilter);
                 }
 
                 if (searchTerm) {
                     filtered = filtered.filter(r =>
-                        r.id.toLowerCase().includes(searchTerm) ||
-                        r.full_name.toLowerCase().includes(searchTerm) ||
-                        r.vehicle_name.toLowerCase().includes(searchTerm) ||
-                        r.booking_id.toLowerCase().includes(searchTerm)
+                        (r.id || '').toLowerCase().includes(searchTerm) ||
+                        (r.full_name || '').toLowerCase().includes(searchTerm) ||
+                        (r.vehicle_name || '').toLowerCase().includes(searchTerm) ||
+                        (r.booking_id || '').toLowerCase().includes(searchTerm)
                     );
                 }
 
@@ -778,30 +724,21 @@
                 displayReports(allReports);
             }
 
-            function updateStatus(reportId, newStatus) {
-                const reportIndex = allReports.findIndex(r => r.id === reportId);
-                if (reportIndex !== -1) {
-                    allReports[reportIndex].status = newStatus;
-                    localStorage.setItem('incidentReports', JSON.stringify(allReports));
-                    loadReports();
-                }
-            }
 
-            // Event listeners
-            document.getElementById('statusFilter').addEventListener('change', filterReports);
-            document.getElementById('severityFilter').addEventListener('change', filterReports);
-            document.getElementById('searchInput').addEventListener('input', filterReports);
+            // Initialize on page load
+            document.addEventListener('DOMContentLoaded', function() {
+                // Event listeners
+                const statusFilter = document.getElementById('statusFilter');
+                const severityFilter = document.getElementById('severityFilter');
+                const searchInput = document.getElementById('searchInput');
+                
+                if (statusFilter) statusFilter.addEventListener('change', filterReports);
+                if (severityFilter) severityFilter.addEventListener('change', filterReports);
+                if (searchInput) searchInput.addEventListener('input', filterReports);
 
-            // Load reports on page load
-            loadReports();
-
-            // Event listeners
-            document.getElementById('statusFilter').addEventListener('change', filterReports);
-            document.getElementById('severityFilter').addEventListener('change', filterReports);
-            document.getElementById('searchInput').addEventListener('input', filterReports);
-
-            // Load reports on page load
-            loadReports();
+                // Load reports
+                loadReports();
+            });
         </script>
     </body>
 </html>
