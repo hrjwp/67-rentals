@@ -232,6 +232,11 @@
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('index_logged') }}#section_4">Contact Us</a>
                         </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('booking_history') }}">
+                                    My Bookings
+                                </a>
+                            </li>
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('cart') }}">
                                 <i class="bi bi-cart3"></i> Cart
@@ -262,7 +267,26 @@
                                 Please provide as much detail as possible about the incident. This information will help us process your claim efficiently and provide the necessary support.
                             </div>
 
-                            <form id="incidentForm" method="POST" action="#">
+                            <!-- Flash Messages - Only show errors, success messages trigger popup only -->
+                            {% with messages = get_flashed_messages(with_categories=true) %}
+                                {% if messages %}
+                                    {% for category, message in messages %}
+                                        {% if category == 'error' %}
+                                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                                {{ message }}
+                                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                            </div>
+                                        {% elif category == 'success' %}
+                                            <!-- Success messages are hidden but used to trigger popup via JavaScript -->
+                                            <div class="alert alert-success" role="alert" id="flash-message" style="display: none;">
+                                                {{ message }}
+                                            </div>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endwith %}
+
+                            <form id="incidentForm" method="POST" action="{{ url_for('report') }}">
                                 <!-- Personal Information -->
                                 <h5 style="color: #3D405B; font-weight: 700; margin-bottom: 20px;">Personal Information</h5>
 
@@ -543,8 +567,6 @@
 
             // Form submission
             document.getElementById('incidentForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-
                 const fullName = document.getElementById('full_name').value;
                 const contactNumber = document.getElementById('contact_number').value;
                 const photosInput = document.getElementById('photos');
@@ -581,49 +603,30 @@
                 }
 
                 if (!isValid) {
+                    e.preventDefault();
                     alert('Please correct the following errors:\n\n' + errorMessage);
                     return false;
                 }
 
+                // Show confirmation popup before submitting
+                e.preventDefault();
                 if (confirm('Are you sure you want to submit this incident report? Please ensure all information is accurate.')) {
-                    // Save to localStorage
-                    const formData = new FormData(this);
-                    const reportData = {
-                        id: 'IR-' + Date.now(),
-                        timestamp: new Date().toISOString(),
-                        full_name: formData.get('full_name'),
-                        contact_number: formData.get('contact_number'),
-                        email: formData.get('email'),
-                        booking_id: formData.get('booking_id'),
-                        vehicle_name: formData.get('vehicle_name'),
-                        license_plate: formData.get('license_plate'),
-                        incident_date: formData.get('incident_date'),
-                        incident_time: formData.get('incident_time'),
-                        incident_location: formData.get('incident_location'),
-                        incident_type: formData.get('incident_type'),
-                        severity_level: formData.get('severity_level'),
-                        incident_description: formData.get('incident_description'),
-                        injuries: formData.get('injuries'),
-                        authorities_contacted: formData.get('authorities_contacted'),
-                        police_report: formData.get('police_report'),
-                        other_parties: formData.get('other_parties'),
-                        witnesses: formData.get('witnesses'),
-                        status: 'Pending Review',
-                        files_count: files.length
-                    };
-
-                    // Get existing reports or initialize empty array
-                    let reports = JSON.parse(localStorage.getItem('incidentReports') || '[]');
-                    reports.push(reportData);
-                    localStorage.setItem('incidentReports', JSON.stringify(reports));
-
-                    alert('Incident report submitted successfully! Your report ID is: ' + reportData.id + '\n\nOur team will review your report and contact you within 24-48 hours.');
-
-                    // Reset the form
-                    this.reset();
-
-                    // Redirect to submitted cases page
-                    window.location.href = 'submitted_cases.html';
+                    // User confirmed - submit the form
+                    this.submit();
+                }
+                // If user cancels, do nothing (form won't submit)
+            });
+            
+            // Check for success message only after successful submission
+            window.addEventListener('DOMContentLoaded', function() {
+                // Only show popup if URL has submitted=true parameter (meaning we just submitted)
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('submitted') === 'true') {
+                    // Show success popup
+                    alert('Incident report submitted successfully!\n\nOur team will review your report and contact you within 24-48 hours.\n\nThank you for reporting this incident.');
+                    
+                    // Clean up URL by removing the parameter (optional - keeps URL clean)
+                    window.history.replaceState({}, document.title, window.location.pathname);
                 }
             });
         </script>
