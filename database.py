@@ -39,7 +39,11 @@ def _safe_alter(cursor, statement: str):
     try:
         cursor.execute(statement)
     except Error as exc:
-        if exc.errno in {errorcode.ER_DUP_FIELDNAME, errorcode.ER_BAD_FIELD_ERROR}:
+        # Ignore duplicate field, unknown column, and duplicate key errors
+        if exc.errno in {errorcode.ER_DUP_FIELDNAME, errorcode.ER_BAD_FIELD_ERROR, errorcode.ER_DUP_KEYNAME}:
+            return
+        # For MODIFY operations, also ignore warnings about data truncation if increasing size
+        if 'MODIFY' in statement.upper() and exc.errno == 1265:  # Data truncated warning
             return
         raise
 
@@ -120,13 +124,52 @@ def ensure_schema():
             )
             """
         )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS incident_reports (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NULL,
+                full_name VARCHAR(255) NOT NULL,
+                contact_number VARCHAR(50) NOT NULL,
+                email VARCHAR(255) NOT NULL,
+                booking_id VARCHAR(50) NOT NULL,
+                vehicle_name VARCHAR(255) NOT NULL,
+                incident_date DATE NOT NULL,
+                incident_time VARCHAR(20) NOT NULL,
+                incident_location VARCHAR(255) NOT NULL,
+                incident_type VARCHAR(100) NOT NULL,
+                severity_level VARCHAR(50) NOT NULL,
+                incident_description TEXT NOT NULL,
+                status ENUM('Pending Review','Under Review','Resolved') DEFAULT 'Pending Review',
+                files_json JSON NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        # Add foreign key separately if it doesn't exist (allows NULL user_id)
+        try:
+            cursor.execute("""
+                ALTER TABLE incident_reports 
+                ADD CONSTRAINT fk_incident_user 
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            """)
+        except Error as e:
+            # Foreign key might already exist, ignore
+            if e.errno != errorcode.ER_DUP_KEY and 'Duplicate foreign key' not in str(e):
+                print(f"Note: Could not add foreign key (may already exist): {e}")
+        _safe_alter(cursor, "ALTER TABLE incident_reports ADD COLUMN status ENUM('Pending Review','Under Review','Resolved') DEFAULT 'Pending Review'")
 
         # Columns needed on users table
         _safe_alter(cursor, "ALTER TABLE users ADD COLUMN verified TINYINT(1) DEFAULT 0")
         _safe_alter(cursor, "ALTER TABLE users ADD COLUMN user_type VARCHAR(20) DEFAULT 'user'")
         _safe_alter(cursor, "ALTER TABLE users ADD COLUMN nric VARCHAR(20) NULL")
         _safe_alter(cursor, "ALTER TABLE users ADD COLUMN license_number VARCHAR(50) NULL")
-        _safe_alter(cursor, "ALTER TABLE users MODIFY phone_number VARCHAR(30)")
+        # Increase column sizes to accommodate encrypted values (encrypted data is base64, much longer)
+        _safe_alter(cursor, "ALTER TABLE users MODIFY phone_number VARCHAR(255)")
+        _safe_alter(cursor, "ALTER TABLE users MODIFY first_name VARCHAR(255)")
+        _safe_alter(cursor, "ALTER TABLE users MODIFY last_name VARCHAR(255)")
+        _safe_alter(cursor, "ALTER TABLE users MODIFY nric VARCHAR(255)")
+        _safe_alter(cursor, "ALTER TABLE users MODIFY license_number VARCHAR(255)")
 
         conn.commit()
 
@@ -508,6 +551,160 @@ def get_security_logs(severity: str = None, event_type: str = None,
         cursor.close()
 
         return logs
+
+
+# ============= INCIDENT REPORTS =============
+
+def create_incident_report(report: Dict[str, Any]) -> int:
+    """Insert a new incident report."""
+    conn = create_connection()
+    if not conn:
+        raise Exception("Failed to connect to database")
+    
+    cursor = conn.cursor()
+    try:
+        # First, ensure the table exists
+        cursor.execute("SHOW TABLES LIKE 'incident_reports'")
+        table_exists = cursor.fetchone()
+        if not table_exists:
+            ensure_schema()
+            cursor = conn.cursor()  # Get new cursor after schema creation
+        
+        query = """
+            INSERT INTO incident_reports (
+                user_id, full_name, contact_number, email,
+                booking_id, vehicle_name, incident_date, incident_time,
+                incident_location, incident_type, severity_level,
+                incident_description, files_json, status
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        values = (
+            report.get('user_id'),
+            report['full_name'],
+            report['contact_number'],
+            report['email'],
+            report['booking_id'],
+            report['vehicle_name'],
+            report['incident_date'],
+            report['incident_time'],
+            report['incident_location'],
+            report['incident_type'],
+            report['severity_level'],
+            report['incident_description'],
+            json.dumps(report.get('files', [])) if report.get('files') else None,
+            report.get('status', 'Pending Review'),
+        )
+        cursor.execute(query, values)
+        new_id = cursor.lastrowid
+        
+        if not new_id:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            raise Exception("Insert failed: No ID returned")
+        
+        # Commit immediately
+        conn.commit()
+        
+        # Verify the insert worked
+        verify_cursor = conn.cursor()
+        verify_cursor.execute("SELECT id FROM incident_reports WHERE id = %s", (new_id,))
+        verify_result = verify_cursor.fetchone()
+        verify_cursor.close()
+        
+        cursor.close()
+        conn.close()
+        
+        if not verify_result:
+            raise Exception("Insert appeared to succeed but record not found in database")
+        
+        return new_id
+    except Exception as e:
+        if conn:
+            conn.rollback()
+            if cursor:
+                cursor.close()
+            conn.close()
+        raise Exception(f"Database insert failed: {str(e)}") from e
+
+
+def get_incident_reports(email: str = None, user_id: int = None) -> List[Dict[str, Any]]:
+    """Fetch incident reports, optionally filtered by user email or user_id."""
+    try:
+        conn = create_connection()
+        if not conn:
+            print("ERROR: Failed to connect to database in get_incident_reports")
+            return []
+        
+        cursor = conn.cursor(dictionary=True)
+        clauses = []
+        params = []
+        
+        # Match by user_id OR email (whichever is available)
+        # This allows finding reports whether user was logged in or not
+        # Use LOWER() for case-insensitive email matching
+        if user_id and email:
+            clauses.append("(user_id = %s OR LOWER(email) = LOWER(%s))")
+            params.extend([user_id, email])
+        elif user_id:
+            clauses.append("user_id = %s")
+            params.append(user_id)
+        elif email:
+            clauses.append("LOWER(email) = LOWER(%s)")
+            params.append(email)
+
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        query = f"""
+            SELECT
+                id, user_id, full_name, contact_number, email,
+                booking_id, vehicle_name, incident_date, incident_time,
+                incident_location, incident_type, severity_level,
+                incident_description, files_json, status, created_at
+            FROM incident_reports
+            {where}
+            ORDER BY created_at DESC
+        """
+        cursor.execute(query, tuple(params))
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        # Decode files JSON
+        for row in rows:
+            try:
+                row['files'] = json.loads(row['files_json']) if row.get('files_json') else []
+            except Exception:
+                row['files'] = []
+        return rows
+    except Exception as e:
+        print(f"ERROR in get_incident_reports: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return []
+
+
+def update_incident_status(report_id: int, status: str) -> bool:
+    """Update status of an incident report."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE incident_reports SET status = %s WHERE id = %s",
+            (status, report_id)
+        )
+        updated = cursor.rowcount
+        cursor.close()
+        return updated > 0
+
+
+def delete_incident_report(report_id: int) -> bool:
+    """Delete an incident report."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM incident_reports WHERE id = %s", (report_id,))
+        deleted = cursor.rowcount
+        cursor.close()
+        return deleted > 0
 
 # ============= VEHICLE FRAUD LOGS =============
 
