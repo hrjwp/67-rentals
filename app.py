@@ -5,8 +5,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import stripe
 import os
 import json
-from Crypto.Cipher import AES
-import base64
 
 # Import configuration
 from config import Config
@@ -22,8 +20,6 @@ from database import (
     get_security_stats, get_vehicle_fraud_stats, get_booking_fraud_stats,
     add_security_log, add_vehicle_fraud_log, add_booking_fraud_log
 )
-
-
 
 # Import data models
 from models import (
@@ -48,11 +44,40 @@ from utils.encryption import encrypt_value, decrypt_value
 from utils.backup import SecureBackup
 from utils.file_security import validate_uploaded_file, sanitize_filename
 
-
 app = Flask(__name__)
 
 app.config.from_object(Config)
 stripe.api_key = Config.STRIPE_API_KEY
+
+
+@app.after_request
+def add_security_headers(response):
+    """
+    Add baseline security headers to help protect data in transit and reduce
+    injection/clickjacking risks. Kept permissive enough for current CDN usage.
+    """
+    csp = (
+        "default-src 'self'; "
+        "img-src 'self' data: https:; "
+        "script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com "
+        "https://www.youtube.com https://www.youtube-nocookie.com https://www.gstatic.com https://js.stripe.com "
+        "'unsafe-inline'; "
+        "style-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com "
+        "'unsafe-inline'; "
+        "font-src 'self' https://fonts.gstatic.com data:; "
+        "connect-src 'self' https://api.stripe.com; "
+        "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://js.stripe.com; "
+        "frame-ancestors 'self'; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'"
+    )
+    response.headers.setdefault("Content-Security-Policy", csp)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    return response
 
 
 def _encrypt_user_record(user_data: dict) -> dict:
@@ -100,7 +125,6 @@ def _get_latest_signup_status(email: str):
         return None
 
 
-
 # ============================================
 # MAIN ROUTES
 # ============================================
@@ -136,7 +160,7 @@ def index_logged():
 # ============================================
 # AUTHENTICATION ROUTES
 # ============================================
-#signup selection page
+# signup selection page
 # ============================================
 # SIGNUP SELECTION PAGE
 # ============================================
@@ -226,7 +250,7 @@ def signup_seller():
             safe_license_filename = sanitize_filename(license_image.filename)
             safe_vehicle_card_filename = sanitize_filename(vehicle_card_image.filename)
             safe_insurance_filename = sanitize_filename(insurance_image.filename)
-            
+
             nric_filename = secure_filename(f"{email}_nric_{safe_nric_filename}")
             license_filename = secure_filename(f"{email}_license_{safe_license_filename}")
             vehicle_card_filename = secure_filename(f"{email}_vehicle_{safe_vehicle_card_filename}")
@@ -239,17 +263,24 @@ def signup_seller():
             insurance_bytes = insurance_image.read()
 
             # Reset streams and save to disk
-            nric_image.seek(0); license_image.seek(0); vehicle_card_image.seek(0); insurance_image.seek(0)
+            nric_image.seek(0);
+            license_image.seek(0);
+            vehicle_card_image.seek(0);
+            insurance_image.seek(0)
             nric_image.save(os.path.join(Config.UPLOAD_FOLDER, nric_filename))
             license_image.save(os.path.join(Config.UPLOAD_FOLDER, license_filename))
             vehicle_card_image.save(os.path.join(Config.UPLOAD_FOLDER, vehicle_card_filename))
             insurance_image.save(os.path.join(Config.UPLOAD_FOLDER, insurance_filename))
 
             documents = {
-                'nric_image': {'filename': nric_filename, 'mime': nric_image.mimetype, 'data': nric_bytes, 'path': nric_filename},
-                'license_image': {'filename': license_filename, 'mime': license_image.mimetype, 'data': license_bytes, 'path': license_filename},
-                'vehicle_card_image': {'filename': vehicle_card_filename, 'mime': vehicle_card_image.mimetype, 'data': vehicle_card_bytes, 'path': vehicle_card_filename},
-                'insurance_image': {'filename': insurance_filename, 'mime': insurance_image.mimetype, 'data': insurance_bytes, 'path': insurance_filename}
+                'nric_image': {'filename': nric_filename, 'mime': nric_image.mimetype, 'data': nric_bytes,
+                               'path': nric_filename},
+                'license_image': {'filename': license_filename, 'mime': license_image.mimetype, 'data': license_bytes,
+                                  'path': license_filename},
+                'vehicle_card_image': {'filename': vehicle_card_filename, 'mime': vehicle_card_image.mimetype,
+                                       'data': vehicle_card_bytes, 'path': vehicle_card_filename},
+                'insurance_image': {'filename': insurance_filename, 'mime': insurance_image.mimetype,
+                                    'data': insurance_bytes, 'path': insurance_filename}
             }
 
             seller_data_plain = {
@@ -402,8 +433,10 @@ def signup():
             'password_hash': generate_password_hash(password),
             'user_type': 'user',
             'documents': {
-                'nric_image': {'filename': nric_filename, 'mime': nric_image.mimetype, 'data': nric_bytes, 'path': nric_filename},
-                'license_image': {'filename': license_filename, 'mime': license_image.mimetype, 'data': license_bytes, 'path': license_filename}
+                'nric_image': {'filename': nric_filename, 'mime': nric_image.mimetype, 'data': nric_bytes,
+                               'path': nric_filename},
+                'license_image': {'filename': license_filename, 'mime': license_image.mimetype, 'data': license_bytes,
+                                  'path': license_filename}
             }
         }
 
@@ -475,10 +508,10 @@ def login():
     session.modified = True
 
     flash(f"Welcome back, {user['first_name']}!", 'success')
-    
+
     # Redirect based on user type
     user_type = user.get('user_type', 'user')
-    
+
     if user_type == 'admin':
         return redirect(url_for('accounts'))  # Redirect admins to the Accounts section
     elif user_type == 'seller':
@@ -518,10 +551,12 @@ def admin_panel():
 
     def adapt(ticket):
         docs = ticket.get('documents', {})
+
         def doc_url(doc):
             if not doc or not isinstance(doc, dict) or not doc.get('id'):
                 return None
             return url_for('admin_document', doc_id=doc['id'])
+
         return {
             'ticket_id': ticket.get('ticket_id'),
             'first_name': ticket.get('first_name'),
@@ -551,12 +586,12 @@ def admin_panel():
     rejected_sellers = [adapt(t) for t in rejected_tickets if t.get('user_type') == 'seller']
 
     return render_template('admin_panel.html',
-                         pending_users=pending_users,
-                         pending_sellers=pending_sellers,
-                         approved_users=approved_users,
-                         approved_sellers=approved_sellers,
-                         rejected_users=rejected_users,
-                         rejected_sellers=rejected_sellers)
+                           pending_users=pending_users,
+                           pending_sellers=pending_sellers,
+                           approved_users=approved_users,
+                           approved_sellers=approved_sellers,
+                           rejected_users=rejected_users,
+                           rejected_sellers=rejected_sellers)
 
 
 # ============================================
@@ -600,6 +635,8 @@ def admin_reject_user(ticket_id):
 # ============================================
 from flask import send_file
 from io import BytesIO
+
+
 @app.route('/admin/document/<int:doc_id>')
 def admin_document(doc_id):
     """Serve a stored document from DB to admin."""
@@ -634,7 +671,7 @@ def user_home():
     if 'user' not in session:
         flash('Please log in to access this page.', 'error')
         return redirect(url_for('index'))
-    
+
     # Optional: Check if user type is 'user'
     if session.get('user_type') != 'user':
         flash('Access denied. This page is for regular users only.', 'error')
@@ -659,12 +696,12 @@ def seller_dashboard():
     if 'user' not in session:
         flash('Please log in to access this page.', 'error')
         return redirect(url_for('index'))
-    
+
     # Check if user type is 'seller'
     if session.get('user_type') != 'seller':
         flash('Access denied. This page is for sellers only.', 'error')
         return redirect(url_for('index'))
-    
+
     return render_template('seller_index.html')
 
 
@@ -699,7 +736,7 @@ def create_admin():
 
         flash('Admin account created successfully! You can now log in.', 'success')
         return redirect(url_for('index'))
-    
+
     return '''
     <!DOCTYPE html>
     <html>
@@ -779,21 +816,25 @@ def create_admin():
 # ============================================
 from functools import wraps
 
+
 def role_required(*allowed_roles):
     """Decorator to restrict access to specific user roles"""
+
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if 'user' not in session:
                 flash('Please log in to access this page', 'error')
                 return redirect(url_for('index'))
-            
+
             if 'user_type' not in session or session['user_type'] not in allowed_roles:
                 flash('You do not have permission to access this page', 'error')
                 return redirect(url_for('index'))
-            
+
             return f(*args, **kwargs)
+
         return decorated_function
+
     return decorator
 
 
@@ -811,8 +852,6 @@ def role_required(*allowed_roles):
 # def seller_products():
 #     # Seller and admin can access
 #     pass
-
-
 
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
@@ -896,40 +935,6 @@ def reset_password(token):
     return render_template('reset_password.html', token=token)
 
 
-@app.route('/encryption-proof')
-def encryption_proof():
-    """Demonstrate AES encryption/decryption via JSON only."""
-    sample = "demo string"
-    error = None
-    cipher = decrypted = None
-    round_trip = False
-    current_user_encrypted = None
-    current_user_decrypted = None
-
-    try:
-        cipher = encrypt_value(sample)
-        decrypted = decrypt_value(cipher)
-        round_trip = decrypted == sample
-
-        if 'user' in session:
-            email = session['user']
-            users = session.get('users', {})
-            if email in users:
-                current_user_encrypted = users[email]
-                current_user_decrypted = _decrypt_user_record(users[email])
-    except Exception as exc:
-        error = str(exc)
-
-    return jsonify({
-        "cipher": cipher,
-        "decrypted": decrypted,
-        "round_trip": round_trip,
-        "error": error,
-        "current_user_encrypted": current_user_encrypted,
-        "current_user_decrypted": current_user_decrypted,
-    })
-
-
 # ============================================
 # VEHICLE ROUTES
 # ============================================
@@ -987,10 +992,13 @@ def vehicle_listing_logged():
     search_query = request.args.get('q', '').lower()
 
     all_vehicles = [
-        {'id': 1, 'name': 'Toyota Sienta Hybrid', 'price': 150, 'image': 'toyota.png', 'detail_url': url_for('sienta_logged')},
+        {'id': 1, 'name': 'Toyota Sienta Hybrid', 'price': 150, 'image': 'toyota.png',
+         'detail_url': url_for('sienta_logged')},
         {'id': 2, 'name': 'MT-07/Y-AMT', 'price': 100, 'image': 'bike.jpg', 'detail_url': url_for('bike_logged')},
-        {'id': 3, 'name': 'Honda Civic', 'price': 120, 'image': 'civic.png', 'detail_url': url_for('honda_civic_logged')},
-        {'id': 4, 'name': 'Corolla Cross', 'price': 110, 'image': 'corolla.png', 'detail_url': url_for('corolla_logged')},
+        {'id': 3, 'name': 'Honda Civic', 'price': 120, 'image': 'civic.png',
+         'detail_url': url_for('honda_civic_logged')},
+        {'id': 4, 'name': 'Corolla Cross', 'price': 110, 'image': 'corolla.png',
+         'detail_url': url_for('corolla_logged')},
         {'id': 5, 'name': 'AVANTE Hybrid', 'price': 180, 'image': 'avante.png', 'detail_url': url_for('avante_logged')},
     ]
 
@@ -1000,7 +1008,8 @@ def vehicle_listing_logged():
         vehicles = all_vehicles
 
     cart_count = get_cart_count(session)
-    return render_template('vehicle_listing_logged.html', vehicles=vehicles, search_query=search_query, cart_count=cart_count)
+    return render_template('vehicle_listing_logged.html', vehicles=vehicles, search_query=search_query,
+                           cart_count=cart_count)
 
 
 @app.route('/vehicle_listing_seller_logged')
@@ -1008,10 +1017,13 @@ def vehicle_listing_seller_logged():
     search_query = request.args.get('q', '').lower()
 
     all_vehicles = [
-        {'id': 1, 'name': 'Toyota Sienta Hybrid', 'price': 150, 'image': 'toyota.png', 'detail_url': url_for('sienta_logged')},
+        {'id': 1, 'name': 'Toyota Sienta Hybrid', 'price': 150, 'image': 'toyota.png',
+         'detail_url': url_for('sienta_logged')},
         {'id': 2, 'name': 'MT-07/Y-AMT', 'price': 100, 'image': 'bike.png', 'detail_url': url_for('bike_logged')},
-        {'id': 3, 'name': 'Honda Civic', 'price': 120, 'image': 'civic.png', 'detail_url': url_for('honda_civic_logged')},
-        {'id': 4, 'name': 'Corolla Cross', 'price': 110, 'image': 'corolla.png', 'detail_url': url_for('corolla_logged')},
+        {'id': 3, 'name': 'Honda Civic', 'price': 120, 'image': 'civic.png',
+         'detail_url': url_for('honda_civic_logged')},
+        {'id': 4, 'name': 'Corolla Cross', 'price': 110, 'image': 'corolla.png',
+         'detail_url': url_for('corolla_logged')},
         {'id': 5, 'name': 'AVANTE Hybrid', 'price': 180, 'image': 'avante.png', 'detail_url': url_for('avante_logged')},
     ]
 
@@ -1021,7 +1033,8 @@ def vehicle_listing_seller_logged():
         vehicles = all_vehicles
 
     cart_count = get_cart_count(session)
-    return render_template('vehicle_listing_seller_logged.html', vehicles=vehicles, search_query=search_query, cart_count=cart_count)
+    return render_template('vehicle_listing_seller_logged.html', vehicles=vehicles, search_query=search_query,
+                           cart_count=cart_count)
 
 
 # Vehicle detail pages
@@ -1096,7 +1109,7 @@ def cart():
 
     if not cart_items:
         return render_template('cart.html', cart_items=[], subtotal=0,
-                             insurance_fee=0, service_fee=0, total=0, cart_count=0)
+                               insurance_fee=0, service_fee=0, total=0, cart_count=0)
 
     totals = calculate_cart_totals(cart_items, VEHICLES)
 
@@ -1117,7 +1130,7 @@ def booking_history():
     if not user_email:
         flash('Please login to view your bookings', 'error')
         return redirect(url_for('login'))
-    
+
     # Try to get user from database first
     bookings = []
     try:
@@ -1130,7 +1143,7 @@ def booking_history():
         print(f"Database error: {e}")
         # Fallback to session-based bookings if available
         pass
-    
+
     # If no database bookings, check session-based bookings (for demo/testing)
     if not bookings:
         # Try to get bookings from session or models
@@ -1141,13 +1154,13 @@ def booking_history():
             if booking.get('customer_email') == user_email:
                 session_bookings.append(booking)
         bookings = session_bookings
-    
+
     # Get cart count for navbar
     cart_count = get_cart_count(session)
-    
-    return render_template('booking_history.html', 
-                         bookings=bookings,
-                         cart_count=cart_count)
+
+    return render_template('booking_history.html',
+                           bookings=bookings,
+                           cart_count=cart_count)
 
 
 @app.route('/cart_logged')
@@ -1157,7 +1170,7 @@ def cart_logged():
 
     if not cart_items:
         return render_template('cart_logged.html', cart_items=[], subtotal=0,
-                             insurance_fee=0, service_fee=0, total=0, cart_count=0)
+                               insurance_fee=0, service_fee=0, total=0, cart_count=0)
 
     totals = calculate_cart_totals(cart_items, VEHICLES)
 
@@ -1195,6 +1208,7 @@ def add_to_cart(vehicle_id):
         return redirect(url_for('cart_logged'))
     else:
         return redirect(url_for('cart'))
+
 
 @app.route('/add-to-cart-logged/<int:vehicle_id>', methods=['POST'])
 def add_to_cart_logged(vehicle_id):
@@ -1262,6 +1276,7 @@ def clear_cart():
 def api_cart_count():
     """API endpoint to get current cart count"""
     return jsonify({'count': get_cart_count(session)})
+
 
 # ============================================
 # CHECKOUT & PAYMENT ROUTES
@@ -1458,7 +1473,7 @@ def stripe_webhook():
     payload = request.data
     sig_header = request.headers.get('Stripe-Signature')
     webhook_secret = os.environ.get('STRIPE_WEBHOOK_SECRET')  # Set this in your env
-    
+
     try:
         if webhook_secret:
             event = stripe.Webhook.construct_event(
@@ -1467,24 +1482,24 @@ def stripe_webhook():
         else:
             # For testing without webhook secret
             event = json.loads(payload)
-        
+
         # Handle payment intent succeeded
         if event['type'] == 'payment_intent.succeeded':
             payment_intent = event['data']['object']
             payment_method_id = payment_intent.get('payment_method')
-            
+
             # Payment method is tokenized - no card data available
             # Only payment method token (pm_xxx) is stored
             print(f"Payment succeeded. Tokenized Payment Method ID: {payment_method_id}")
-            
+
             # Decrypt metadata if needed
             if payment_intent.get('metadata'):
                 encrypted_metadata = payment_intent['metadata']
                 # Process encrypted metadata as needed
                 # Card data is never stored - only tokenized payment method
-        
+
         return jsonify({'status': 'success'}), 200
-        
+
     except ValueError as e:
         return jsonify({'error': 'Invalid payload'}), 400
     except stripe.error.SignatureVerificationError as e:
@@ -1504,9 +1519,9 @@ def create_backup():
     try:
         backup_system = SecureBackup()
         include_files = request.json.get('include_files', True) if request.is_json else True
-        
+
         backup_path = backup_system.create_backup(include_files=include_files)
-        
+
         return jsonify({
             'success': True,
             'message': 'Backup created successfully',
@@ -1514,7 +1529,7 @@ def create_backup():
             'backup_path': backup_path,
             'timestamp': datetime.now().isoformat()
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1526,13 +1541,13 @@ def list_backups():
     try:
         backup_system = SecureBackup()
         backups = backup_system.list_backups()
-        
+
         return jsonify({
             'success': True,
             'backups': backups,
             'count': len(backups)
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1545,13 +1560,13 @@ def restore_backup():
         data = request.get_json()
         backup_filename = data.get('backup_filename')
         restore_tables = data.get('restore_tables')  # Optional: specific tables to restore
-        
+
         if not backup_filename:
             return jsonify({'error': 'backup_filename is required'}), 400
-        
+
         backup_system = SecureBackup()
         result = backup_system.restore_backup(backup_filename, restore_tables)
-        
+
         return jsonify({
             'success': True,
             'message': 'Backup restored successfully',
@@ -1559,7 +1574,7 @@ def restore_backup():
             'restored_files': result['restored_files'],
             'timestamp': result['timestamp']
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1571,17 +1586,17 @@ def cleanup_backups():
     try:
         data = request.get_json() if request.is_json else {}
         keep_days = data.get('keep_days', Config.BACKUP_RETENTION_DAYS)
-        
+
         backup_system = SecureBackup()
         deleted = backup_system.delete_old_backups(keep_days=keep_days)
-        
+
         return jsonify({
             'success': True,
             'message': f'Deleted {len(deleted)} old backup(s)',
             'deleted_files': deleted,
             'keep_days': keep_days
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1593,7 +1608,7 @@ def backup_status():
     try:
         backup_system = SecureBackup()
         backups = backup_system.list_backups()
-        
+
         return jsonify({
             'backup_enabled': True,
             'backup_directory': backup_system.backup_dir,
@@ -1605,7 +1620,7 @@ def backup_status():
             'auto_backup_enabled': Config.AUTO_BACKUP_ENABLED,
             'auto_backup_interval_hours': Config.AUTO_BACKUP_INTERVAL_HOURS
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1615,17 +1630,17 @@ def backup_test():
     """Test backup system - shows if backups are working (no login required for testing)"""
     try:
         backup_system = SecureBackup()
-        
+
         # Check if backup directory exists and is writable
         backup_dir_exists = os.path.exists(backup_system.backup_dir)
         backup_dir_writable = os.access(backup_system.backup_dir, os.W_OK) if backup_dir_exists else False
-        
+
         # Check encryption key
         encryption_key_set = os.environ.get('DATA_ENCRYPTION_KEY') is not None
-        
+
         # List existing backups
         backups = backup_system.list_backups()
-        
+
         # Try to create a test backup (small test)
         test_backup_created = False
         test_backup_path = None
@@ -1638,7 +1653,7 @@ def backup_test():
                 os.remove(test_backup_path)
         except Exception as test_error:
             test_error_msg = str(test_error)
-        
+
         return jsonify({
             'backup_system_status': 'operational' if test_backup_created else 'error',
             'backup_directory': backup_system.backup_dir,
@@ -1661,7 +1676,7 @@ def backup_test():
                 'manual_test': 'python backup_scheduler.py'
             }
         }), 200
-        
+
     except Exception as e:
         return jsonify({
             'backup_system_status': 'error',
@@ -1679,28 +1694,28 @@ def backup_recovery_test():
     """Test both backup creation AND recovery/restore capability (no login required for testing)"""
     import zipfile
     import shutil
-    
+
     try:
         backup_system = SecureBackup()
-        
+
         # Initialize results
         results = {
             'backup_test': {'passed': False, 'message': '', 'details': {}},
             'recovery_test': {'passed': False, 'message': '', 'details': {}},
             'overall_status': 'error'
         }
-        
+
         test_backup_path = None
         decrypted_path = None
         extract_dir = None
-        
+
         try:
             # ========================================
             # TEST 1: BACKUP CREATION
             # ========================================
             try:
                 test_backup_path = backup_system.create_backup(include_files=False)  # Quick test
-                
+
                 if os.path.exists(test_backup_path):
                     file_size = os.path.getsize(test_backup_path)
                     results['backup_test'] = {
@@ -1719,7 +1734,7 @@ def backup_recovery_test():
                         'details': {}
                     }
                     return jsonify(results), 500
-                    
+
             except Exception as e:
                 results['backup_test'] = {
                     'passed': False,
@@ -1727,14 +1742,14 @@ def backup_recovery_test():
                     'details': {}
                 }
                 return jsonify(results), 500
-            
+
             # ========================================
             # TEST 2: RECOVERY (DECRYPTION & EXTRACTION)
             # ========================================
             try:
                 # Test decryption
                 decrypted_path = backup_system.decrypt_backup_file(test_backup_path)
-                
+
                 if not os.path.exists(decrypted_path):
                     results['recovery_test'] = {
                         'passed': False,
@@ -1742,14 +1757,14 @@ def backup_recovery_test():
                         'details': {}
                     }
                     return jsonify(results), 500
-                
+
                 # Test extraction and data reading
                 extract_dir = os.path.join(backup_system.backup_dir, 'test_extract_recovery')
                 os.makedirs(extract_dir, exist_ok=True)
-                
+
                 with zipfile.ZipFile(decrypted_path, 'r') as backup_zip:
                     backup_zip.extractall(extract_dir)
-                    
+
                     # Check metadata
                     metadata_path = os.path.join(extract_dir, 'backup_metadata.json')
                     metadata_readable = False
@@ -1757,7 +1772,7 @@ def backup_recovery_test():
                         with open(metadata_path, 'r') as f:
                             metadata = json.load(f)
                         metadata_readable = True
-                    
+
                     # Check database backup
                     db_path = os.path.join(extract_dir, 'database_backup.json')
                     db_readable = False
@@ -1767,7 +1782,7 @@ def backup_recovery_test():
                             db_data = json.load(f)
                         db_readable = True
                         tables_count = len(db_data.get('tables_backed_up', []))
-                
+
                 results['recovery_test'] = {
                     'passed': True,
                     'message': 'Recovery test passed - backup can be decrypted and data extracted',
@@ -1780,7 +1795,7 @@ def backup_recovery_test():
                         'files_extracted': len(os.listdir(extract_dir))
                     }
                 }
-                
+
             except Exception as e:
                 results['recovery_test'] = {
                     'passed': False,
@@ -1788,7 +1803,7 @@ def backup_recovery_test():
                     'details': {}
                 }
                 return jsonify(results), 500
-            
+
             # Determine overall status
             if results['backup_test']['passed'] and results['recovery_test']['passed']:
                 results['overall_status'] = 'operational'
@@ -1796,16 +1811,16 @@ def backup_recovery_test():
                 results['overall_status'] = 'partial'  # Backup works but recovery doesn't
             else:
                 results['overall_status'] = 'error'
-            
+
             # Add summary
             results['summary'] = {
                 'backup_works': results['backup_test']['passed'],
                 'recovery_works': results['recovery_test']['passed'],
                 'system_ready': results['overall_status'] == 'operational'
             }
-            
+
             return jsonify(results), 200
-            
+
         finally:
             # Cleanup test files
             if extract_dir and os.path.exists(extract_dir):
@@ -1820,7 +1835,7 @@ def backup_recovery_test():
                     os.remove(test_backup_path)
                 except:
                     pass
-    
+
     except Exception as e:
         return jsonify({
             'overall_status': 'error',
@@ -1835,11 +1850,11 @@ def file_security_test():
     """Test file upload security features (no login required for testing)"""
     try:
         from utils.file_security import (
-            verify_file_magic_number, detect_file_type, 
+            verify_file_magic_number, detect_file_type,
             validate_image_file, sanitize_filename
         )
         import base64
-        
+
         results = {
             'security_features': {
                 'magic_number_verification': True,
@@ -1849,9 +1864,9 @@ def file_security_test():
             },
             'tests': []
         }
-        
+
         all_passed = True
-        
+
         # Test 1: Magic number verification
         try:
             # Create fake PNG (should fail - not real PNG)
@@ -1859,13 +1874,13 @@ def file_security_test():
             is_valid, detected = verify_file_magic_number(fake_png, 'png')
             if is_valid:
                 raise Exception("Fake PNG was incorrectly accepted")
-            
+
             # Real PNG header
             real_png = b'\x89\x50\x4E\x47\x0D\x0A\x1A\x0A' + b'VALID_PNG_DATA'
             is_valid, detected = verify_file_magic_number(real_png, 'png')
             if not is_valid:
                 raise Exception("Real PNG was incorrectly rejected")
-            
+
             results['tests'].append({
                 'test_name': 'Magic Number Verification',
                 'passed': True,
@@ -1878,19 +1893,19 @@ def file_security_test():
                 'passed': False,
                 'error': str(e)
             })
-        
+
         # Test 2: File type detection
         try:
             jpg_data = b'\xFF\xD8\xFF\xE0\x00\x10JFIF'
             detected = detect_file_type(jpg_data)
             if detected != 'jpg':
                 raise Exception(f"Expected 'jpg', got '{detected}'")
-            
+
             png_data = b'\x89\x50\x4E\x47\x0D\x0A\x1A\x0A'
             detected = detect_file_type(png_data)
             if detected != 'png':
                 raise Exception(f"Expected 'png', got '{detected}'")
-            
+
             results['tests'].append({
                 'test_name': 'File Type Detection',
                 'passed': True,
@@ -1903,7 +1918,7 @@ def file_security_test():
                 'passed': False,
                 'error': str(e)
             })
-        
+
         # Test 3: Filename sanitization
         try:
             dangerous_names = [
@@ -1912,12 +1927,12 @@ def file_security_test():
                 ('file\x00null.jpg', 'filenull.jpg'),
                 ('normal_file.jpg', 'normal_file.jpg')
             ]
-            
+
             for dangerous, expected_safe in dangerous_names:
                 sanitized = sanitize_filename(dangerous)
                 if '../' in sanitized or '<' in sanitized or '\x00' in sanitized:
                     raise Exception(f"Filename not properly sanitized: {sanitized}")
-            
+
             results['tests'].append({
                 'test_name': 'Filename Sanitization',
                 'passed': True,
@@ -1930,7 +1945,7 @@ def file_security_test():
                 'passed': False,
                 'error': str(e)
             })
-        
+
         # Test 4: Image validation
         try:
             # Invalid image (too small)
@@ -1938,13 +1953,13 @@ def file_security_test():
             is_valid, error = validate_image_file(tiny_file)
             if is_valid:
                 raise Exception("Tiny file was incorrectly accepted as valid image")
-            
+
             # Valid JPEG (minimal structure)
             valid_jpg = b'\xFF\xD8\xFF\xE0\x00\x10JFIF' + b'X' * 200 + b'\xFF\xD9'
             is_valid, error = validate_image_file(valid_jpg)
             if not is_valid:
                 raise Exception(f"Valid JPEG was rejected: {error}")
-            
+
             results['tests'].append({
                 'test_name': 'Image Validation',
                 'passed': True,
@@ -1957,7 +1972,7 @@ def file_security_test():
                 'passed': False,
                 'error': str(e)
             })
-        
+
         results['overall_status'] = 'operational' if all_passed else 'error'
         results['summary'] = {
             'total_tests': len(results['tests']),
@@ -1965,10 +1980,10 @@ def file_security_test():
             'failed_tests': sum(1 for t in results['tests'] if not t.get('passed', False)),
             'file_security_working': all_passed
         }
-        
+
         status_code = 200 if all_passed else 500
         return jsonify(results), status_code
-        
+
     except Exception as e:
         return jsonify({
             'overall_status': 'error',
@@ -2101,7 +2116,6 @@ def seller_reject_cancellation(request_id):
     BOOKINGS[booking['booking_id']]['status'] = 'Confirmed'
 
     return jsonify({'success': True})
-
 
 
 @app.route('/refund-status/<refund_id>')
@@ -2418,10 +2432,12 @@ def cases():
     cart_count = get_cart_count(session)
     return render_template("submitted_cases.html", cart_count=cart_count)
 
+
 @app.route('/security-logs')
 def security_logs():
     """Page 1: Access Security Logs"""
     return render_template('security_logs.html')
+
 
 @app.route('/vehicle-fraud-logs')
 def vehicle_fraud_logs():
@@ -2434,31 +2450,154 @@ def booking_fraud_logs():
     """Page 3: Booking Fraud Logs"""
     return render_template('booking_fraud_logs.html')
 
-#AES
 
-key = os.urandom(32)
+@app.route("/admin/encryption-proof")
+def encryption_proof():
+    """
+    Admin-only helper to show encrypted vs decrypted values for a user.
+    Usage: GET /admin/encryption-proof?email=user@example.com
+    """
+    email = request.args.get("email")
+    if not email:
+        return jsonify({"error": "email is required"}), 400
 
-def encrypt_value(plaintext):
-    cipher = AES.new(key, AES.MODE_EAX)
-    ciphertext, tag = cipher.encrypt_and_digest(plaintext.encode())
-    return base64.b64encode(cipher.nonce + tag + ciphertext).decode()
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT user_id, first_name, last_name, email, phone_number,
+                   nric, license_number
+            FROM users WHERE email = %s
+            """,
+            (email,),
+        )
+        row = cursor.fetchone()
+        cursor.close()
 
-def decrypt_value(token):
-    raw = base64.b64decode(token)
-    nonce = raw[:16]
-    tag = raw[16:32]
-    ciphertext = raw[32:]
-    cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
-    return cipher.decrypt_and_verify(ciphertext, tag).decode()
+    if not row:
+        return jsonify({"error": "user not found"}), 404
 
-@app.route("/test-encrypt")
-def test_encrypt():
-    sample = "hello"
-    cipher = encrypt_value(sample)
-    return {"cipher": cipher, "plain": decrypt_value(cipher)}
+    decrypted = _decrypt_user_record({
+        "first_name": row.get("first_name"),
+        "last_name": row.get("last_name"),
+        "phone": row.get("phone_number"),
+        "nric": row.get("nric"),
+        "license_number": row.get("license_number"),
+    })
+
+    return jsonify({
+        "email": email,
+        "encrypted": {
+            "first_name": row.get("first_name"),
+            "last_name": row.get("last_name"),
+            "phone_number": row.get("phone_number"),
+            "nric": row.get("nric"),
+            "license_number": row.get("license_number"),
+        },
+        "decrypted": decrypted,
+    })
 
 
-#fraud detection stuff
+@app.route("/admin/encrypt-existing-users", methods=["POST"])
+def encrypt_existing_users():
+    """
+    One-time helper to encrypt existing plaintext PII in the users table.
+    Call: POST /admin/encrypt-existing-users?confirm=yes
+    """
+    if request.args.get("confirm") != "yes":
+        return jsonify({"error": "add confirm=yes to run"}), 400
+
+    updated = 0
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT user_id, first_name, last_name, phone_number, nric, license_number FROM users"
+        )
+        rows = cursor.fetchall()
+
+        for row in rows:
+            updates = {}
+            for field, db_col in [
+                ("first_name", "first_name"),
+                ("last_name", "last_name"),
+                ("phone_number", "phone_number"),
+                ("nric", "nric"),
+                ("license_number", "license_number"),
+            ]:
+                val = row.get(db_col)
+                if not val:
+                    continue
+                # If decrypt succeeds and changes the value, it's already encrypted
+                maybe_plain = decrypt_value(val, fallback_on_error=True)
+                if maybe_plain != val:
+                    continue
+                try:
+                    updates[db_col] = encrypt_value(val)
+                except Exception:
+                    continue
+
+            if updates:
+                set_clause = ", ".join([f"{col} = %s" for col in updates.keys()])
+                params = list(updates.values()) + [row["user_id"]]
+                cursor.execute(
+                    f"UPDATE users SET {set_clause} WHERE user_id = %s",
+                    params,
+                )
+                updated += 1
+
+        conn.commit()
+        cursor.close()
+
+    return jsonify({"updated_rows": updated})
+
+
+@app.route("/admin/decrypt-existing-users", methods=["POST"])
+def decrypt_existing_users():
+    """
+    One-time helper to decrypt encrypted PII back to plaintext.
+    Call: POST /admin/decrypt-existing-users?confirm=yes
+    """
+    if request.args.get("confirm") != "yes":
+        return jsonify({"error": "add confirm=yes to run"}), 400
+
+    updated = 0
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT user_id, first_name, last_name, phone_number, nric, license_number FROM users"
+        )
+        rows = cursor.fetchall()
+
+        for row in rows:
+            updates = {}
+            for db_col in ["first_name", "last_name", "phone_number", "nric", "license_number"]:
+                val = row.get(db_col)
+                if not val:
+                    continue
+                try:
+                    plain = decrypt_value(val)
+                except Exception:
+                    # If decrypt fails, assume already plaintext or invalid; skip
+                    continue
+                if plain != val:
+                    updates[db_col] = plain
+
+            if updates:
+                set_clause = ", ".join([f"{col} = %s" for col in updates.keys()])
+                params = list(updates.values()) + [row["user_id"]]
+                cursor.execute(
+                    f"UPDATE users SET {set_clause} WHERE user_id = %s",
+                    params,
+                )
+                updated += 1
+
+        conn.commit()
+        cursor.close()
+
+    return jsonify({"updated_rows": updated})
+
+
+# fraud detection stuff
 # Assuming the necessary imports (Flask, datetime, and all database functions) are at the top
 
 @app.route('/api/security-logs')
