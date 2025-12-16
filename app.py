@@ -73,6 +73,33 @@ def _decrypt_user_record(user_data: dict) -> dict:
     return decrypted
 
 
+def _get_latest_signup_status(email: str):
+    """
+    Return the most recent signup_tickets.status for the given email.
+    Used to distinguish between pending and rejected logins.
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT t.status
+                FROM signup_tickets t
+                JOIN users u ON u.user_id = t.user_id
+                WHERE u.email = %s
+                ORDER BY t.submitted_at DESC
+                LIMIT 1
+                """,
+                (email,),
+            )
+            row = cursor.fetchone()
+            cursor.close()
+            return row["status"] if row else None
+    except Exception as exc:  # pragma: no cover - defensive logging
+        print(f"Signup status lookup failed: {exc}")
+        return None
+
+
 
 # ============================================
 # MAIN ROUTES
@@ -122,6 +149,8 @@ def index_logged():
 # ============================================
 @app.route('/signup_sel', methods=['GET', 'POST'])
 def signup_sel():
+    # Clear any stale flashes (e.g., welcome/login messages) when viewing signup selection
+    session.pop('_flashes', None)
     return render_template('signup_sel.html')
 
 
@@ -131,6 +160,8 @@ def signup_sel():
 @app.route('/signup_seller', methods=['GET', 'POST'])
 def signup_seller():
     if request.method == 'GET':
+        # Clear stale flashes before showing the seller signup form
+        session.pop('_flashes', None)
         return render_template('signup_seller.html')
 
     if request.method == 'POST':
@@ -233,8 +264,8 @@ def signup_seller():
 
             create_user_with_documents(seller_data_plain)
 
-            flash('Seller registration submitted successfully! Please wait for admin approval.', 'success')
-            return redirect(url_for('registration_pending'))
+            # Show pending approval page immediately after successful submission
+            return render_template('pending_reg.html')
 
         except Exception as e:
             flash(f'An error occurred during registration: {str(e)}', 'error')
@@ -250,6 +281,8 @@ def signup_seller():
 def signup():
     """Sign up page with comprehensive validation including NRIC checksum"""
     if request.method == 'GET':
+        # Clear stale flashes (e.g., welcome/login) so the form starts clean
+        session.pop('_flashes', None)
         return render_template('signup.html')
 
     if request.method == 'POST':
@@ -377,9 +410,8 @@ def signup():
         # Persist to DB with pending status for admin review
         create_user_with_documents(user_data_plain)
 
-        # Redirect to registration pending page
-        flash('Registration submitted successfully! Please wait for admin approval.', 'success')
-        return redirect(url_for('registration_pending'))
+        # Show pending approval page immediately after successful submission
+        return render_template('pending_reg.html')
 
     return render_template('signup.html')
 
@@ -391,6 +423,12 @@ def signup():
 def registration_pending():
     """Registration pending approval page"""
     return render_template('pending_reg.html')
+
+
+@app.route('/registration-rejected')
+def registration_rejected():
+    """Registration rejected page"""
+    return render_template('rejected.html')
 
 
 # ============================================
@@ -411,9 +449,19 @@ def login():
         flash('Invalid email or password', 'error')
         return redirect(request.referrer or url_for('index'))
 
+    latest_status = _get_latest_signup_status(email)
+
+    # Explicitly block rejected accounts with a clear message
+    if latest_status == 'rejected':
+        session.pop('_flashes', None)
+        return redirect(url_for('registration_rejected'))
+
     # Check if user account is verified/approved
     if not user.get('verified'):
-        flash('Your account is pending approval. Please wait for admin verification.', 'error')
+        if latest_status == 'pending':
+            flash('Your account is pending approval. Please wait for admin verification.', 'error')
+        else:
+            flash('Your account is not approved yet. Please wait for admin verification.', 'error')
         return redirect(url_for('registration_pending'))
 
     # Clear any stale flashes from earlier flows before setting the success message
@@ -432,7 +480,7 @@ def login():
     user_type = user.get('user_type', 'user')
     
     if user_type == 'admin':
-        return redirect(url_for('dashboard'))  # Redirect admins to admin panel
+        return redirect(url_for('accounts'))  # Redirect admins to the Accounts section
     elif user_type == 'seller':
         return redirect(url_for('seller_index'))  # Redirect sellers to seller dashboard
     else:  # user_type == 'user'
@@ -493,17 +541,22 @@ def admin_panel():
 
     pending_tickets = get_signup_tickets(status='pending')
     approved_tickets = get_signup_tickets(status='approved')
+    rejected_tickets = get_signup_tickets(status='rejected')
 
     pending_users = [adapt(t) for t in pending_tickets if t.get('user_type') == 'user']
     pending_sellers = [adapt(t) for t in pending_tickets if t.get('user_type') == 'seller']
     approved_users = [adapt(t) for t in approved_tickets if t.get('user_type') == 'user']
     approved_sellers = [adapt(t) for t in approved_tickets if t.get('user_type') == 'seller']
+    rejected_users = [adapt(t) for t in rejected_tickets if t.get('user_type') == 'user']
+    rejected_sellers = [adapt(t) for t in rejected_tickets if t.get('user_type') == 'seller']
 
     return render_template('admin_panel.html',
                          pending_users=pending_users,
                          pending_sellers=pending_sellers,
                          approved_users=approved_users,
-                         approved_sellers=approved_sellers)
+                         approved_sellers=approved_sellers,
+                         rejected_users=rejected_users,
+                         rejected_sellers=rejected_sellers)
 
 
 # ============================================
@@ -2209,8 +2262,11 @@ def dashboard():
 
 @app.route('/accounts')
 def accounts():
-    """Accounts management page"""
-    return render_template('accounts.html')
+    """
+    Reuse the admin panel experience on the Accounts route
+    so admins see the full approval dashboard when clicking Accounts.
+    """
+    return admin_panel()
 
 
 @app.route('/vehicles-page')
