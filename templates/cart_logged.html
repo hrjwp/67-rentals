@@ -339,13 +339,21 @@
                                         </p>
                                         <div class="mb-2">
                                             <label class="form-label"><small>Pickup Date:</small></label>
-                                            <input type="date" class="date-input pickup-date" value="{{ item.pickup_date }}"
-                                                   data-vehicle-id="{{ item.id }}" onchange="updateDates({{ item.id }})">
+                                            <input type="date"
+                                                   class="date-input pickup-date"
+                                                   value="{{ item.pickup_date }}"
+                                                   min="{{ today }}"
+                                                   data-vehicle-id="{{ item.id }}"
+                                                   onchange="updateDates({{ item.id }})">
                                         </div>
                                         <div>
                                             <label class="form-label"><small>Return Date:</small></label>
-                                            <input type="date" class="date-input return-date" value="{{ item.return_date }}"
-                                                   data-vehicle-id="{{ item.id }}" onchange="updateDates({{ item.id }})">
+                                            <input type="date"
+                                                   class="date-input return-date"
+                                                   value="{{ item.return_date }}"
+                                                   min="{{ today }}"
+                                                   data-vehicle-id="{{ item.id }}"
+                                                   onchange="updateDates({{ item.id }})">
                                         </div>
                                     </div>
                                     <div class="col-md-4 text-end">
@@ -405,7 +413,7 @@
                     <i class="bi bi-cart-x"></i>
                     <h3>Your cart is empty</h3>
                     <p>Start adding vehicles to your cart to begin your journey!</p>
-                    <a href="{{ url_for('index') }}#section_3" class="btn btn-primary mt-3">
+                    <a href="{{ url_for('vehicle_listing_logged') }}#section_3" class="btn btn-primary mt-3">
                         Browse Vehicles
                     </a>
                 </div>
@@ -439,6 +447,10 @@
         <script src="{{ url_for('static', filename='js/custom.js') }}"></script>
 
         <script>
+            const today = new Date().toISOString().split('T')[0];
+            document.querySelectorAll('.pickup-date, .return-date').forEach(input => {
+                input.setAttribute('min', today);
+            });
             function removeItem(vehicleId) {
                 if (!confirm('Remove this vehicle from your cart?')) {
                     return;
@@ -468,6 +480,20 @@
                 const pickupDate = item.querySelector('.pickup-date').value;
                 const returnDate = item.querySelector('.return-date').value;
 
+                // Validate dates
+                const today = new Date().toISOString().split('T')[0];
+                if (pickupDate < today) {
+                    alert('Pickup date cannot be in the past');
+                    item.querySelector('.pickup-date').value = today;
+                    return;
+                }
+
+                if (returnDate < pickupDate) {
+                    alert('Return date must be after pickup date');
+                    item.querySelector('.return-date').value = pickupDate;
+                    return;
+                }
+
                 const formData = new FormData();
                 formData.append('pickup_date', pickupDate);
                 formData.append('return_date', returnDate);
@@ -479,7 +505,6 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Reload page to recalculate totals
                         location.reload();
                     }
                 })

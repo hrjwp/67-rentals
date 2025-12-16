@@ -1301,42 +1301,102 @@ def payment_tokenization_status():
     })
 
 
+# app.py (Focus on the /payment-success route)
+
 @app.route('/payment-success')
+# ADDED: login_required decorator to ensure user is authenticated
+@login_required
 def payment_success():
-    """Payment success page - payment data is tokenized by Stripe"""
+    """Payment success page - should finalize the booking and save to DB"""
     payment_intent_id = request.args.get('payment_intent')
 
+    db_booking_id = None
+
     if not payment_intent_id:
+        # Redirect to home if no payment intent is provided
+        flash('Payment finalization failed: Missing payment intent ID.', 'error')
         return redirect(url_for('index'))
 
     try:
-        # Retrieve payment intent from Stripe (contains tokenized payment method, not card data)
+        # 1. Retrieve payment intent from Stripe (contains tokenized payment method)
         payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
-        
-        # Payment method is tokenized (pm_xxx) - no card data stored
-        payment_method_id = payment_intent.payment_method
-        
-        # Decrypt customer metadata if needed for display
-        decrypted_metadata = {}
-        if payment_intent.metadata:
-            for key, value in payment_intent.metadata.items():
-                if key.endswith('_encrypted') and value:
-                    field_name = key.replace('_encrypted', '')
-                    try:
-                        decrypted_metadata[field_name] = decrypt_value(value)
-                    except:
-                        decrypted_metadata[field_name] = 'N/A'
-        
+
+        # 2. Get necessary data for booking finalization
+        user_email = session.get('user')
+        user_id = session.get('user_id')
+        user_name = session.get('user_name')
+        cart_items = session.get('cart', {})
+
+        if not cart_items:
+            # Handle case where cart was cleared or never existed
+            flash('Booking data not found in session for finalization.', 'warning')
+            return redirect(url_for('booking_history'))
+
+        # Assuming the cart has at least one item and we are processing all items.
+        # For simplicity, this example processes the whole cart into one booking.
+        totals = calculate_cart_totals(cart_items, VEHICLES)
+
+        # We need the details for the first item to structure the booking entry
+        vehicle_id, booking_details = next(iter(cart_items.items()))
+        vehicle_id = int(vehicle_id)
+
+        # Retrieve vehicle details for display fields
+        vehicle_data = VEHICLES.get(vehicle_id, {})
+
+        # 3. Assemble Booking Data for DB Insertion
+        booking_data = {
+            # Note: create_booking in database.py uses DB-generated ID (lastrowid)
+            # if booking_id is not passed, but let's pass a generated ID for clarity
+            # and matching the theoretical table structure if a custom ID is desired.
+            'booking_id': generate_booking_id(),
+            'vehicle_id': vehicle_id,
+            'user_id': user_id,
+            'pickup_date': booking_details['pickup_date'],
+            'return_date': booking_details['return_date'],
+            'pickup_location': 'Online Booking',  # Placeholder: Should come from request
+            'days': totals['cart_data'][0]['days'],
+            'total_amount': totals['total'],
+            'status': 'Confirmed',  # Set to Confirmed since payment succeeded
+            'payment_intent_id': payment_intent_id
+        }
+
+        # 4. Save to MySQL Database
+        try:
+            # The database function is called here to persist the data.
+            db_booking_id = create_booking(booking_data)
+            flash(f'Booking #{db_booking_id} successfully confirmed and recorded. Payment ID: {payment_intent_id}',
+                  'success')
+
+        except Exception as e:
+            # Log critical failure to database
+            add_security_log(
+                user_id=str(user_id),
+                event_type="BOOKING_DB_FAIL",
+                severity="CRITICAL",
+                description=f"Payment success, but DB insert failed for PI: {payment_intent_id}. Error: {e}",
+                ip_address=request.remote_addr
+            )
+            print(f"CRITICAL ERROR: Failed to save booking to DB: {e}")
+            flash('Booking confirmed by Stripe but failed to save to our records. Please contact support.', 'error')
+
+        # 5. Clear Session Cart (ONLY after DB insertion attempt)
         session['cart'] = {}
         session.modified = True
 
-        return render_template('payment_success.html', 
-                             payment_intent_id=payment_intent_id,
-                             payment_method_token=payment_method_id,
-                             amount=payment_intent.amount / 100)
+        # 6. Render success page
+        return render_template('payment_success.html',
+                               payment_intent_id=payment_intent_id,
+                               payment_method_token=payment_intent.payment_method,
+                               amount=payment_intent.amount / 100,
+                               # Pass the final booking ID for display
+                               db_booking_id=db_booking_id)
+
     except stripe.error.StripeError as e:
         flash(f'Error retrieving payment: {str(e)}', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('index_logged'))
+    except Exception as e:
+        print(f"CRITICAL ERROR: Failed to save booking to DB: {e}")
+        return f"DATABASE INSERTION FAILED. ERROR DETAILS: {e}", 500
 
 
 @app.route('/webhook/stripe', methods=['POST'])

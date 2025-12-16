@@ -397,13 +397,21 @@
                                     </p>
                                     <div class="mb-2">
                                         <label class="form-label"><small>Pickup Date:</small></label>
-                                        <input type="date" class="date-input pickup-date" value="{{ item.pickup_date }}"
-                                            data-vehicle-id="{{ item.id }}" onchange="updateDates({{ item.id }})">
+                                        <input type="date"
+                                               class="date-input pickup-date"
+                                               value="{{ item.pickup_date }}"
+                                               min="{{ today }}"
+                                               data-vehicle-id="{{ item.id }}"
+                                               onchange="updateDates({{ item.id }})">
                                     </div>
                                     <div>
                                         <label class="form-label"><small>Return Date:</small></label>
-                                        <input type="date" class="date-input return-date" value="{{ item.return_date }}"
-                                            data-vehicle-id="{{ item.id }}" onchange="updateDates({{ item.id }})">
+                                        <input type="date"
+                                               class="date-input return-date"
+                                               value="{{ item.return_date }}"
+                                               min="{{ today }}"
+                                               data-vehicle-id="{{ item.id }}"
+                                               onchange="updateDates({{ item.id }})">
                                     </div>
                                 </div>
                                 <div class="col-md-4 text-end">
@@ -500,6 +508,11 @@
     <script src="{{ url_for('static', filename='js/custom.js') }}"></script>
 
     <script>
+        const today = new Date().toISOString().split('T')[0];
+        document.querySelectorAll('.pickup-date, .return-date').forEach(input => {
+            input.setAttribute('min', today);
+        });
+
         function removeItem(vehicleId) {
             if (!confirm('Remove this vehicle from your cart?')) {
                 return;
@@ -563,6 +576,44 @@
             {% endif %}
         }
 
+        function updateDates(vehicleId) {
+            const item = document.querySelector(`[data-item-id="${vehicleId}"]`);
+            const pickupDate = item.querySelector('.pickup-date').value;
+            const returnDate = item.querySelector('.return-date').value;
+
+            // Validate dates
+            const today = new Date().toISOString().split('T')[0];
+            if (pickupDate < today) {
+                alert('Pickup date cannot be in the past');
+                item.querySelector('.pickup-date').value = today;
+                return;
+            }
+
+            if (returnDate < pickupDate) {
+                alert('Return date must be after pickup date');
+                item.querySelector('.return-date').value = pickupDate;
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('pickup_date', pickupDate);
+            formData.append('return_date', returnDate);
+
+            fetch(`/update-cart/${vehicleId}`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to update dates');
+            });
+        }
     </script>
 </body>
 

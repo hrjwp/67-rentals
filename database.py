@@ -52,15 +52,19 @@ def ensure_schema():
         # Core support tables
         cursor.execute(
             """
-            CREATE TABLE IF NOT EXISTS user_documents (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT NOT NULL,
-                doc_type VARCHAR(50) NOT NULL,
-                file_name VARCHAR(255) NULL,
-                mime_type VARCHAR(100) NULL,
-                file_path VARCHAR(255) NULL,
-                file_data LONGBLOB NULL,
-                uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            CREATE TABLE IF NOT EXISTS bookings (
+                booking_id VARCHAR(20) PRIMARY KEY,
+                vehicle_id INT NOT NULL,
+                user_id INT NOT NULL,  -- Required for linking to customer data
+                pickup_date DATE NOT NULL,
+                return_date DATE NOT NULL,
+                pickup_location VARCHAR(100),
+                booking_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                days INT,
+                total_amount DECIMAL(10,2),
+                status ENUM('Confirmed', 'Pending', 'Cancelled') DEFAULT 'Pending',
+                payment_intent_id VARCHAR(100),
+                FOREIGN KEY (vehicle_id) REFERENCES vehicles(id),
                 FOREIGN KEY (user_id) REFERENCES users(user_id)
             )
             """
@@ -94,6 +98,25 @@ def ensure_schema():
                 expires_at DATETIME NOT NULL,
                 used BOOLEAN DEFAULT FALSE,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bookings (
+                booking_id VARCHAR(20) PRIMARY KEY,
+                vehicle_id INT,
+                user_id INT,
+                pickup_date DATE NOT NULL,
+                return_date DATE NOT NULL,
+                pickup_location VARCHAR(100),
+                booking_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                days INT,
+                total_amount DECIMAL(10,2),
+                status ENUM('Confirmed', 'Pending', 'Cancelled') DEFAULT 'Pending',
+                payment_intent_id VARCHAR(100),
+                FOREIGN KEY (vehicle_id) REFERENCES vehicles(id),
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
             )
             """
         )
@@ -326,9 +349,10 @@ def create_booking(booking_data):
         cursor = conn.cursor()
         query = """
             INSERT INTO bookings (booking_id, vehicle_id, user_id, pickup_date, 
-                                return_date, pickup_location, days, total_amount, 
-                                status, payment_intent_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                return_date, pickup_location, days, total_amount, 
+                status, payment_intent_id, booking_date
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
         """
         values = (
             booking_data['booking_id'],
@@ -342,6 +366,7 @@ def create_booking(booking_data):
             booking_data.get('status', 'Pending'),
             booking_data.get('payment_intent_id')
         )
+
         cursor.execute(query, values)
         booking_id = cursor.lastrowid
         cursor.close()
@@ -410,7 +435,11 @@ def get_user_bookings(user_id):
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
         query = """
-            SELECT b.*, v.name as vehicle_name, v.image as vehicle_image, v.type as vehicle_type
+            SELECT 
+                b.*, 
+                v.name as vehicle_name,      -- Fetched via JOIN
+                v.image as vehicle_image,    -- Fetched via JOIN
+                v.type as vehicle_type       -- Fetched via JOIN
             FROM bookings b
             LEFT JOIN vehicles v ON b.vehicle_id = v.id
             WHERE b.user_id = %s
