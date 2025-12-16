@@ -18,7 +18,9 @@ from database import (
     get_user_bookings, get_signup_tickets, set_signup_status, get_user_documents,
     get_db_connection, get_security_logs, get_vehicle_fraud_logs, get_booking_fraud_logs,
     get_security_stats, get_vehicle_fraud_stats, get_booking_fraud_stats,
-    add_security_log, add_vehicle_fraud_log, add_booking_fraud_log
+    add_security_log, add_vehicle_fraud_log, add_booking_fraud_log,
+    create_incident_report, get_incident_reports,
+    update_incident_status, delete_incident_report
 )
 
 # Import data models
@@ -64,7 +66,7 @@ def add_security_headers(response):
         "'unsafe-inline'; "
         "style-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com "
         "'unsafe-inline'; "
-        "font-src 'self' https://fonts.gstatic.com data:; "
+        "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; "
         "connect-src 'self' https://api.stripe.com; "
         "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://js.stripe.com; "
         "frame-ancestors 'self'; "
@@ -1009,7 +1011,9 @@ def vehicle_listing_logged():
 
     cart_count = get_cart_count(session)
     return render_template('vehicle_listing_logged.html', vehicles=vehicles, search_query=search_query,
-                           cart_count=cart_count)
+                           cart_count=cart_count,
+                           user_email=session.get('user'),
+                           user_name=session.get('user_name'))
 
 
 @app.route('/vehicle_listing_seller_logged')
@@ -1160,7 +1164,9 @@ def booking_history():
 
     return render_template('booking_history.html',
                            bookings=bookings,
-                           cart_count=cart_count)
+                           cart_count=cart_count,
+                        user_email = session.get('user'),
+                        user_name = session.get('user_name'))
 
 
 @app.route('/cart_logged')
@@ -1283,6 +1289,7 @@ def api_cart_count():
 # ============================================
 
 @app.route('/checkout')
+@login_required
 def checkout():
     """Checkout page"""
     cart_items = session.get('cart', {})
@@ -1446,6 +1453,31 @@ def payment_success():
             )
             print(f"CRITICAL ERROR: Failed to save booking to DB: {e}")
             flash('Booking confirmed by Stripe but failed to save to our records. Please contact support.', 'error')
+
+        # 4b. Also store a display-friendly booking in the in-memory BOOKINGS dict
+        #     so booking_history can still show it even if DB lookups fail.
+        try:
+            from models import BOOKINGS  # local import to avoid circulars at module load
+            display_booking_id = booking_data['booking_id']
+            BOOKINGS[display_booking_id] = {
+                'booking_id': display_booking_id,
+                'vehicle_id': vehicle_id,
+                'vehicle_name': vehicle_data.get('name'),
+                'vehicle_type': vehicle_data.get('type'),
+                'vehicle_image': vehicle_data.get('image'),
+                'customer_name': user_name,
+                'customer_email': user_email,
+                'pickup_date': booking_data['pickup_date'],
+                'return_date': booking_data['return_date'],
+                'pickup_location': booking_data['pickup_location'],
+                'booking_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'days': booking_data['days'],
+                'total_amount': booking_data['total_amount'],
+                'status': booking_data.get('status', 'Confirmed'),
+                'payment_intent_id': booking_data.get('payment_intent_id'),
+            }
+        except Exception as e:
+            print(f"Warning: failed to store booking in in-memory BOOKINGS dict: {e}")
 
         # 5. Clear Session Cart (ONLY after DB insertion attempt)
         session['cart'] = {}
@@ -2419,18 +2451,173 @@ def delete_contact(contact_id):
 # INCIDENT REPORT ROUTES
 # ============================================
 
-@app.route("/report")
+@app.route("/report", methods=["GET", "POST"])
 def report():
-    """Incident report page"""
+    """Incident report page with DB persistence."""
     cart_count = get_cart_count(session)
+
+    if request.method == "POST":
+        errors = []
+        required_fields = [
+            "full_name", "contact_number", "email",
+            "booking_id", "vehicle_name", "incident_date",
+            "incident_time", "incident_location", "incident_type",
+            "severity_level", "incident_description"
+        ]
+        for field in required_fields:
+            if not request.form.get(field):
+                errors.append(f"{field.replace('_', ' ').title()} is required")
+
+        photos = request.files.getlist("photos") if "photos" in request.files else []
+        allowed_exts = {"png", "jpg", "jpeg", "gif", "webp"}
+        saved_files = []
+
+        for idx, file in enumerate(photos, start=1):
+            if not file or not file.filename:
+                continue
+            ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+            if ext not in allowed_exts:
+                errors.append(f"File {idx}: invalid type (allowed: {allowed_exts})")
+                continue
+            if not validate_file_size(file):
+                errors.append(f"File {idx}: must be less than 5MB")
+                continue
+            # Save file
+            os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
+            safe_name = sanitize_filename(file.filename)
+            filename = secure_filename(f"incident_{request.form.get('email','user')}_{safe_name}")
+            file.seek(0)
+            file.save(os.path.join(Config.UPLOAD_FOLDER, filename))
+            saved_files.append(filename)
+
+        if errors:
+            for e in errors:
+                flash(e, "error")
+            return render_template("incident_report.html", cart_count=cart_count)
+
+        # Persist to DB
+        try:
+            submitter_email = request.form.get('email')
+            report_data = {
+                'user_id': session.get('user_id'),
+                'full_name': request.form.get('full_name'),
+                'contact_number': request.form.get('contact_number'),
+                'email': submitter_email,
+                'booking_id': request.form.get('booking_id'),
+                'vehicle_name': request.form.get('vehicle_name'),
+                'incident_date': request.form.get('incident_date'),
+                'incident_time': request.form.get('incident_time'),
+                'incident_location': request.form.get('incident_location'),
+                'incident_type': request.form.get('incident_type'),
+                'severity_level': request.form.get('severity_level'),
+                'incident_description': request.form.get('incident_description'),
+                'files': saved_files,
+            }
+            
+            # Validate all required fields are present
+            if not all([report_data['full_name'], report_data['contact_number'], 
+                       report_data['email'], report_data['booking_id'], 
+                       report_data['vehicle_name'], report_data['incident_date'],
+                       report_data['incident_time'], report_data['incident_location'],
+                       report_data['incident_type'], report_data['severity_level'],
+                       report_data['incident_description']]):
+                flash("All required fields must be filled.", "error")
+                return render_template("incident_report.html", cart_count=cart_count)
+            
+            report_id = create_incident_report(report_data)
+            
+            if not report_id:
+                flash("Failed to save incident report: No ID returned from database.", "error")
+                return render_template("incident_report.html", cart_count=cart_count)
+            
+            # Store email in session so we can retrieve reports later (even if not logged in)
+            if submitter_email:
+                session['incident_report_email'] = submitter_email
+                session.modified = True
+            
+            flash(f"Incident report #{report_id} submitted successfully!", "success")
+            return redirect(url_for('report', submitted='true'))
+        except Exception as e:
+            import traceback
+            error_msg = str(e)
+            error_details = traceback.format_exc()
+            # Show user-friendly message but log full details
+            flash(f"Failed to save incident report. Error: {error_msg}", "error")
+            print("=" * 60)
+            print("ERROR saving incident report:")
+            print(error_msg)
+            print(error_details)
+            print("=" * 60)
+
     return render_template("incident_report.html", cart_count=cart_count)
 
 
 @app.route("/cases")
 def cases():
-    """Submitted cases page"""
+    """Submitted cases page - shows reports for current user."""
     cart_count = get_cart_count(session)
-    return render_template("submitted_cases.html", cart_count=cart_count)
+    reports = []
+    try:
+        user_email = session.get('user') or session.get('incident_report_email')
+        user_id = session.get('user_id')
+        
+        if user_email or user_id:
+            reports = get_incident_reports(
+                email=user_email,
+                user_id=user_id
+            )
+            
+            # Convert datetime objects to strings for JSON serialization
+            for report in reports:
+                if 'created_at' in report and report['created_at']:
+                    if hasattr(report['created_at'], 'strftime'):
+                        report['created_at'] = report['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+                if not report.get('status'):
+                    report['status'] = 'Pending Review'
+    except Exception as e:
+        flash("Error loading your incident reports. Please try again.", "error")
+        reports = []
+
+    return render_template("submitted_cases.html",
+                           cart_count=cart_count,
+                           reports=reports)
+
+
+@app.route("/cases/<int:report_id>/status", methods=["POST"])
+@login_required
+def update_case_status(report_id):
+    """Update status for an incident report."""
+    new_status = request.form.get("status")
+    if new_status not in ["Pending Review", "Under Review", "Resolved"]:
+        flash("Invalid status", "error")
+        return redirect(url_for("cases"))
+
+    try:
+        ok = update_incident_status(report_id, new_status)
+        if ok:
+            flash(f"Case status updated to {new_status}", "success")
+        else:
+            flash("Case not found", "error")
+    except Exception as e:
+        print(f"Failed to update case status: {e}")
+        flash("Failed to update case status", "error")
+    return redirect(url_for("cases"))
+
+
+@app.route("/cases/<int:report_id>/delete", methods=["POST"])
+@login_required
+def delete_case(report_id):
+    """Delete an incident report."""
+    try:
+        ok = delete_incident_report(report_id)
+        if ok:
+            flash("Case deleted", "success")
+        else:
+            flash("Case not found", "error")
+    except Exception as e:
+        print(f"Failed to delete case: {e}")
+        flash("Failed to delete case", "error")
+    return redirect(url_for("cases"))
 
 
 @app.route('/security-logs')
@@ -2506,6 +2693,10 @@ def encrypt_existing_users():
     """
     if request.args.get("confirm") != "yes":
         return jsonify({"error": "add confirm=yes to run"}), 400
+
+    # Ensure schema is up to date (increases column sizes for encrypted data)
+    from database import ensure_schema
+    ensure_schema()
 
     updated = 0
     with get_db_connection() as conn:
@@ -2847,10 +3038,5 @@ def log_booking_fraud():
 
 
 if __name__ == "__main__":
-    plain = "hello123"
-    encrypted = encrypt_value(plain)
-    print("Encrypted:", encrypted)
-    print("Decrypted:", decrypt_value(encrypted))
 
-    # Run without HTTPS - change to ssl_context="adhoc" to enable HTTPS
-    app.run(debug=True, host='127.0.0.1', port=5000)
+        app.run(debug=True, port=5001)
