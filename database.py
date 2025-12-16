@@ -146,6 +146,26 @@ def ensure_schema():
             )
             """
         )
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                audit_id INT AUTO_INCREMENT PRIMARY KEY,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                user_id INT NOT NULL,
+                ip_address VARCHAR(45),
+                device_info VARCHAR(255),
+                action VARCHAR(100) NOT NULL,
+                entity_type VARCHAR(50) NOT NULL,
+                entity_id VARCHAR(50) NOT NULL,
+                previous_values JSON,
+                new_values JSON,
+                result ENUM('Success','Failure') DEFAULT 'Success',
+                reason TEXT,
+                risk_score DECIMAL(5,4) DEFAULT 0.0000,
+                severity ENUM('Low','Medium','High','Critical') DEFAULT 'Low',
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
+            """
+        )
         # Add foreign key separately if it doesn't exist (allows NULL user_id)
         try:
             cursor.execute("""
@@ -1039,3 +1059,83 @@ def get_booking_fraud_stats() -> Dict[str, Any]:
             'by_severity': by_severity,
             'by_type': by_type
         }
+
+
+from typing import List, Dict, Optional
+import json
+from database import get_db_connection
+
+# ============= AUDIT LOGS =============
+
+def add_audit_log(user_id: int, action: str, entity_type: str, entity_id: str,
+                  previous_values: Optional[dict] = None, new_values: Optional[dict] = None,
+                  result: str = 'Success', reason: Optional[str] = None,
+                  risk_score: float = 0.0, severity: str = 'Low',
+                  ip_address: Optional[str] = None, device_info: Optional[str] = None) -> int:
+    """Add an audit log entry"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        query = """
+            INSERT INTO audit_logs
+            (user_id, action, entity_type, entity_id, previous_values, new_values,
+             result, reason, risk_score, severity, ip_address, device_info)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(query, (
+            user_id,
+            action,
+            entity_type,
+            str(entity_id),
+            json.dumps(previous_values) if previous_values else None,
+            json.dumps(new_values) if new_values else None,
+            result,
+            reason,
+            risk_score,
+            severity,
+            ip_address,
+            device_info
+        ))
+        conn.commit()
+        audit_id = cursor.lastrowid
+        cursor.close()
+        return audit_id
+
+
+
+def get_audit_logs(entity_type: Optional[str] = None, entity_id: Optional[str] = None,
+                   user_id: Optional[int] = None, limit: int = 100) -> List[Dict]:
+    """Retrieve audit logs with optional filters"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        query = "SELECT * FROM audit_logs WHERE 1=1"
+        params = []
+
+        if entity_type:
+            query += " AND entity_type = %s"
+            params.append(entity_type)
+        if entity_id:
+            query += " AND entity_id = %s"
+            params.append(str(entity_id))
+        if user_id:
+            query += " AND user_id = %s"
+            params.append(user_id)
+
+        query += " ORDER BY timestamp DESC LIMIT %s"
+        params.append(limit)
+
+        cursor.execute(query, params)
+        logs = cursor.fetchall()
+        cursor.close()
+        return logs
+    
+def get_user_by_id(user_id: int):
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT user_id, email, first_name, last_name FROM users WHERE user_id = %s",
+            (user_id,),
+        )
+        user = cursor.fetchone()
+        cursor.close()
+        return user
+

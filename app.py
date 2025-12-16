@@ -20,7 +20,7 @@ from database import (
     get_security_stats, get_vehicle_fraud_stats, get_booking_fraud_stats,
     add_security_log, add_vehicle_fraud_log, add_booking_fraud_log,
     create_incident_report, get_incident_reports,
-    update_incident_status, delete_incident_report
+    update_incident_status, delete_incident_report, add_audit_log, get_audit_logs, get_user_by_id
 )
 
 # Import data models
@@ -45,6 +45,9 @@ from utils.helpers import (
 from utils.encryption import encrypt_value, decrypt_value
 from utils.backup import SecureBackup
 from utils.file_security import validate_uploaded_file, sanitize_filename
+
+# Import audit log decorator
+from audit_helper import audit_log
 
 app = Flask(__name__)
 
@@ -2334,12 +2337,19 @@ def vehicle_management():
         image_file = request.files.get('image_file')
 
         if vehicle_id:
+            # Editing existing vehicle
             vid = int(vehicle_id)
             vehicle = VEHICLES.get(vid, {})
+            previous_values = vehicle.copy()  # capture old values for audit log
+            action_type = 'Edit Vehicle'
         else:
+            # Adding new vehicle
             vid = max(VEHICLES.keys()) + 1 if VEHICLES else 1
             vehicle = {}
+            previous_values = None
+            action_type = 'Add Vehicle'
 
+        # Handle image upload
         image_path = vehicle.get('image')
         if image_file and image_file.filename:
             upload_folder = os.path.join('static', 'images')
@@ -2349,6 +2359,7 @@ def vehicle_management():
             image_file.save(save_path)
             image_path = f'images/{filename}'
 
+        # Update VEHICLES dict
         VEHICLES[vid] = {
             'id': vid,
             'name': name,
@@ -2359,10 +2370,23 @@ def vehicle_management():
             'description': description,
         }
 
+        # --- Audit log ---
+        user_id = session.get('user_id', 0)  # fallback 0 if no session
+        add_audit_log(
+            user_id=user_id,
+            action=action_type,
+            entity_type='VEHICLE',
+            entity_id=vid,
+            previous_values=previous_values,
+            new_values=VEHICLES[vid],
+            ip_address=request.remote_addr,
+            device_info=request.headers.get("User-Agent"),
+            result='Success'
+        )
+
         return redirect(url_for('vehicle_management'))
 
     return render_template('vehicle_management.html', vehicles=VEHICLES)
-
 
 @app.route('/security-dashboard')
 def security_dashboard():
@@ -2379,7 +2403,18 @@ def data_classification():
 @app.route('/audit-logs')
 def audit_logs():
     """Audit logs page"""
-    return render_template('audit_logs.html')
+    # Fetch latest 100 audit logs
+    logs = get_audit_logs(limit=100)
+
+    # Attach user email for display
+    for log in logs:
+        if log.get("user_id"):
+            user = get_user_by_id(log["user_id"])
+            log["user_email"] = user["email"] if user else f"User ID {log['user_id']}"
+        else:
+            log["user_email"] = "System / Unknown"
+
+    return render_template('audit_logs.html', audit_logs=logs)
 
 
 # ============================================

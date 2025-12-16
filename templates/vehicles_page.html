@@ -22,7 +22,7 @@
                 <li><a href="{{ url_for('index') }}">Home</a></li>
                 <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
                 <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
-                <li><a href="{{ url_for('vehicles_page') }}" class="active">Vehicles</a></li>
+                <li><a href="{{ url_for('vehicles_page') }}" class="active">Management</a></li>
                 <li><a href="{{ url_for('security_dashboard') }}">Security</a></li>
             </ul>
             <div class="hamburger" id="hamburger">
@@ -35,7 +35,7 @@
             <li><a href="{{ url_for('index') }}">Home</a></li>
             <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
             <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
-            <li><a href="{{ url_for('vehicles_page') }}" class="active">Vehicles</a></li>
+            <li><a href="{{ url_for('vehicles_page') }}" class="active">Management</a></li>
             <li><a href="{{ url_for('security_dashboard') }}">Security</a></li>
         </ul>
     </nav>
@@ -43,7 +43,7 @@
     <!-- Vehicles Section -->
     <section class="dashboard-section" style="padding-top: 120px; min-height: 100vh;">
         <div class="dashboard-container">
-            <h2 class="section-title">Vehicle Management</h2>
+            <h2 class="section-title">Business Management</h2>
             
             <div class="info-grid" style="max-width: 800px; margin: 0 auto;">
                 <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('vehicle_management') }}'">
@@ -65,6 +65,28 @@
                     </p>
                     <div style="margin-top: 20px;">
                         <button class="cta-button" disabled style="opacity: 0.6; cursor: not-allowed;">Coming Soon</button>
+                    </div>
+                </div>
+
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('contact_submissions') }}'">
+                    <div class="info-icon">📩</div>
+                    <h3 class="info-title">Customer Enquiries</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        View and manage enquiries submitted by customers
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('contact_submissions') }}" class="cta-button">View Enquiries</a>
+                    </div>
+                </div>
+
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('cases') }}'">  
+                    <div class="info-icon">📝</div>
+                    <h3 class="info-title">Incident Reports</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        View and manage all submitted incident reports
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('cases') }}" class="cta-button">View Reports</a>
                     </div>
                 </div>
             </div>

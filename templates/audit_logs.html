@@ -146,7 +146,7 @@
                 <li><a href="{{ url_for('index') }}">Home</a></li>
                 <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
                 <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
-                <li><a href="{{ url_for('vehicles_page') }}">Vehicles</a></li>
+                <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
                 <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
             </ul>
             <div class="hamburger" id="hamburger">
@@ -159,7 +159,7 @@
             <li><a href="{{ url_for('index') }}">Home</a></li>
             <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
             <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
-            <li><a href="{{ url_for('vehicles_page') }}">Vehicles</a></li>
+            <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
             <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
         </ul>
     </nav>
@@ -196,104 +196,46 @@
                             <th>Action</th>
                             <th>Resource</th>
                             <th>IP Address</th>
-                            <th>Level</th>
+                            <th>Result</th>
                             <th>Details</th>
                         </tr>
                     </thead>
                     <tbody>
+                        {% for log in audit_logs %}
                         <tr>
-                            <td>2025-12-05 14:32:15</td>
-                            <td>admin@67rentals.com</td>
-                            <td><span class="action-type">LOGIN</span></td>
-                            <td>Dashboard</td>
-                            <td>192.168.1.105</td>
-                            <td><span class="log-level level-success">Success</span></td>
-                            <td>Successful login from Singapore</td>
+                            <td>{{ log.timestamp }}</td>
+                            <td>{{ log.user_email or log.user_id }}</td>
+                            <td><span class="action-type">{{ log.action }}</span></td>
+                            <td>{{ log.entity_type }} #{{ log.entity_id }}</td>
+                            <td>{{ log.ip_address or '-' }}</td>
+                            <td>
+                                {% if log.result == 'Success' %}
+                                    <span class="log-level level-success">{{ log.result }}</span>
+                                {% elif log.result == 'Failure' %}
+                                    <span class="log-level level-error">{{ log.result }}</span>
+                                {% else %}
+                                    <span class="log-level level-info">{{ log.result }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if log.previous_values %}
+                                    <strong>Before:</strong> {{ log.previous_values }}<br>
+                                {% endif %}
+                                {% if log.new_values %}
+                                    <strong>After:</strong> {{ log.new_values }}
+                                {% endif %}
+                                {% if log.reason %}
+                                    <br><strong>Reason:</strong> {{ log.reason }}
+                                {% endif %}
+                                {% if log.risk_score %}
+                                    <br><strong>Risk:</strong> {{ log.risk_score }} ({{ log.severity }})
+                                {% endif %}
+                            </td>
                         </tr>
-                        <tr>
-                            <td>2025-12-05 14:28:43</td>
-                            <td>john.doe@67rentals.com</td>
-                            <td><span class="action-type">UPDATE</span></td>
-                            <td>Vehicle #001</td>
-                            <td>192.168.1.112</td>
-                            <td><span class="log-level level-info">Info</span></td>
-                            <td>Updated vehicle status to 'Available'</td>
-                        </tr>
-                        <tr>
-                            <td>2025-12-05 14:15:22</td>
-                            <td>jane.smith@67rentals.com</td>
-                            <td><span class="action-type">DELETE</span></td>
-                            <td>Booking #BK002</td>
-                            <td>192.168.1.98</td>
-                            <td><span class="log-level level-warning">Warning</span></td>
-                            <td>Cancelled booking - customer request</td>
-                        </tr>
-                        <tr>
-                            <td>2025-12-05 13:45:18</td>
-                            <td>system@67rentals.com</td>
-                            <td><span class="action-type">ERROR</span></td>
-                            <td>Payment Gateway</td>
-                            <td>192.168.1.1</td>
-                            <td><span class="log-level level-error">Error</span></td>
-                            <td>Payment processing failed - timeout</td>
-                        </tr>
-                        <tr>
-                            <td>2025-12-05 13:20:55</td>
-                            <td>admin@67rentals.com</td>
-                            <td><span class="action-type">CREATE</span></td>
-                            <td>Vehicle #003</td>
-                            <td>192.168.1.105</td>
-                            <td><span class="log-level level-success">Success</span></td>
-                            <td>Added new vehicle to fleet</td>
-                        </tr>
-                        <tr>
-                            <td>2025-12-05 12:58:30</td>
-                            <td>john.doe@67rentals.com</td>
-                            <td><span class="action-type">VIEW</span></td>
-                            <td>Customer Data</td>
-                            <td>192.168.1.112</td>
-                            <td><span class="log-level level-info">Info</span></td>
-                            <td>Accessed customer profile #CU457</td>
-                        </tr>
-                        <tr>
-                            <td>2025-12-05 12:42:11</td>
-                            <td>unknown</td>
-                            <td><span class="action-type">LOGIN_FAILED</span></td>
-                            <td>Dashboard</td>
-                            <td>203.45.67.89</td>
-                            <td><span class="log-level level-error">Error</span></td>
-                            <td>Failed login attempt - invalid credentials</td>
-                        </tr>
-                        <tr>
-                            <td>2025-12-05 12:15:44</td>
-                            <td>jane.smith@67rentals.com</td>
-                            <td><span class="action-type">UPDATE</span></td>
-                            <td>Settings</td>
-                            <td>192.168.1.98</td>
-                            <td><span class="log-level level-info">Info</span></td>
-                            <td>Updated notification preferences</td>
-                        </tr>
-                        <tr>
-                            <td>2025-12-05 11:50:22</td>
-                            <td>admin@67rentals.com</td>
-                            <td><span class="action-type">EXPORT</span></td>
-                            <td>Reports</td>
-                            <td>192.168.1.105</td>
-                            <td><span class="log-level level-info">Info</span></td>
-                            <td>Exported monthly financial report</td>
-                        </tr>
-                        <tr>
-                            <td>2025-12-05 11:30:15</td>
-                            <td>system@67rentals.com</td>
-                            <td><span class="action-type">BACKUP</span></td>
-                            <td>Database</td>
-                            <td>192.168.1.1</td>
-                            <td><span class="log-level level-success">Success</span></td>
-                            <td>Automated database backup completed</td>
-                        </tr>
+                        {% endfor %}
                     </tbody>
                 </table>
-            </div>
+            </div>               
         </div>
     </section>
 
