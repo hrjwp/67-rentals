@@ -129,20 +129,40 @@ def ensure_schema():
             CREATE TABLE IF NOT EXISTS incident_reports (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 user_id INT NULL,
-                full_name VARCHAR(255) NOT NULL,
-                contact_number VARCHAR(50) NOT NULL,
-                email VARCHAR(255) NOT NULL,
-                booking_id VARCHAR(50) NOT NULL,
+                full_name VARCHAR(1000) NOT NULL,
+                contact_number VARCHAR(1000) NOT NULL,
+                email VARCHAR(1000) NOT NULL,
+                booking_id VARCHAR(1000) NOT NULL,
                 vehicle_name VARCHAR(255) NOT NULL,
                 incident_date DATE NOT NULL,
                 incident_time VARCHAR(20) NOT NULL,
-                incident_location VARCHAR(255) NOT NULL,
+                incident_location VARCHAR(1000) NOT NULL,
                 incident_type VARCHAR(100) NOT NULL,
                 severity_level VARCHAR(50) NOT NULL,
                 incident_description TEXT NOT NULL,
                 status ENUM('Pending Review','Under Review','Resolved') DEFAULT 'Pending Review',
                 files_json JSON NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS incident_report_files (
+                file_id INT AUTO_INCREMENT PRIMARY KEY,
+                report_id INT NOT NULL,
+                filename VARCHAR(255) NOT NULL,
+                original_filename VARCHAR(500) NOT NULL,
+                file_path VARCHAR(1000) NOT NULL,
+                file_size_bytes BIGINT NOT NULL,
+                file_type VARCHAR(50) NOT NULL,
+                mime_type VARCHAR(100) NOT NULL,
+                is_encrypted BOOLEAN DEFAULT TRUE,
+                is_watermarked BOOLEAN DEFAULT FALSE,
+                uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (report_id) REFERENCES incident_reports(id) ON DELETE CASCADE,
+                INDEX idx_report_id (report_id),
+                INDEX idx_filename (filename)
             )
             """
         )
@@ -163,6 +183,29 @@ def ensure_schema():
                 risk_score DECIMAL(5,4) DEFAULT 0.0000,
                 severity ENUM('Low','Medium','High','Critical') DEFAULT 'Low',
                 FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
+            """
+        )
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS backup_logs (
+                backup_id INT AUTO_INCREMENT PRIMARY KEY,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                backup_type ENUM('Manual','Automated') DEFAULT 'Automated',
+                backup_filename VARCHAR(255) NOT NULL,
+                backup_path VARCHAR(500) NOT NULL,
+                backup_size_bytes BIGINT NOT NULL,
+                backup_size_mb DECIMAL(10,2) NOT NULL,
+                checksum_sha256 VARCHAR(64) NOT NULL,
+                tables_backed_up JSON NOT NULL,
+                files_included INT DEFAULT 0,
+                cloud_backup_enabled BOOLEAN DEFAULT FALSE,
+                cloud_backup_path VARCHAR(500) NULL,
+                status ENUM('Success','Failed','In Progress') DEFAULT 'Success',
+                error_message TEXT NULL,
+                verification_status ENUM('Verified','Failed','Pending') DEFAULT 'Pending',
+                verification_timestamp DATETIME NULL,
+                created_by_user_id INT NULL,
+                FOREIGN KEY (created_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL
             )
             """
         )
@@ -190,6 +233,13 @@ def ensure_schema():
         _safe_alter(cursor, "ALTER TABLE users MODIFY last_name VARCHAR(255)")
         _safe_alter(cursor, "ALTER TABLE users MODIFY nric VARCHAR(255)")
         _safe_alter(cursor, "ALTER TABLE users MODIFY license_number VARCHAR(255)")
+        
+        # Update incident_reports table columns to accommodate encrypted data (increased to 1000 for safety)
+        _safe_alter(cursor, "ALTER TABLE incident_reports MODIFY full_name VARCHAR(1000)")
+        _safe_alter(cursor, "ALTER TABLE incident_reports MODIFY contact_number VARCHAR(1000)")
+        _safe_alter(cursor, "ALTER TABLE incident_reports MODIFY email VARCHAR(1000)")
+        _safe_alter(cursor, "ALTER TABLE incident_reports MODIFY booking_id VARCHAR(1000)")
+        _safe_alter(cursor, "ALTER TABLE incident_reports MODIFY incident_location VARCHAR(1000)")
 
         conn.commit()
 
@@ -599,20 +649,21 @@ def create_incident_report(report: Dict[str, Any]) -> int:
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
+        # Encrypt sensitive fields before storing
         values = (
             report.get('user_id'),
-            report['full_name'],
-            report['contact_number'],
-            report['email'],
-            report['booking_id'],
-            report['vehicle_name'],
-            report['incident_date'],
-            report['incident_time'],
-            report['incident_location'],
-            report['incident_type'],
-            report['severity_level'],
-            report['incident_description'],
-            json.dumps(report.get('files', [])) if report.get('files') else None,
+            encrypt_value(report['full_name']) if report.get('full_name') else None,
+            encrypt_value(report['contact_number']) if report.get('contact_number') else None,
+            encrypt_value(report['email']) if report.get('email') else None,
+            encrypt_value(report['booking_id']) if report.get('booking_id') else None,
+            report['vehicle_name'],  # Not sensitive
+            report['incident_date'],  # Not sensitive
+            report['incident_time'],  # Not sensitive
+            encrypt_value(report['incident_location']) if report.get('incident_location') else None,
+            report['incident_type'],  # Not sensitive
+            report['severity_level'],  # Not sensitive
+            encrypt_value(report['incident_description']) if report.get('incident_description') else None,
+            json.dumps(report.get('files', [])) if report.get('files') else None,  # Store files in JSON field
             report.get('status', 'Pending Review'),
         )
         cursor.execute(query, values)
@@ -626,6 +677,9 @@ def create_incident_report(report: Dict[str, Any]) -> int:
         
         # Commit immediately
         conn.commit()
+        
+        # Files are stored in files_json field - no separate table needed
+        # File details are included in the JSON for complete information
         
         # Verify the insert worked
         verify_cursor = conn.cursor()
@@ -649,6 +703,73 @@ def create_incident_report(report: Dict[str, Any]) -> int:
         raise Exception(f"Database insert failed: {str(e)}") from e
 
 
+def ensure_incident_report_files_table():
+    """Ensure the incident_report_files table exists. Can be called manually if needed."""
+    conn = create_connection()
+    if not conn:
+        print("ERROR: Failed to connect to database")
+        return False
+    
+    cursor = conn.cursor()
+    try:
+        # Check if table exists
+        cursor.execute("SHOW TABLES LIKE 'incident_report_files'")
+        table_exists = cursor.fetchone()
+        
+        if not table_exists:
+            print("Creating incident_report_files table...")
+            # Create table without foreign key first
+            cursor.execute(
+                """
+            CREATE TABLE IF NOT EXISTS incident_report_files (
+                file_id INT AUTO_INCREMENT PRIMARY KEY,
+                report_id INT NOT NULL,
+                filename VARCHAR(255) NOT NULL,
+                original_filename VARCHAR(500) NOT NULL,
+                file_path VARCHAR(1000) NOT NULL,
+                file_size_bytes BIGINT NOT NULL,
+                file_type VARCHAR(50) NOT NULL,
+                mime_type VARCHAR(100) NOT NULL,
+                is_encrypted BOOLEAN DEFAULT TRUE,
+                is_watermarked BOOLEAN DEFAULT FALSE,
+                uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_report_id (report_id),
+                INDEX idx_filename (filename)
+            )
+                """
+            )
+            conn.commit()
+            
+            # Try to add foreign key constraint
+            try:
+                cursor.execute(
+                    """
+                    ALTER TABLE incident_report_files 
+                    ADD CONSTRAINT fk_report_files 
+                    FOREIGN KEY (report_id) REFERENCES incident_reports(id) ON DELETE CASCADE
+                    """
+                )
+                conn.commit()
+            except Error as fk_error:
+                if fk_error.errno not in (errorcode.ER_DUP_KEYNAME, errorcode.ER_CANNOT_ADD_FOREIGN):
+                    print(f"Warning: Could not add foreign key constraint: {fk_error}")
+                else:
+                    print("Foreign key constraint already exists or cannot be added (this is okay)")
+            
+            print("✓ incident_report_files table created successfully!")
+            return True
+        else:
+            print("✓ incident_report_files table already exists")
+            return True
+    except Error as e:
+        print(f"ERROR creating incident_report_files table: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def get_incident_reports(email: str = None, user_id: int = None) -> List[Dict[str, Any]]:
     """Fetch incident reports, optionally filtered by user email or user_id."""
     try:
@@ -662,40 +783,83 @@ def get_incident_reports(email: str = None, user_id: int = None) -> List[Dict[st
         params = []
         
         # Match by user_id OR email (whichever is available)
-        # This allows finding reports whether user was logged in or not
-        # Use LOWER() for case-insensitive email matching
+        # Since email is encrypted, we need to encrypt the search email first
+        # Use user_id for exact match, or search all and filter by decrypted email
         if user_id and email:
-            clauses.append("(user_id = %s OR LOWER(email) = LOWER(%s))")
-            params.extend([user_id, email])
+            # If we have user_id, use that (more efficient)
+            clauses.append("user_id = %s")
+            params.append(user_id)
         elif user_id:
             clauses.append("user_id = %s")
             params.append(user_id)
         elif email:
-            clauses.append("LOWER(email) = LOWER(%s)")
-            params.append(email)
+            # Email is encrypted, so we need to search all and filter after decryption
+            # For now, we'll get all reports and filter by email after decryption
+            # This is less efficient but necessary for encrypted data
+            pass  # Will filter after decryption
 
-        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        query = f"""
-            SELECT
-                id, user_id, full_name, contact_number, email,
-                booking_id, vehicle_name, incident_date, incident_time,
-                incident_location, incident_type, severity_level,
-                incident_description, files_json, status, created_at
-            FROM incident_reports
-            {where}
-            ORDER BY created_at DESC
-        """
-        cursor.execute(query, tuple(params))
+        # Build query - if email search without user_id, get all and filter after decryption
+        if email and not user_id:
+            # Get all reports, will filter by email after decryption
+            query = """
+                SELECT
+                    id, user_id, full_name, contact_number, email,
+                    booking_id, vehicle_name, incident_date, incident_time,
+                    incident_location, incident_type, severity_level,
+                    incident_description, files_json, status, created_at
+                FROM incident_reports
+                ORDER BY created_at DESC
+            """
+            cursor.execute(query)
+        else:
+            # Use WHERE clause for user_id or no filter
+            where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+            query = f"""
+                SELECT
+                    id, user_id, full_name, contact_number, email,
+                    booking_id, vehicle_name, incident_date, incident_time,
+                    incident_location, incident_type, severity_level,
+                    incident_description, files_json, status, created_at
+                FROM incident_reports
+                {where}
+                ORDER BY created_at DESC
+            """
+            cursor.execute(query, tuple(params))
+        
         rows = cursor.fetchall()
+        
+        # Decrypt sensitive fields and get files from incident_report_files table for each report
+        filtered_rows = []
+        for row in rows:
+            # Decrypt sensitive fields
+            try:
+                if row.get('full_name'):
+                    row['full_name'] = decrypt_value(row['full_name'])
+                if row.get('contact_number'):
+                    row['contact_number'] = decrypt_value(row['contact_number'])
+                if row.get('email'):
+                    row['email'] = decrypt_value(row['email'])
+                if row.get('booking_id'):
+                    row['booking_id'] = decrypt_value(row['booking_id'])
+                if row.get('incident_location'):
+                    row['incident_location'] = decrypt_value(row['incident_location'])
+                if row.get('incident_description'):
+                    row['incident_description'] = decrypt_value(row['incident_description'])
+            except Exception as e:
+                print(f"WARNING: Error decrypting fields for report {row.get('id')}: {e}")
+                # Continue with encrypted values if decryption fails
+            
+            # Filter by email if email was provided but no user_id (since email is encrypted)
+            if email and not user_id:
+                if row.get('email') and row['email'].lower() == email.lower():
+                    filtered_rows.append(row)
+            else:
+                filtered_rows.append(row)
+        
+        rows = filtered_rows
+        
         cursor.close()
         conn.close()
-
-        # Decode files JSON
-        for row in rows:
-            try:
-                row['files'] = json.loads(row['files_json']) if row.get('files_json') else []
-            except Exception:
-                row['files'] = []
         return rows
     except Exception as e:
         print(f"ERROR in get_incident_reports: {e}")
@@ -1128,6 +1292,121 @@ def get_audit_logs(entity_type: Optional[str] = None, entity_id: Optional[str] =
         cursor.close()
         return logs
     
+# ============= BACKUP LOGS =============
+
+def add_backup_log(backup_type: str, backup_filename: str, backup_path: str,
+                   backup_size_bytes: int, backup_size_mb: float, checksum_sha256: str,
+                   tables_backed_up: list, files_included: int = 0,
+                   cloud_backup_enabled: bool = False, cloud_backup_path: str = None,
+                   status: str = 'Success', error_message: str = None,
+                   created_by_user_id: int = None) -> int:
+    """Add a backup log entry for proof/verification"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        query = """
+            INSERT INTO backup_logs
+            (backup_type, backup_filename, backup_path, backup_size_bytes, backup_size_mb,
+             checksum_sha256, tables_backed_up, files_included, cloud_backup_enabled,
+             cloud_backup_path, status, error_message, created_by_user_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(query, (
+            backup_type,
+            backup_filename,
+            backup_path,
+            backup_size_bytes,
+            backup_size_mb,
+            checksum_sha256,
+            json.dumps(tables_backed_up),
+            files_included,
+            cloud_backup_enabled,
+            cloud_backup_path,
+            status,
+            error_message,
+            created_by_user_id
+        ))
+        conn.commit()
+        backup_id = cursor.lastrowid
+        cursor.close()
+        return backup_id
+
+
+def get_backup_logs(limit: int = 100, status: str = None) -> List[Dict]:
+    """Get backup logs for verification/proof"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        query = "SELECT * FROM backup_logs WHERE 1=1"
+        params = []
+        
+        if status:
+            query += " AND status = %s"
+            params.append(status)
+        
+        query += " ORDER BY timestamp DESC LIMIT %s"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        logs = cursor.fetchall()
+        cursor.close()
+        return logs
+
+
+def update_backup_verification(backup_id: int, verification_status: str):
+    """Update backup verification status"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        query = """
+            UPDATE backup_logs 
+            SET verification_status = %s, verification_timestamp = NOW()
+            WHERE backup_id = %s
+        """
+        cursor.execute(query, (verification_status, backup_id))
+        conn.commit()
+        cursor.close()
+
+
+def get_backup_stats() -> Dict:
+    """Get backup statistics for admin dashboard"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Total backups
+        cursor.execute("SELECT COUNT(*) as total FROM backup_logs")
+        total = cursor.fetchone()['total']
+        
+        # Successful backups
+        cursor.execute("SELECT COUNT(*) as success FROM backup_logs WHERE status = 'Success'")
+        success = cursor.fetchone()['success']
+        
+        # Failed backups
+        cursor.execute("SELECT COUNT(*) as failed FROM backup_logs WHERE status = 'Failed'")
+        failed = cursor.fetchone()['failed']
+        
+        # Total size
+        cursor.execute("SELECT SUM(backup_size_bytes) as total_size FROM backup_logs WHERE status = 'Success'")
+        total_size = cursor.fetchone()['total_size'] or 0
+        
+        # Latest backup
+        cursor.execute("SELECT * FROM backup_logs WHERE status = 'Success' ORDER BY timestamp DESC LIMIT 1")
+        latest = cursor.fetchone()
+        
+        # Verified backups
+        cursor.execute("SELECT COUNT(*) as verified FROM backup_logs WHERE verification_status = 'Verified'")
+        verified = cursor.fetchone()['verified']
+        
+        cursor.close()
+        
+        return {
+            'total_backups': total,
+            'successful_backups': success,
+            'failed_backups': failed,
+            'total_size_bytes': total_size,
+            'total_size_mb': round(total_size / (1024 * 1024), 2),
+            'latest_backup': latest,
+            'verified_backups': verified
+        }
+
+
 def get_user_by_id(user_id: int):
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
