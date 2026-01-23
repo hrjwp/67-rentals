@@ -406,7 +406,11 @@
                 <div class="col-lg-4 col-sm-6">
                     <div class="popular-item">
                         <div class="thumb">
-                            <img src="{{ url_for('static', filename='images/' + vehicle.image) }}" alt="Vehicle">
+                            {% if vehicle.image.startswith('images/') or vehicle.image.startswith('uploads/') %}
+                                <img src="{{ url_for('static', filename=vehicle.image) }}" alt="Vehicle">
+                            {% else %}
+                                <img src="{{ url_for('static', filename='images/' + vehicle.image) }}" alt="Vehicle">
+                            {% endif %}
                         </div>
                         <div class="vehicle-info">
                             <h4>{{ vehicle.name }}</h4>
