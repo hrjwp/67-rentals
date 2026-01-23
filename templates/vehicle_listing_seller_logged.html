@@ -373,7 +373,7 @@
                         </div>
 
                         <div class="col-lg-6 col-12">
-                            <form action="{{ url_for('vehicle_listing') }}" method="get" class="custom-form mt-lg-4 mt-2" role="form">
+                            <form action="{{ url_for('vehicle_listing_seller_logged') }}" method="get" class="custom-form mt-lg-4 mt-2" role="form">
                                 <div class="input-group input-group-lg">
                                     <span class="input-group-text bi-search" id="basic-addon1"></span>
                                     <input type="text" name="q" class="form-control" placeholder="Search vehicles..." value="{{ search_query if search_query else '' }}">
