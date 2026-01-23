@@ -103,6 +103,18 @@
                         <a href="{{ url_for('booking_fraud_logs') }}" class="cta-button">View Logs</a>
                     </div>
                 </div>
+
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('backup_management') }}'">
+                    <div class="info-icon">💾</div>
+                    <h3 class="info-title">Backup Management</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        Manage automated backups, verify backup integrity, view backup logs,
+                        and ensure all sensitive data is securely backed up with proof.
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('backup_management') }}" class="cta-button">Manage Backups</a>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
