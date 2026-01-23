@@ -10,8 +10,84 @@
         <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
         <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
         <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/templatemo-graph-page.css') }}">
 
         <style>
+            /* --- Confidential / Anti-exfiltration (deterrence) --- */
+            * {
+                user-select: none;
+                -webkit-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
+            }
+            .security-banner {
+                background: #ff6b6b;
+                color: #fff;
+                padding: 10px 16px;
+                text-align: center;
+                font-weight: 700;
+                position: fixed;
+                top: 80px; /* Will be adjusted dynamically below navbar */
+                left: 0;
+                right: 0;
+                z-index: 9999;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+                font-size: 13px;
+                letter-spacing: 0.3px;
+            }
+            .watermark-overlay {
+                position: fixed;
+                inset: 0;
+                pointer-events: none;
+                z-index: 9997;
+                overflow: hidden;
+            }
+            .watermark-text {
+                position: absolute;
+                font-size: 72px;
+                font-weight: 800;
+                color: rgba(61, 64, 91, 0.06);
+                white-space: nowrap;
+                transform: rotate(-20deg);
+            }
+            .watermark-text:nth-child(1) { top: 12%; left: 6%; }
+            .watermark-text:nth-child(2) { top: 52%; left: 50%; transform: translate(-50%, -50%) rotate(-20deg); }
+            .watermark-text:nth-child(3) { bottom: 10%; right: 6%; }
+            .blocked-action {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: #ff6b6b;
+                color: #fff;
+                padding: 22px 28px;
+                border-radius: 14px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+                z-index: 10001;
+                text-align: center;
+                display: none;
+                max-width: 520px;
+            }
+            .blocked-action h4 {
+                margin: 0 0 8px 0;
+                font-weight: 800;
+            }
+            .blocked-action p {
+                margin: 0;
+                opacity: 0.95;
+            }
+            @media print {
+                body * { display: none !important; }
+                body::before {
+                    content: "Printing is disabled for CONFIDENTIAL pages.";
+                    display: block;
+                    padding: 40px;
+                    font-size: 22px;
+                    font-weight: 800;
+                    color: #111;
+                }
+            }
+
             body {
                 font-family: 'DM Sans', sans-serif;
                 background-color: #f8f9fa;
@@ -55,7 +131,7 @@
             }
 
             .cases-section {
-                padding: 60px 0;
+                padding: 140px 0 60px 0;
                 min-height: 70vh;
             }
 
@@ -370,48 +446,48 @@
     </head>
 
     <body>
-        <nav class="navbar navbar-expand-lg">
-            <div class="container">
-                <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
-                    <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="67 Rentals" style="width: 50px;">
-                    <span class="navbar-brand-text">
-                        67
-                        <small>Rentals</small>
-                    </span>
+        <div class="security-banner">
+            CONFIDENTIAL — Printing Prohibited
+        </div>
+        <div class="watermark-overlay" aria-hidden="true">
+            <div class="watermark-text">CONFIDENTIAL</div>
+            <div class="watermark-text">CONFIDENTIAL</div>
+            <div class="watermark-text">CONFIDENTIAL</div>
+        </div>
+        <div class="blocked-action" id="blockedAction">
+            <h4>Action blocked</h4>
+            <p id="blockedActionMsg">This action is disabled for security reasons.</p>
+        </div>
+
+        <!-- Navigation -->
+        <nav id="navbar">
+            <div class="nav-container">
+                <a href="{{ url_for('index') }}" class="logo">
+                    <div class="logo-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M3 13h2v8H3zm4-8h2v13H7zm4-2h2v15h-2zm4 4h2v11h-2zm4-2h2v13h-2z"/>
+                        </svg>
+                    </div>
+                    <span class="logo-text">67 Rentals</span>
                 </a>
-
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-
-                <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav ms-lg-auto">
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('index') }}#section_1">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('index') }}#section_2">About</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('vehicle_listing') }}">Vehicles</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('index') }}#section_4">Contact</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="{{ url_for('cases') }}">Cases</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('cart') }}">
-                                <i class="bi bi-cart3"></i> Cart
-                                {% if cart_count > 0 %}
-                                <span class="badge bg-danger">{{ cart_count }}</span>
-                                {% endif %}
-                            </a>
-                        </li>
-                    </ul>
+                <ul class="nav-links">
+                    <li><a href="{{ url_for('index') }}">Home</a></li>
+                    <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                    <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
+                    <li><a href="{{ url_for('vehicles_page') }}"class="active">Management</a></li>
+                    <li><a href="{{ url_for('security_dashboard') }}" >Security</a></li>
+                </ul>
+                <div class="hamburger" id="hamburger">
+                    <span></span><span></span><span></span>
                 </div>
             </div>
+            <ul class="nav-links-mobile" id="navLinksMobile">
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
+                <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
+                <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
+            </ul>
         </nav>
 
         <section class="cases-section">
@@ -479,9 +555,156 @@
         </section>
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+        <script src="{{ url_for('static', filename='js/templatemo-graph-script.js') }}"></script>
         <script>
+            // --- Confidential page protections (enhanced screenshot detection) ---
+            let screenshotAttempts = 0;
+            const sessionId = 'SID-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+
+            function showBlockedAlert(message) {
+                const box = document.getElementById('blockedAction');
+                const msg = document.getElementById('blockedActionMsg');
+                if (!box || !msg) return;
+                msg.textContent = message;
+                box.style.display = 'block';
+                setTimeout(() => { box.style.display = 'none'; }, 3000);
+            }
+
+            // Block copy/cut/paste
+            document.addEventListener('copy', (e) => {
+                e.preventDefault();
+                showBlockedAlert('Copying data is not allowed for security reasons.');
+            });
+
+            document.addEventListener('cut', (e) => {
+                e.preventDefault();
+                showBlockedAlert('Cutting data is not allowed for security reasons.');
+            });
+
+            document.addEventListener('paste', (e) => {
+                e.preventDefault();
+                showBlockedAlert('Pasting is not allowed in this secure area.');
+            });
+
+            // Block right-click context menu
+            document.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                showBlockedAlert('Right-click menu is disabled in secure areas.');
+            });
+
+            // Enhanced key blocking and screenshot detection
+            document.addEventListener('keydown', (e) => {
+                // Block F12 (DevTools)
+                if (e.keyCode === 123) {
+                    e.preventDefault();
+                    showBlockedAlert('Developer tools are disabled.');
+                    return false;
+                }
+
+                // Block Ctrl+Shift+I/J/C (DevTools)
+                if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) {
+                    e.preventDefault();
+                    showBlockedAlert('Developer tools are disabled.');
+                    return false;
+                }
+
+                // Block Ctrl+U (View Source)
+                if (e.ctrlKey && e.key === 'u') {
+                    e.preventDefault();
+                    showBlockedAlert('Viewing source code is disabled.');
+                    return false;
+                }
+
+                // Block Ctrl+S (Save Page)
+                if (e.ctrlKey && e.key === 's') {
+                    e.preventDefault();
+                    showBlockedAlert('Saving pages is disabled.');
+                    return false;
+                }
+
+                // Block Ctrl+P (Print)
+                if (e.ctrlKey && e.key === 'p') {
+                    e.preventDefault();
+                    showBlockedAlert('Printing is disabled for security reasons.');
+                    return false;
+                }
+
+                // Enhanced Print Screen Detection - silently block
+                if (e.key === 'PrintScreen') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    screenshotAttempts++;
+                    // Clear clipboard silently
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText('').catch(() => {});
+                    }
+                    // Visual deterrent - invert colors briefly (no popup)
+                    document.body.style.filter = 'invert(1)';
+                    setTimeout(() => { document.body.style.filter = 'none'; }, 150);
+                    return false;
+                }
+            });
+
+            // Detect Snipping Tool (Windows Key + Shift + S) - silently block
+            document.addEventListener('keyup', (e) => {
+                if (e.key === 's' && e.shiftKey && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    screenshotAttempts++;
+                    // Silent visual deterrent
+                    document.body.style.filter = 'blur(10px)';
+                    setTimeout(() => { document.body.style.filter = 'none'; }, 200);
+                }
+            });
+
+            // Detect visibility change (often triggered by screen capture tools) - silently blur
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    screenshotAttempts++;
+                    document.body.style.filter = 'blur(10px)';
+                } else {
+                    document.body.style.filter = 'none';
+                }
+            });
+
+            // Detect focus loss (often happens when clicking screenshot tools) - silently blur
+            window.addEventListener('blur', () => {
+                screenshotAttempts++;
+                document.body.style.filter = 'blur(10px)';
+            });
+            
+            window.addEventListener('focus', () => {
+                document.body.style.filter = 'none';
+            });
+
+            window.addEventListener('beforeprint', (e) => {
+                e.preventDefault();
+                showBlockedAlert('Printing is disabled for security reasons.');
+                return false;
+            });
+
+            // Position security banner below navbar dynamically
+            function positionSecurityBanner() {
+                const navbar = document.getElementById('navbar');
+                const banner = document.querySelector('.security-banner');
+                if (navbar && banner) {
+                    const navbarHeight = navbar.offsetHeight;
+                    banner.style.top = navbarHeight + 'px';
+                    // Adjust section padding to account for banner
+                    const section = document.querySelector('.cases-section');
+                    if (section) {
+                        section.style.paddingTop = (navbarHeight + 60) + 'px';
+                    }
+                }
+            }
+
             // Initialize with server-side data
             let allReports = {{ reports|tojson|safe if reports else '[]' }};
+            
+            // Debug: Log reports to see file structure
+            console.log('All reports:', allReports);
+            allReports.forEach(report => {
+                console.log(`Report ${report.id} files:`, report.files, 'Type:', typeof report.files);
+            });
 
             function formatCaseNumber(reportId) {
                 // Format as IR + 9-digit padded ID (e.g., IR000000001, IR000000123)
@@ -644,11 +867,66 @@
                             ${filesCount > 0 ? `
                                 <div class="attached-images">
                                     <h6><i class="bi bi-paperclip"></i> Attached Files (${filesCount})</h6>
-                                    <div class="image-placeholder">
-                                        <i class="bi bi-file-earmark-image"></i>
-                                        <p class="mb-0"><strong>${filesCount} file(s) attached</strong></p>
-                                        <small>Files are stored securely on the server</small>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px;" id="files-container-${report.id}">
+                                        ${report.files.map((file, idx) => {
+                                            // Get original filename for extension detection
+                                            const originalName = file.replace(/^incident_[^_]+_/, '').replace(/\.encrypted$/, '');
+                                            const fileExt = originalName.split('.').pop().toLowerCase();
+                                            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt);
+                                            const isVideo = ['mp4', 'avi', 'mov', 'wmv', 'quicktime'].includes(fileExt);
+                                            
+                                            // URL encode filename to handle special characters
+                                            const encodedFilename = encodeURIComponent(file);
+                                            const fileUrl = `/cases/${report.id}/file/${encodedFilename}`;
+                                            
+                                            if (isImage) {
+                                                return `
+                                                    <div style="text-align: center; position: relative;" class="file-item">
+                                                        <a href="${fileUrl}" target="_blank" 
+                                                           style="display: inline-block; text-decoration: none; color: #3D405B;"
+                                                           onclick="event.preventDefault(); window.open('${fileUrl}', '_blank');">
+                                                            <img src="${fileUrl}" 
+                                                                 alt="${originalName}"
+                                                                 style="max-width: 150px; max-height: 150px; border: 2px solid #81B29A; border-radius: 5px; padding: 5px; object-fit: cover; cursor: pointer; display: block;"
+                                                                 onerror="console.error('Failed to load image: ${fileUrl}'); this.style.display='none'; this.nextElementSibling.style.display='block';"
+                                                                 onload="console.log('Image loaded: ${fileUrl}');"
+                                                                 loading="lazy">
+                                                            <div class="file-fallback" style="display: none; padding: 10px; border: 1px solid #81B29A; border-radius: 5px; background: #f8f9fa; min-width: 120px;">
+                                                                <i class="bi bi-file-earmark-image" style="font-size: 24px; color: #81B29A;"></i><br>
+                                                                <small style="word-break: break-word; max-width: 100px; display: inline-block;">${originalName}</small><br>
+                                                                <small style="color: #dc3545; font-size: 10px;">Click to view</small>
+                                                            </div>
+                                                        </a>
+                                                    </div>
+                                                `;
+                                            } else if (isVideo) {
+                                                return `
+                                                    <div style="text-align: center;" class="file-item">
+                                                        <a href="${fileUrl}" target="_blank" 
+                                                           style="display: inline-block; padding: 15px; border: 2px solid #81B29A; border-radius: 5px; text-decoration: none; color: #3D405B; background: #f8f9fa; transition: all 0.3s; min-width: 120px;"
+                                                           onclick="event.preventDefault(); window.open('${fileUrl}', '_blank');">
+                                                            <i class="bi bi-file-earmark-play" style="font-size: 32px; color: #81B29A;"></i><br>
+                                                            <small style="word-break: break-word; max-width: 120px; display: inline-block; margin-top: 5px;">${originalName}</small>
+                                                        </a>
+                                                    </div>
+                                                `;
+                                            } else {
+                                                return `
+                                                    <div style="text-align: center;" class="file-item">
+                                                        <a href="${fileUrl}" target="_blank" 
+                                                           style="display: inline-block; padding: 10px; border: 1px solid #81B29A; border-radius: 5px; text-decoration: none; color: #3D405B; transition: all 0.3s; min-width: 100px;"
+                                                           onclick="event.preventDefault(); window.open('${fileUrl}', '_blank');">
+                                                            <i class="bi bi-file-earmark" style="font-size: 24px; color: #81B29A;"></i><br>
+                                                            <small style="word-break: break-word; max-width: 100px; display: inline-block;">${originalName}</small>
+                                                        </a>
+                                                    </div>
+                                                `;
+                                            }
+                                        }).join('')}
                                     </div>
+                                    <small style="color: #717275; margin-top: 15px; display: block;">
+                                        <i class="bi bi-shield-lock"></i> Files are encrypted and watermarked for security
+                                    </small>
                                 </div>
                             ` : ''}
 
@@ -727,6 +1005,10 @@
 
             // Initialize on page load
             document.addEventListener('DOMContentLoaded', function() {
+                positionSecurityBanner();
+                // Re-position on window resize
+                window.addEventListener('resize', positionSecurityBanner);
+
                 // Event listeners
                 const statusFilter = document.getElementById('statusFilter');
                 const severityFilter = document.getElementById('severityFilter');
