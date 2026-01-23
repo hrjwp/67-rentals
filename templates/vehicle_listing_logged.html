@@ -393,7 +393,7 @@
                         </div>
 
                         <div class="col-lg-6 col-12">
-                            <form action="{{ url_for('vehicle_listing') }}" method="get" class="custom-form mt-lg-4 mt-2" role="form">
+                            <form action="{{ url_for('vehicle_listing_logged') }}" method="get" class="custom-form mt-lg-4 mt-2" role="form">
                                 <div class="input-group input-group-lg">
                                     <span class="input-group-text bi-search" id="basic-addon1"></span>
                                     <input type="text" name="q" class="form-control" placeholder="Search vehicles..." value="{{ search_query if search_query else '' }}">
@@ -429,7 +429,11 @@
                 <div class="col-lg-4 col-sm-6">
                     <div class="popular-item">
                         <div class="thumb">
-                            <img src="{{ url_for('static', filename='images/' + vehicle.image) }}" alt="Vehicle">
+                            {% if vehicle.image.startswith('images/') or vehicle.image.startswith('uploads/') %}
+                                <img src="{{ url_for('static', filename=vehicle.image) }}" alt="Vehicle">
+                            {% else %}
+                                <img src="{{ url_for('static', filename='images/' + vehicle.image) }}" alt="Vehicle">
+                            {% endif %}
                         </div>
                         <div class="vehicle-info">
                             <h4>{{ vehicle.name }}</h4>
