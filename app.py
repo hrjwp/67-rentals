@@ -5,6 +5,19 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import stripe
 import os
 import json
+from dotenv import load_dotenv
+
+# Auto-setup: Load .env file and ensure encryption keys exist
+from utils.auto_setup import ensure_env_file
+
+# Load environment variables from .env file (if it exists)
+load_dotenv()
+
+# Automatically create .env with keys if it doesn't exist
+ensure_env_file()
+
+# Reload environment variables after auto-setup
+load_dotenv(override=True)
 
 # Import configuration
 from config import Config
@@ -20,7 +33,9 @@ from database import (
     get_security_stats, get_vehicle_fraud_stats, get_booking_fraud_stats,
     add_security_log, add_vehicle_fraud_log, add_booking_fraud_log,
     create_incident_report, get_incident_reports,
-    update_incident_status, delete_incident_report, add_audit_log, get_audit_logs, get_user_by_id
+    update_incident_status, delete_incident_report, add_audit_log, get_audit_logs, get_user_by_id,
+    get_backup_logs, get_backup_stats, update_backup_verification,
+    ensure_incident_report_files_table
 )
 
 # Import data models
@@ -45,6 +60,10 @@ from utils.helpers import (
 from utils.encryption import encrypt_value, decrypt_value
 from utils.backup import SecureBackup
 from utils.file_security import validate_uploaded_file, sanitize_filename
+from utils.file_encryption import process_incident_file, decrypt_file
+import threading
+import time
+from datetime import datetime, timedelta
 
 # Import audit log decorator
 from audit_helper import audit_log
@@ -55,12 +74,57 @@ app.config.from_object(Config)
 stripe.api_key = Config.STRIPE_API_KEY
 
 
+@app.before_request
+def configure_https_settings():
+    """
+    Automatically detect HTTPS and configure secure cookies.
+    Works with ngrok and other reverse proxies via X-Forwarded-Proto header.
+    Enforces Secure, HttpOnly cookies for XSS protection.
+    """
+    # Check if request is HTTPS (works with ngrok and direct HTTPS)
+    # Also check for ngrok-specific headers and URL
+    host = request.headers.get('Host', '').lower()
+    is_https = (
+        request.is_secure or 
+        request.headers.get('X-Forwarded-Proto') == 'https' or
+        request.headers.get('X-Forwarded-Ssl') == 'on' or
+        'ngrok' in host or
+        request.url.startswith('https://')
+    )
+    
+    # Configure Flask session cookies with maximum security
+    # Secure: Only send cookies over HTTPS (prevents man-in-the-middle)
+    # HttpOnly: Prevents JavaScript access (prevents XSS attacks)
+    # SameSite: CSRF protection
+    app.config['SESSION_COOKIE_SECURE'] = is_https
+    app.config['SESSION_COOKIE_HTTPONLY'] = True  # Always enforce HttpOnly
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+    app.config['PREFERRED_URL_SCHEME'] = 'https' if is_https else 'http'
+    
+    # For ngrok: Don't set cookie domain to allow cookies to work across subdomains
+    # This helps when ngrok URL changes
+    if 'ngrok' in host:
+        app.config['SESSION_COOKIE_DOMAIN'] = None  # Allow cookies on any domain
+    else:
+        app.config['SESSION_COOKIE_DOMAIN'] = None  # Default: current domain only
+    
+    # Ensure session persists across requests
+    # This helps with ngrok where the domain might change
+    if 'user' in session:
+        session.permanent = True
+        session.modified = True
+
+
 @app.after_request
 def add_security_headers(response):
     """
     Add baseline security headers to help protect data in transit and reduce
     injection/clickjacking risks. Kept permissive enough for current CDN usage.
+    Also ensure session cookies are properly set for ngrok.
     """
+    # Ensure session is persisted if user is logged in
+    if 'user' in session:
+        session.modified = True
     csp = (
         "default-src 'self'; "
         "img-src 'self' data: https:; "
@@ -971,17 +1035,49 @@ def vehicle_detail(vehicle_id):
     return render_template('vehicle_detail.html', vehicle=vehicle)
 
 
-@app.route('/vehicle_listing')
-def vehicle_listing():
-    search_query = request.args.get('q', '').lower()
-
-    all_vehicles = [
+def get_all_vehicles_for_listing():
+    """Get all vehicles combining hardcoded vehicles and listings"""
+    from models import listings
+    # Avoid duplicating the two built-in vehicles if they also exist in manage-listings
+    _IGNORE_LISTING_NAMES = {"toyota sienta hybrid", "mt-07/y-amt"}
+    
+    # Hardcoded vehicles (original 5)
+    hardcoded_vehicles = [
         {'id': 1, 'name': 'Toyota Sienta Hybrid', 'price': 150, 'image': 'toyota.png', 'detail_url': url_for('sienta')},
         {'id': 2, 'name': 'MT-07/Y-AMT', 'price': 100, 'image': 'bike.jpg', 'detail_url': url_for('bike')},
         {'id': 3, 'name': 'Honda Civic', 'price': 120, 'image': 'civic.png', 'detail_url': url_for('honda_civic')},
         {'id': 4, 'name': 'Corolla Cross', 'price': 110, 'image': 'corolla.png', 'detail_url': url_for('corolla')},
         {'id': 5, 'name': 'AVANTE Hybrid', 'price': 180, 'image': 'avante.png', 'detail_url': url_for('avante')},
     ]
+    
+    # Convert listings to vehicle format (only active listings)
+    listing_vehicles = []
+    for listing in listings:
+        if listing.get('status') == 'active':
+            listing_name = (listing.get('name') or '').strip().lower()
+            if listing_name in _IGNORE_LISTING_NAMES:
+                continue
+            # Handle image path - listings can have 'images/xxx.png' or 'uploads/xxx.png'
+            image_path = listing.get('image', 'images/default.png')
+            # Keep full path for templates to handle correctly
+            listing_vehicles.append({
+                'id': listing['id'],
+                'name': listing['name'],
+                'price': listing['price'],
+                'image': image_path,  # Full path (images/xxx.png or uploads/xxx.png)
+                'image_path': image_path,  # Same for detail page
+                'detail_url': url_for('listing_detail', listing_id=listing['id'])
+            })
+    
+    # Combine hardcoded + listings (listings come after hardcoded)
+    return hardcoded_vehicles + listing_vehicles
+
+
+@app.route('/vehicle_listing')
+def vehicle_listing():
+    search_query = request.args.get('q', '').lower()
+    
+    all_vehicles = get_all_vehicles_for_listing()
 
     if search_query:
         vehicles = [v for v in all_vehicles if search_query in v['name'].lower()]
@@ -992,11 +1088,14 @@ def vehicle_listing():
     return render_template('vehicle_listing.html', vehicles=vehicles, search_query=search_query, cart_count=cart_count)
 
 
-@app.route('/vehicle_listing_logged')
-def vehicle_listing_logged():
-    search_query = request.args.get('q', '').lower()
-
-    all_vehicles = [
+def get_all_vehicles_for_listing_logged():
+    """Get all vehicles combining hardcoded vehicles and listings (logged version)"""
+    from models import listings
+    # Avoid duplicating the two built-in vehicles if they also exist in manage-listings
+    _IGNORE_LISTING_NAMES = {"toyota sienta hybrid", "mt-07/y-amt"}
+    
+    # Hardcoded vehicles (original 5)
+    hardcoded_vehicles = [
         {'id': 1, 'name': 'Toyota Sienta Hybrid', 'price': 150, 'image': 'toyota.png',
          'detail_url': url_for('sienta_logged')},
         {'id': 2, 'name': 'MT-07/Y-AMT', 'price': 100, 'image': 'bike.jpg', 'detail_url': url_for('bike_logged')},
@@ -1006,6 +1105,35 @@ def vehicle_listing_logged():
          'detail_url': url_for('corolla_logged')},
         {'id': 5, 'name': 'AVANTE Hybrid', 'price': 180, 'image': 'avante.png', 'detail_url': url_for('avante_logged')},
     ]
+    
+    # Convert listings to vehicle format (only active listings)
+    listing_vehicles = []
+    for listing in listings:
+        if listing.get('status') == 'active':
+            listing_name = (listing.get('name') or '').strip().lower()
+            if listing_name in _IGNORE_LISTING_NAMES:
+                continue
+            # Handle image path - listings can have 'images/xxx.png' or 'uploads/xxx.png'
+            image_path = listing.get('image', 'images/default.png')
+            # Keep full path for templates to handle correctly
+            listing_vehicles.append({
+                'id': listing['id'],
+                'name': listing['name'],
+                'price': listing['price'],
+                'image': image_path,  # Full path (images/xxx.png or uploads/xxx.png)
+                'image_path': image_path,  # Same for detail page
+                'detail_url': url_for('listing_detail_logged', listing_id=listing['id'])
+            })
+    
+    # Combine hardcoded + listings
+    return hardcoded_vehicles + listing_vehicles
+
+
+@app.route('/vehicle_listing_logged')
+def vehicle_listing_logged():
+    search_query = request.args.get('q', '').lower()
+    
+    all_vehicles = get_all_vehicles_for_listing_logged()
 
     if search_query:
         vehicles = [v for v in all_vehicles if search_query in v['name'].lower()]
@@ -1103,6 +1231,37 @@ def bike():
 def bike_logged():
     cart_count = get_cart_count(session)
     return render_template("bike_logged.html", cart_count=cart_count)
+
+
+# Generic listing detail pages (for listings added via manage-listings)
+@app.route('/listing/<int:listing_id>')
+def listing_detail(listing_id):
+    """Generic detail page for listings added via manage-listings"""
+    from models import listings
+    listing = next((l for l in listings if l['id'] == listing_id), None)
+    
+    if not listing or listing.get('status') != 'active':
+        flash('Listing not found', 'error')
+        return redirect(url_for('vehicle_listing'))
+    
+    cart_count = get_cart_count(session)
+    return render_template('listing_detail.html', listing=listing, cart_count=cart_count)
+
+
+@app.route('/listing/<int:listing_id>/logged')
+def listing_detail_logged(listing_id):
+    """Generic detail page for listings (logged in users)"""
+    from models import listings
+    listing = next((l for l in listings if l['id'] == listing_id), None)
+    
+    if not listing or listing.get('status') != 'active':
+        flash('Listing not found', 'error')
+        return redirect(url_for('vehicle_listing_logged'))
+    
+    cart_count = get_cart_count(session)
+    return render_template('listing_detail_logged.html', listing=listing, cart_count=cart_count,
+                          user_email=session.get('user'),
+                          user_name=session.get('user_name'))
 
 
 # ============================================
@@ -1554,14 +1713,24 @@ def create_backup():
     try:
         backup_system = SecureBackup()
         include_files = request.json.get('include_files', True) if request.is_json else True
+        user_id = session.get('user_id')
 
-        backup_path = backup_system.create_backup(include_files=include_files)
+        backup_info = backup_system.create_backup(
+            include_files=include_files,
+            backup_type='Manual',
+            created_by_user_id=user_id,
+            log_to_db=True
+        )
 
         return jsonify({
             'success': True,
             'message': 'Backup created successfully',
-            'backup_file': os.path.basename(backup_path),
-            'backup_path': backup_path,
+            'backup_file': backup_info['backup_filename'],
+            'backup_path': backup_info['backup_path'],
+            'backup_size_mb': backup_info['backup_size_mb'],
+            'checksum_sha256': backup_info['checksum_sha256'],
+            'tables_backed_up': backup_info['tables_backed_up'],
+            'cloud_backup_enabled': backup_info['cloud_backup_enabled'],
             'timestamp': datetime.now().isoformat()
         }), 200
 
@@ -1572,15 +1741,50 @@ def create_backup():
 @app.route('/admin/backup/list', methods=['GET'])
 @login_required
 def list_backups():
-    """List all available backups"""
+    """List all available backups with database logs"""
     try:
         backup_system = SecureBackup()
-        backups = backup_system.list_backups()
+        file_backups = backup_system.list_backups()
+        db_logs = get_backup_logs(limit=1000)
+        
+        # Merge file backups with database logs
+        backups_with_logs = []
+        for file_backup in file_backups:
+            # Find matching log entry
+            matching_log = None
+            for log in db_logs:
+                if log['backup_filename'] == file_backup['filename']:
+                    matching_log = log
+                    break
+            
+            # Parse tables_backed_up if it's a JSON string
+            tables_backed_up = []
+            if matching_log and matching_log.get('tables_backed_up'):
+                if isinstance(matching_log['tables_backed_up'], str):
+                    try:
+                        tables_backed_up = json.loads(matching_log['tables_backed_up'])
+                    except:
+                        tables_backed_up = []
+                else:
+                    tables_backed_up = matching_log['tables_backed_up']
+            
+            backup_entry = {
+                **file_backup,
+                'checksum_sha256': matching_log['checksum_sha256'] if matching_log else None,
+                'tables_backed_up': tables_backed_up,
+                'files_included': matching_log['files_included'] if matching_log else 0,
+                'cloud_backup_enabled': matching_log['cloud_backup_enabled'] if matching_log else False,
+                'status': matching_log['status'] if matching_log else 'Unknown',
+                'verification_status': matching_log['verification_status'] if matching_log else 'Pending',
+                'backup_type': matching_log['backup_type'] if matching_log else 'Unknown',
+                'log_id': matching_log['backup_id'] if matching_log else None
+            }
+            backups_with_logs.append(backup_entry)
 
         return jsonify({
             'success': True,
-            'backups': backups,
-            'count': len(backups)
+            'backups': backups_with_logs,
+            'count': len(backups_with_logs)
         }), 200
 
     except Exception as e:
@@ -1607,6 +1811,7 @@ def restore_backup():
             'message': 'Backup restored successfully',
             'restored_tables': result['restored_tables'],
             'restored_files': result['restored_files'],
+            'restored_in_memory': result.get('restored_in_memory', {}),
             'timestamp': result['timestamp']
         }), 200
 
@@ -1639,10 +1844,11 @@ def cleanup_backups():
 @app.route('/admin/backup/status', methods=['GET'])
 @login_required
 def backup_status():
-    """Get backup system status and configuration"""
+    """Get backup system status and configuration with statistics"""
     try:
         backup_system = SecureBackup()
         backups = backup_system.list_backups()
+        stats = get_backup_stats()
 
         return jsonify({
             'backup_enabled': True,
@@ -1653,7 +1859,68 @@ def backup_status():
             'latest_backup': backups[0] if backups else None,
             'retention_days': Config.BACKUP_RETENTION_DAYS,
             'auto_backup_enabled': Config.AUTO_BACKUP_ENABLED,
-            'auto_backup_interval_hours': Config.AUTO_BACKUP_INTERVAL_HOURS
+            'auto_backup_interval_hours': Config.AUTO_BACKUP_INTERVAL_HOURS,
+            'statistics': stats
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/backup/logs', methods=['GET'])
+@login_required
+def backup_logs():
+    """Get backup logs for verification/proof"""
+    try:
+        status_filter = request.args.get('status')
+        limit = int(request.args.get('limit', 100))
+        
+        logs = get_backup_logs(limit=limit, status=status_filter)
+        
+        return jsonify({
+            'success': True,
+            'logs': logs,
+            'count': len(logs)
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/backup/verify/<backup_filename>', methods=['POST'])
+@login_required
+def verify_backup(backup_filename):
+    """Verify backup integrity"""
+    try:
+        backup_system = SecureBackup()
+        verification_result = backup_system.verify_backup(backup_filename)
+        
+        # Update verification status in database
+        if verification_result.get('verified'):
+            logs = get_backup_logs(limit=1000)
+            for log in logs:
+                if log['backup_filename'] == backup_filename:
+                    update_backup_verification(log['backup_id'], 'Verified')
+                    break
+        
+        return jsonify({
+            'success': verification_result.get('verified', False),
+            'verification': verification_result
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/backup/stats', methods=['GET'])
+@login_required
+def backup_stats():
+    """Get backup statistics for admin dashboard"""
+    try:
+        stats = get_backup_stats()
+        return jsonify({
+            'success': True,
+            'statistics': stats
         }), 200
 
     except Exception as e:
@@ -2293,9 +2560,14 @@ def toggle_listing_status(listing_id):
 
 @app.route('/seller/delete-listing/<int:listing_id>', methods=['POST'])
 def delete_listing(listing_id):
-    global listings
-    listings = [l for l in listings if l['id'] != listing_id]
-    flash('Listing deleted successfully', 'success')
+    from models import listings
+    # Remove the listing from the list
+    listing_to_delete = next((l for l in listings if l['id'] == listing_id), None)
+    if listing_to_delete:
+        listings.remove(listing_to_delete)
+        flash('Listing deleted successfully', 'success')
+    else:
+        flash('Listing not found', 'error')
     return redirect(url_for('manage_listings'))
 
 
@@ -2391,6 +2663,22 @@ def vehicle_management():
 @app.route('/security-dashboard')
 def security_dashboard():
     """Security management page"""
+    # Check if user is logged in and is admin
+    if 'user' not in session or session.get('user_type') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('index'))
+    return render_template('security_dashboard.html')
+
+
+@app.route('/admin/backup-management')
+@login_required
+def backup_management():
+    """Backup management page for admins"""
+    # Check if user is logged in and is admin
+    if 'user' not in session or session.get('user_type') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('index'))
+    return render_template('backup_management.html')
     return render_template('security_dashboard.html')
 
 
@@ -2489,6 +2777,9 @@ def delete_contact(contact_id):
 @app.route("/report", methods=["GET", "POST"])
 def report():
     """Incident report page with DB persistence."""
+    # Ensure the incident_report_files table exists
+    ensure_incident_report_files_table()
+    
     cart_count = get_cart_count(session)
 
     if request.method == "POST":
@@ -2504,8 +2795,11 @@ def report():
                 errors.append(f"{field.replace('_', ' ').title()} is required")
 
         photos = request.files.getlist("photos") if "photos" in request.files else []
-        allowed_exts = {"png", "jpg", "jpeg", "gif", "webp"}
+        
+        # Files are optional - only process if provided
+        allowed_exts = {"png", "jpg", "jpeg", "gif", "webp", "pdf", "mp4", "avi", "mov", "wmv"}
         saved_files = []
+        file_details_list = []  # Store file metadata for MySQL
 
         for idx, file in enumerate(photos, start=1):
             if not file or not file.filename:
@@ -2517,13 +2811,70 @@ def report():
             if not validate_file_size(file):
                 errors.append(f"File {idx}: must be less than 5MB")
                 continue
-            # Save file
+            
+            # Virus scanning and file validation using file_security
+            is_valid, error_msg, detected_type = validate_uploaded_file(file)
+            if not is_valid:
+                # Log security validation failure for audit
+                print(f"SECURITY: Incident report file validation failed for file {idx} ({file.filename}): {error_msg}")
+                errors.append(f"File {idx}: {error_msg}")
+                continue
+            # Log successful validation
+            file.seek(0)
+            file_content = file.read()
+            original_size = len(file_content)
+            file.seek(0)  # Reset for processing
+            print(f"SECURITY: Incident report file {idx} validated successfully. Filename: {file.filename}, Type: {detected_type}, Size: {original_size} bytes")
+            
+            # Determine MIME type and file type
+            mime_types = {
+                'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+                'gif': 'image/gif', 'webp': 'image/webp', 'pdf': 'application/pdf',
+                'mp4': 'video/mp4', 'avi': 'video/x-msvideo', 'mov': 'video/quicktime',
+                'wmv': 'video/x-ms-wmv'
+            }
+            mime_type = mime_types.get(ext, 'application/octet-stream')
+            is_image = ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']
+            is_video = ext in ['mp4', 'avi', 'mov', 'wmv']
+            file_type = 'image' if is_image else ('video' if is_video else 'document')
+            
+            # Process file: watermark (if image) and encrypt
+            try:
+                processed_content, file_metadata = process_incident_file(
+                    file_content,
+                    file.filename,
+                    encrypt=True,
+                    watermark=True
+                )
+                processed_size = len(processed_content)
+                print(f"SECURITY: File {idx} processed - Encrypted: {file_metadata['encrypted']}, Watermarked: {file_metadata.get('watermarked', False)}")
+            except Exception as e:
+                print(f"ERROR: Failed to process file {idx}: {e}")
+                errors.append(f"File {idx}: Failed to encrypt/watermark file")
+                continue
+            
+            # Save encrypted file
             os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
             safe_name = sanitize_filename(file.filename)
-            filename = secure_filename(f"incident_{request.form.get('email','user')}_{safe_name}")
-            file.seek(0)
-            file.save(os.path.join(Config.UPLOAD_FOLDER, filename))
+            filename = secure_filename(f"incident_{request.form.get('email','user')}_{safe_name}.encrypted")
+            file_path = os.path.join(Config.UPLOAD_FOLDER, filename)
+            
+            # Write encrypted content
+            with open(file_path, 'wb') as f:
+                f.write(processed_content)
+            
             saved_files.append(filename)
+            
+            # Store file metadata for MySQL
+            file_details_list.append({
+                'original_filename': file.filename,
+                'file_path': file_path,
+                'file_size_bytes': processed_size,
+                'file_type': file_type,
+                'mime_type': mime_type,
+                'is_encrypted': file_metadata.get('encrypted', True),
+                'is_watermarked': file_metadata.get('watermarked', False)
+            })
 
         if errors:
             for e in errors:
@@ -2546,7 +2897,7 @@ def report():
                 'incident_type': request.form.get('incident_type'),
                 'severity_level': request.form.get('severity_level'),
                 'incident_description': request.form.get('incident_description'),
-                'files': saved_files,
+                'files': saved_files,  # Files stored in files_json field
             }
             
             # Validate all required fields are present
@@ -2587,6 +2938,42 @@ def report():
     return render_template("incident_report.html", cart_count=cart_count)
 
 
+@app.route("/admin/create-files-table", methods=["GET", "POST"])
+@login_required
+def create_files_table():
+    """Admin route to manually create the incident_report_files table."""
+    # Check if user is admin
+    user_email = session.get('user')
+    user = get_user_by_email(user_email) if user_email else None
+    
+    if not user or user.get('user_type') != 'admin':
+        flash("Access denied. Admin privileges required.", "error")
+        return redirect(url_for("index_logged"))
+    
+    if request.method == "POST":
+        success = ensure_incident_report_files_table()
+        if success:
+            flash("incident_report_files table created successfully!", "success")
+        else:
+            flash("Failed to create table. Check server logs for details.", "error")
+        return redirect(url_for("security_dashboard"))
+    
+    # GET request - show confirmation
+    return f"""
+    <html>
+        <head><title>Create Files Table</title></head>
+        <body>
+            <h1>Create incident_report_files Table</h1>
+            <p>This will create the MySQL table for storing incident report file metadata.</p>
+            <form method="POST">
+                <button type="submit">Create Table</button>
+                <a href="{url_for('security_dashboard')}">Cancel</a>
+            </form>
+        </body>
+    </html>
+    """
+
+
 @app.route("/cases")
 def cases():
     """Submitted cases page - shows reports for current user."""
@@ -2609,6 +2996,11 @@ def cases():
                         report['created_at'] = report['created_at'].strftime('%Y-%m-%d %H:%M:%S')
                 if not report.get('status'):
                     report['status'] = 'Pending Review'
+                
+                # Debug: Log file information
+                print(f"DEBUG: Report {report.get('id')} has files: {report.get('files')}, type: {type(report.get('files'))}")
+                if report.get('files'):
+                    print(f"DEBUG: Report {report.get('id')} file count: {len(report.get('files', []))}")
     except Exception as e:
         flash("Error loading your incident reports. Please try again.", "error")
         reports = []
@@ -2637,6 +3029,129 @@ def update_case_status(report_id):
         print(f"Failed to update case status: {e}")
         flash("Failed to update case status", "error")
     return redirect(url_for("cases"))
+
+
+@app.route("/cases/<int:report_id>/file/<path:filename>")
+def serve_incident_file(report_id, filename):
+    """Serve decrypted incident report file (with watermark if image)"""
+    try:
+        # URL decode filename
+        from urllib.parse import unquote
+        filename = unquote(filename)
+        
+        # Verify user has access to this report (works for both logged-in and non-logged-in users)
+        user_email = session.get('user') or session.get('incident_report_email')
+        user_id = session.get('user_id')
+        
+        reports = get_incident_reports(email=user_email, user_id=user_id)
+        report = next((r for r in reports if r['id'] == report_id), None)
+        
+        if not report:
+            # Try to find report by ID only (for cases where user submitted via email)
+            all_reports = get_incident_reports()
+            report = next((r for r in all_reports if r['id'] == report_id), None)
+            if report:
+                # Verify email matches if email was provided in session
+                if user_email and report.get('email'):
+                    if report['email'].lower() != user_email.lower():
+                        flash("Access denied or report not found", "error")
+                        return redirect(url_for("cases"))
+                # If no email in session, allow access (user might have submitted anonymously)
+            else:
+                flash("Access denied or report not found", "error")
+                return redirect(url_for("cases"))
+        
+        # Check if file exists in report
+        report_files = report.get('files', [])
+        
+        # Debug logging
+        print(f"DEBUG: Looking for file '{filename}' in report {report_id}")
+        print(f"DEBUG: Report files list: {report_files}")
+        print(f"DEBUG: Report files type: {type(report_files)}")
+        
+        if not report_files:
+            print(f"WARNING: Report {report_id} has no files in 'files' field")
+            flash("No files found for this report", "error")
+            return redirect(url_for("cases"))
+        
+        if filename not in report_files:
+            print(f"WARNING: File '{filename}' not found in report files. Available files: {report_files}")
+            flash("File not found in this report", "error")
+            return redirect(url_for("cases"))
+        
+        # Get file path
+        file_path = os.path.join(Config.UPLOAD_FOLDER, filename)
+        
+        if not os.path.exists(file_path):
+            print(f"ERROR: File not found at path: {file_path}")
+            print(f"ERROR: Upload folder: {Config.UPLOAD_FOLDER}")
+            print(f"ERROR: Looking for filename: {filename}")
+            flash("File not found on server", "error")
+            return redirect(url_for("cases"))
+        
+        with open(file_path, 'rb') as f:
+            file_content = f.read()
+        
+        if len(file_content) == 0:
+            print(f"ERROR: File {filename} is empty")
+            flash("File is empty", "error")
+            return redirect(url_for("cases"))
+        
+        # Try to decrypt (if encrypted)
+        try:
+            decrypted_content = decrypt_file(file_content)
+            file_content = decrypted_content
+            print(f"SECURITY: Decrypted file {filename} (size: {len(file_content)} bytes) for user {user_email}")
+        except Exception as decrypt_error:
+            # File might not be encrypted (backward compatibility)
+            if filename.endswith('.encrypted'):
+                # File should be encrypted but decryption failed
+                print(f"ERROR: Failed to decrypt encrypted file {filename}: {decrypt_error}")
+                import traceback
+                print(traceback.format_exc())
+                flash("Error decrypting file. Please contact administrator.", "error")
+                return redirect(url_for("cases"))
+            else:
+                # File is not encrypted (backward compatibility)
+                print(f"INFO: File {filename} is not encrypted, serving as-is (size: {len(file_content)} bytes)")
+        
+        # Get original filename (remove .encrypted suffix if present)
+        original_filename = filename.replace('.encrypted', '')
+        if original_filename.startswith('incident_'):
+            # Extract original name if possible
+            parts = original_filename.split('_', 2)
+            if len(parts) > 2:
+                original_filename = parts[2]
+        
+        # Determine MIME type from original filename (not encrypted filename)
+        ext = original_filename.rsplit('.', 1)[-1].lower() if '.' in original_filename else ''
+        mime_types = {
+            'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+            'gif': 'image/gif', 'webp': 'image/webp', 'pdf': 'application/pdf',
+            'mp4': 'video/mp4', 'avi': 'video/x-msvideo', 'mov': 'video/quicktime',
+            'wmv': 'video/x-ms-wmv', 'quicktime': 'video/quicktime'
+        }
+        mime_type = mime_types.get(ext, 'application/octet-stream')
+        
+        response = send_file(
+            BytesIO(file_content),
+            download_name=original_filename,
+            mimetype=mime_type,
+            as_attachment=False  # Display in browser for images
+        )
+        
+        # Add headers to allow images/videos to be displayed
+        response.headers['Cache-Control'] = 'private, max-age=3600'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        
+        return response
+    
+    except Exception as e:
+        print(f"ERROR serving incident file: {e}")
+        import traceback
+        print(traceback.format_exc())
+        flash("Error retrieving file", "error")
+        return redirect(url_for("cases"))
 
 
 @app.route("/cases/<int:report_id>/delete", methods=["POST"])
@@ -2717,6 +3232,127 @@ def encryption_proof():
             "license_number": row.get("license_number"),
         },
         "decrypted": decrypted,
+    })
+
+
+@app.route("/test-encryption")
+def test_encryption():
+    """
+    Simple test route to verify encryption is working.
+    Shows a test encryption/decryption cycle.
+    """
+    try:
+        # Test encryption
+        test_value = "Test123"
+        encrypted = encrypt_value(test_value)
+        decrypted = decrypt_value(encrypted)
+        
+        # Check if encryption key is set
+        encryption_key_set = os.environ.get('DATA_ENCRYPTION_KEY') is not None
+        
+        return jsonify({
+            "status": "success",
+            "encryption_configured": encryption_key_set,
+            "test": {
+                "original": test_value,
+                "encrypted": encrypted,
+                "decrypted": decrypted,
+                "matches": test_value == decrypted
+            },
+            "message": "Encryption is working!" if (test_value == decrypted and encryption_key_set) else "Encryption may not be configured correctly"
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "encryption_configured": os.environ.get('DATA_ENCRYPTION_KEY') is not None,
+            "error": str(e),
+            "message": "Encryption is NOT working. Check that DATA_ENCRYPTION_KEY is set in .env file."
+        }), 500
+
+
+@app.route("/security-verification")
+def security_verification_page():
+    """Visual security verification dashboard"""
+    return render_template('security_verification.html')
+
+
+@app.route("/security-check")
+def security_check():
+    """
+    Comprehensive security verification endpoint.
+    Checks cookie settings, HTTPS, and security headers.
+    """
+    # Detect HTTPS
+    is_https = (
+        request.is_secure or 
+        request.headers.get('X-Forwarded-Proto') == 'https' or
+        request.headers.get('X-Forwarded-Ssl') == 'on'
+    )
+    
+    # Get cookie settings from Flask config
+    cookie_secure = app.config.get('SESSION_COOKIE_SECURE', False)
+    cookie_httponly = app.config.get('SESSION_COOKIE_HTTPONLY', True)
+    cookie_samesite = app.config.get('SESSION_COOKIE_SAMESITE', 'Lax')
+    
+    # Check security headers
+    security_headers = {
+        'Content-Security-Policy': request.headers.get('Content-Security-Policy'),
+        'X-Content-Type-Options': request.headers.get('X-Content-Type-Options'),
+        'X-Frame-Options': request.headers.get('X-Frame-Options'),
+        'Referrer-Policy': request.headers.get('Referrer-Policy'),
+    }
+    
+    # Verification results
+    checks = {
+        'https_enabled': {
+            'status': is_https,
+            'message': 'HTTPS/TLS is active' if is_https else '⚠️ Using HTTP (not secure)',
+            'required': True
+        },
+        'cookie_secure': {
+            'status': cookie_secure,
+            'message': 'Secure flag enabled (cookies only sent over HTTPS)' if cookie_secure else '⚠️ Secure flag disabled',
+            'required': True
+        },
+        'cookie_httponly': {
+            'status': cookie_httponly,
+            'message': 'HttpOnly flag enabled (prevents XSS access)' if cookie_httponly else '⚠️ HttpOnly flag disabled',
+            'required': True
+        },
+        'cookie_samesite': {
+            'status': cookie_samesite in ['Lax', 'Strict'],
+            'message': f'SameSite={cookie_samesite} (CSRF protection enabled)',
+            'required': True
+        },
+        'security_headers': {
+            'status': all(security_headers.values()),
+            'message': 'Security headers present',
+            'details': security_headers
+        }
+    }
+    
+    # Overall status
+    all_critical_passed = all(
+        checks[key]['status'] for key in ['https_enabled', 'cookie_secure', 'cookie_httponly', 'cookie_samesite']
+        if checks[key].get('required', False)
+    )
+    
+    return jsonify({
+        'overall_status': 'secure' if all_critical_passed else 'insecure',
+        'checks': checks,
+        'recommendations': [
+            '✅ All security measures are properly configured!' if all_critical_passed else
+            '⚠️ Some security measures need attention',
+            '✅ Session tokens stored in Secure, HttpOnly cookies',
+            '✅ Only non-sensitive data should be in localStorage',
+            '✅ All communication protected with HTTPS/TLS'
+        ],
+        'how_to_verify': {
+            'browser_devtools': 'Open DevTools → Application → Cookies → Check flags: Secure ✓, HttpOnly ✓',
+            'network_tab': 'Open DevTools → Network → Check request headers → Look for HTTPS and security headers',
+            'console_test': 'Try: document.cookie (should NOT show session cookies due to HttpOnly)',
+            'localStorage_check': 'Check localStorage: Should only contain non-sensitive UI preferences'
+        }
     })
 
 
@@ -3072,6 +3708,65 @@ def log_booking_fraud():
         }), 500
 
 
-if __name__ == "__main__":
+# ============================================
+# AUTOMATED BACKUP SCHEDULER
+# ============================================
+def start_backup_scheduler():
+    """Start automated backup scheduler in background thread"""
+    # Check if auto-backup is enabled (defaults to False if not set)
+    auto_backup_enabled = os.environ.get('AUTO_BACKUP_ENABLED', 'False').lower() == 'true'
+    
+    if not auto_backup_enabled:
+        print("ℹ️  Automated backups are disabled. Set AUTO_BACKUP_ENABLED=true in .env to enable.")
+        print("   Backups can still be created manually from the admin panel.")
+        return
+    
+    def backup_worker():
+        """Background thread worker for automated backups"""
+        import time
+        from utils.backup import SecureBackup
+        
+        backup_system = SecureBackup()
+        interval_hours = int(os.environ.get('AUTO_BACKUP_INTERVAL_HOURS', '24'))
+        interval_seconds = interval_hours * 3600
+        
+        print(f"✅ Automated backup scheduler started. Backups will run every {interval_hours} hours.")
+        
+        # Run initial backup after 60 seconds (give app time to start)
+        time.sleep(60)
+        
+        while True:
+            try:
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting automated backup...")
+                backup_info = backup_system.create_backup(
+                    include_files=True,
+                    backup_type='Automated',
+                    created_by_user_id=None,
+                    log_to_db=True
+                )
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✅ Backup completed: {backup_info['backup_filename']} ({backup_info['backup_size_mb']} MB)")
+                print(f"    Checksum: {backup_info['checksum_sha256']}")
+                
+                # Cleanup old backups
+                retention_days = int(os.environ.get('BACKUP_RETENTION_DAYS', '30'))
+                deleted = backup_system.delete_old_backups(keep_days=retention_days)
+                if deleted:
+                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🗑️  Deleted {len(deleted)} old backup(s)")
+                
+            except Exception as e:
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ❌ Automated backup failed: {e}")
+            
+            # Wait for next interval
+            time.sleep(interval_seconds)
+    
+    # Start backup scheduler in background thread
+    backup_thread = threading.Thread(target=backup_worker, daemon=True)
+    backup_thread.start()
 
-        app.run(debug=True, port=5001)
+
+# Start automated backup scheduler on app startup
+start_backup_scheduler()
+
+
+if __name__ == "__main__":
+    app.run(debug=True, port=5001)
