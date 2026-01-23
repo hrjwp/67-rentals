@@ -562,6 +562,10 @@
                         input.classList.remove('is-invalid');
                         errorDiv.textContent = '';
                     }
+                } else {
+                    // Files removed - clear any errors (field is optional)
+                    input.classList.remove('is-invalid');
+                    errorDiv.textContent = '';
                 }
             });
 
@@ -591,7 +595,7 @@
                     document.getElementById('contact_number_error').textContent = 'Phone number should contain only numbers';
                 }
 
-                // Validate files if any uploaded
+                // Validate files if any uploaded (field is optional)
                 if (files.length > 0) {
                     const fileValidation = validateFiles(files);
                     if (!fileValidation.valid) {
