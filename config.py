@@ -18,6 +18,13 @@ class Config:
     STRIPE_API_KEY = 'sk_test_51Qt62CEu3QerzS1yLWYhnwyX9UfVX2joIEDmUghjcCI1rY1mfscebN6bKttdNw0N446QucqKwOGoNGYZsVaYffx800HM2RGjR1'
     STRIPE_PUBLIC_KEY = 'pk_test_51Qt62CEu3QerzS1yyA1sCZ5WXb4gimBa6RrAOiqzUkb2H4CvEda5qs2d1VNU7yPh6L5kS4XaE5BJwJJtGxPWhdZ100WgIyODq8'
 
+    # Email (SMTP)
+    SMTP_HOST = os.environ.get('SMTP_HOST', '')
+    SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
+    SMTP_USER = os.environ.get('SMTP_USER', '')
+    SMTP_PASS = os.environ.get('SMTP_PASS', '')
+    SMTP_FROM = os.environ.get('SMTP_FROM', '')
+
     # File Upload
     UPLOAD_FOLDER = 'static/uploads'
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf'}

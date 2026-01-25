@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Retention - 67 Rentals</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/templatemo-graph-page.css') }}">
+    <style>
+        .retention-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            margin-top: 24px;
+        }
+        .retention-card {
+            background: var(--section-bg-color);
+            border: 1px solid rgba(61, 64, 91, 0.15);
+            border-radius: var(--border-radius-medium);
+            padding: 28px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+        }
+        .retention-card h3 {
+            margin-top: 0;
+        }
+        .section-subtitle {
+            color: var(--p-color);
+            margin-bottom: 12px;
+        }
+        .flash {
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        .flash-success {
+            background: #e8f8f5;
+            color: #0e9f6e;
+            border: 1px solid #a7f3d0;
+        }
+        .flash-error {
+            background: #fde8e8;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+        }
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            color: var(--secondary-color);
+        }
+        .hint {
+            font-size: 13px;
+            color: var(--p-color);
+            margin-top: 6px;
+        }
+        .inline-stat {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+            font-size: 13px;
+            color: var(--p-color);
+        }
+        .inline-stat span {
+            background: var(--white-color);
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(61, 64, 91, 0.15);
+        }
+        .cta-button.secondary {
+            background: var(--secondary-color);
+        }
+        .cta-button.secondary:hover {
+            background: var(--custom-btn-bg-hover-color);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav id="navbar">
+        <div class="nav-container">
+            <a href="{{ url_for('index') }}" class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M3 13h2v8H3zm4-8h2v13H7zm4-2h2v15h-2zm4 4h2v11h-2zm4-2h2v13h-2z"/>
+                    </svg>
+                </div>
+                <span class="logo-text">67 Rentals</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
+                <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
+                <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
+            </ul>
+            <div class="hamburger" id="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+        <ul class="nav-links-mobile" id="navLinksMobile">
+            <li><a href="{{ url_for('index') }}">Home</a></li>
+            <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+            <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
+            <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
+            <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
+        </ul>
+    </nav>
+
+    <section class="dashboard-section" style="padding-top: 120px; min-height: 100vh;">
+        <div class="dashboard-container">
+            <h2 class="section-title">Data Retention & Purge</h2>
+            <p class="section-subtitle">Configure purge windows and role coverage while keeping the current theme.</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <div class="retention-grid">
+                <div class="retention-card">
+                    <h3>Retention Rules</h3>
+                    <form method="post" action="{{ url_for('data_retention') }}">
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="auto_purge_enabled" {% if settings.auto_purge_enabled %}checked{% endif %}>
+                                Enable automatic purge by account age
+                            </label>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Retention Days</label>
+                            <input type="number" min="1" name="retention_days" value="{{ settings.retention_days }}">
+                            <div class="hint">Extend retention by increasing this value.</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="inactivity_purge_enabled" {% if settings.inactivity_purge_enabled %}checked{% endif %}>
+                                Enable inactivity purge
+                            </label>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Inactivity Days</label>
+                            <input type="number" min="1" name="inactivity_days" value="{{ settings.inactivity_days }}">
+                            <div class="hint">Default is 90 days (3 months).</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Apply to Roles</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="apply_to_users" {% if settings.apply_to_users %}checked{% endif %}>
+                                    Users
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="apply_to_sellers" {% if settings.apply_to_sellers %}checked{% endif %}>
+                                    Sellers
+                                </label>
+                            </div>
+                            <div class="hint">Admins are always excluded.</div>
+                        </div>
+
+                        <button type="submit" class="cta-button">Save Settings</button>
+                    </form>
+                </div>
+
+                <div class="retention-card">
+                    <h3>Manual Purge</h3>
+                    <p class="hint" style="margin-top: 0;">Run the same rules immediately.</p>
+
+                    <div class="inline-stat">
+                        <span>Last run: {{ settings.last_run_at or 'Never' }}</span>
+                        <span>Last purged: {{ settings.last_run_purged or 0 }}</span>
+                        <span>Last reason: {{ settings.last_run_reason or 'N/A' }}</span>
+                    </div>
+
+                    <form method="post" action="{{ url_for('data_retention_purge') }}"
+                          onsubmit="return confirm('Run purge now? This will permanently delete eligible accounts.');"
+                          style="margin-top: 20px;">
+                        <button type="submit" class="cta-button secondary">Run Purge Now</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-content">
+            <p class="copyright">© 2026 67 Rentals. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/templatemo-graph-script.js') }}"></script>
+</body>
+</html>

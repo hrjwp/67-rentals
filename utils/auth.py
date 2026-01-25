@@ -1,7 +1,14 @@
 from functools import wraps
 from flask import session, redirect, url_for, flash
+import hashlib
+import os
 import secrets
 from datetime import datetime, timedelta
+import smtplib
+from email.mime.text import MIMEText
+from email.utils import parseaddr
+
+from config import Config
 
 
 def login_required(f):
@@ -48,13 +55,70 @@ def generate_reset_token():
     return secrets.token_urlsafe(32)
 
 
-def send_password_reset_email(email, reset_token):
+def generate_otp() -> str:
+    """Generate a 6-digit numeric OTP."""
+    return f"{secrets.randbelow(1000000):06d}"
+
+
+def hash_otp(otp: str, salt: str) -> str:
+    """Hash OTP with salt."""
+    return hashlib.sha256(f"{salt}{otp}".encode()).hexdigest()
+
+
+def _get_smtp_config():
+    host = os.environ.get("SMTP_HOST") or Config.SMTP_HOST
+    user = os.environ.get("SMTP_USER") or Config.SMTP_USER
+    password = os.environ.get("SMTP_PASS") or Config.SMTP_PASS
+    if not host or not user or not password:
+        return None
+    port_raw = os.environ.get("SMTP_PORT") or Config.SMTP_PORT
+    port = int(port_raw) if str(port_raw).isdigit() else 587
+    from_email = os.environ.get("SMTP_FROM") or Config.SMTP_FROM or user
+    return host, port, user, password, from_email
+
+
+def _send_via_smtp(to_email: str, subject: str, html: str) -> None:
+    config = _get_smtp_config()
+    if not config:
+        raise RuntimeError("SMTP is not configured")
+    host, port, user, password, from_email = config
+    msg = MIMEText(html, "html")
+    msg["Subject"] = subject
+    msg["From"] = from_email
+    msg["To"] = to_email
+    from_addr = parseaddr(from_email)[1] or from_email
+    with smtplib.SMTP(host, port, timeout=10) as server:
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(user, password)
+        server.sendmail(from_addr, [to_email], msg.as_string())
+
+
+def send_password_reset_otp_email(email: str, otp: str):
+    """Send password reset OTP via SMTP."""
+    subject = "Your 67 Rentals password reset code"
+    html = f"""
+    <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 520px; margin: 0 auto;">
+      <h2 style="color:#3D405B;">Reset your 67 Rentals password</h2>
+      <p style="color:#717275;">Use the code below to reset your password. This code expires in 10 minutes.</p>
+      <div style="background:#F4F1DE;padding:16px;border-radius:12px;text-align:center;font-size:24px;font-weight:700;letter-spacing:4px;color:#3D405B;">
+        {otp}
+      </div>
+      <p style="color:#717275;margin-top:16px;">If you didn’t request this, you can ignore this email.</p>
+      <p style="color:#717275;">— 67 Rentals Team</p>
+    </div>
+    """
+    _send_via_smtp(email, subject, html)
+
+def send_password_reset_email(email, reset_token, base_url: str = None):
     """
     Send password reset email to user
     In production, integrate with email service like SendGrid, AWS SES, or SMTP
     """
     # For development, just print the reset link
-    reset_link = f"http://localhost:5000/reset-password/{reset_token}"
+    base = base_url.rstrip("/") if base_url else "http://localhost:5001"
+    reset_link = f"{base}/reset-password/{reset_token}"
     print(f"\n{'=' * 60}")
     print(f"PASSWORD RESET EMAIL")
     print(f"{'=' * 60}")

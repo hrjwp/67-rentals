@@ -5,6 +5,7 @@ from config import Config
 from db_config import DB_CONFIG
 from utils.encryption import encrypt_value, decrypt_value
 import json
+from datetime import datetime, timedelta
 from typing import List, Dict, Any
 
 
@@ -102,6 +103,22 @@ def ensure_schema():
                 expires_at DATETIME NOT NULL,
                 used BOOLEAN DEFAULT FALSE,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS password_reset_otps (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                email VARCHAR(255) NOT NULL,
+                otp_hash VARCHAR(64) NOT NULL,
+                salt VARCHAR(64) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                used BOOLEAN DEFAULT FALSE,
+                attempts INT DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_email (email),
+                INDEX idx_expires (expires_at)
             )
             """
         )
@@ -209,6 +226,35 @@ def ensure_schema():
             )
             """
         )
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS data_retention_settings (
+                id INT PRIMARY KEY,
+                auto_purge_enabled TINYINT(1) DEFAULT 1,
+                retention_days INT DEFAULT 365,
+                inactivity_purge_enabled TINYINT(1) DEFAULT 1,
+                inactivity_days INT DEFAULT 90,
+                apply_to_users TINYINT(1) DEFAULT 1,
+                apply_to_sellers TINYINT(1) DEFAULT 1,
+                exclude_admins TINYINT(1) DEFAULT 1,
+                last_run_at DATETIME NULL,
+                last_run_purged INT DEFAULT 0,
+                last_run_reason VARCHAR(20) NULL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                updated_by VARCHAR(255) NULL
+            )
+            """
+        )
+        cursor.execute("INSERT IGNORE INTO data_retention_settings (id) VALUES (1)")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS data_retention_overrides (
+                user_id INT PRIMARY KEY,
+                extension_days INT DEFAULT 0,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                updated_by VARCHAR(255) NULL,
+                FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+            )
+            """
+        )
         # Add foreign key separately if it doesn't exist (allows NULL user_id)
         try:
             cursor.execute("""
@@ -233,6 +279,8 @@ def ensure_schema():
         _safe_alter(cursor, "ALTER TABLE users MODIFY last_name VARCHAR(255)")
         _safe_alter(cursor, "ALTER TABLE users MODIFY nric VARCHAR(255)")
         _safe_alter(cursor, "ALTER TABLE users MODIFY license_number VARCHAR(255)")
+        _safe_alter(cursor, "ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+        _safe_alter(cursor, "ALTER TABLE users ADD COLUMN last_login_at DATETIME NULL")
         
         # Update incident_reports table columns to accommodate encrypted data (increased to 1000 for safety)
         _safe_alter(cursor, "ALTER TABLE incident_reports MODIFY full_name VARCHAR(1000)")
@@ -283,7 +331,8 @@ def get_user_by_email(email):
         cursor.execute(
             """
             SELECT user_id, first_name, last_name, email, phone_number AS phone,
-                   nric, license_number, password_hash, user_type, verified, account_status, role
+                   nric, license_number, password_hash, user_type, verified, account_status, role,
+                   created_at, last_login_at
             FROM users WHERE email = %s
             """,
             (email,),
@@ -507,6 +556,33 @@ def update_user_password(email, new_password):
         cursor.close()
 
 
+def update_user_profile(user_id, first_name, last_name, email, phone):
+    """Update editable profile fields for a user."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT user_id FROM users WHERE email = %s AND user_id != %s",
+            (email, user_id)
+        )
+        if cursor.fetchone():
+            cursor.close()
+            return False, "Email already registered"
+
+        cursor.execute(
+            """
+            UPDATE users
+            SET first_name = %s,
+                last_name = %s,
+                email = %s,
+                phone_number = %s
+            WHERE user_id = %s
+            """,
+            (first_name, last_name, email, phone, user_id)
+        )
+        cursor.close()
+        return True, None
+
+
 def save_reset_token(token, email, expires_at):
     """Save password reset token"""
     with get_db_connection() as conn:
@@ -539,6 +615,73 @@ def mark_token_as_used(token):
         cursor.execute(
             "UPDATE password_reset_tokens SET used = TRUE WHERE token = %s",
             (token,)
+        )
+        cursor.close()
+
+
+def invalidate_password_reset_otps(email: str):
+    """Invalidate any existing OTPs for an email."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE password_reset_otps SET used = TRUE WHERE email = %s AND used = FALSE",
+            (email,),
+        )
+        cursor.close()
+
+
+def create_password_reset_otp(email: str, otp_hash: str, salt: str, expires_at):
+    """Create a new password reset OTP entry."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO password_reset_otps (email, otp_hash, salt, expires_at, used, attempts)
+            VALUES (%s, %s, %s, %s, FALSE, 0)
+            """,
+            (email, otp_hash, salt, expires_at),
+        )
+        otp_id = cursor.lastrowid
+        cursor.close()
+        return otp_id
+
+
+def get_latest_password_reset_otp(email: str):
+    """Get the latest unused OTP for an email."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT * FROM password_reset_otps
+            WHERE email = %s AND used = FALSE
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (email,),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        return row
+
+
+def increment_password_reset_otp_attempts(otp_id: int):
+    """Increment attempts for an OTP."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE password_reset_otps SET attempts = attempts + 1 WHERE id = %s",
+            (otp_id,),
+        )
+        cursor.close()
+
+
+def mark_password_reset_otp_used(otp_id: int):
+    """Mark OTP as used."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE password_reset_otps SET used = TRUE WHERE id = %s",
+            (otp_id,),
         )
         cursor.close()
 
@@ -1418,3 +1561,406 @@ def get_user_by_id(user_id: int):
         cursor.close()
         return user
 
+
+# ============= DATA RETENTION =============
+
+def update_user_last_login(user_id: int):
+    """Update last login timestamp for a user."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE users SET last_login_at = NOW() WHERE user_id = %s",
+            (user_id,),
+        )
+        cursor.close()
+
+
+def get_retention_settings() -> Dict[str, Any]:
+    """Fetch data retention settings (single-row table)."""
+    defaults = {
+        "auto_purge_enabled": 1,
+        "retention_days": 365,
+        "inactivity_purge_enabled": 1,
+        "inactivity_days": 90,
+        "apply_to_users": 1,
+        "apply_to_sellers": 1,
+        "exclude_admins": 1,
+        "last_run_at": None,
+        "last_run_purged": 0,
+        "last_run_reason": None,
+        "updated_at": None,
+        "updated_by": None,
+    }
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM data_retention_settings WHERE id = 1")
+        row = cursor.fetchone()
+        cursor.close()
+
+    if not row:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT IGNORE INTO data_retention_settings (id) VALUES (1)")
+            cursor.close()
+        return defaults
+
+    settings = defaults.copy()
+    for key in defaults.keys():
+        if key in row and row[key] is not None:
+            settings[key] = row[key]
+
+    for flag in ("auto_purge_enabled", "inactivity_purge_enabled",
+                 "apply_to_users", "apply_to_sellers", "exclude_admins"):
+        value = settings.get(flag)
+        try:
+            settings[flag] = bool(int(value))
+        except (TypeError, ValueError):
+            settings[flag] = bool(value)
+
+    return settings
+
+
+def update_retention_settings(settings: Dict[str, Any], updated_by: str = None) -> None:
+    """Update data retention settings."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT IGNORE INTO data_retention_settings (id) VALUES (1)")
+        cursor.execute(
+            """
+            UPDATE data_retention_settings
+            SET auto_purge_enabled = %s,
+                retention_days = %s,
+                inactivity_purge_enabled = %s,
+                inactivity_days = %s,
+                apply_to_users = %s,
+                apply_to_sellers = %s,
+                exclude_admins = %s,
+                updated_by = %s
+            WHERE id = 1
+            """,
+            (
+                int(bool(settings.get("auto_purge_enabled"))),
+                int(settings.get("retention_days", 365)),
+                int(bool(settings.get("inactivity_purge_enabled"))),
+                int(settings.get("inactivity_days", 90)),
+                int(bool(settings.get("apply_to_users"))),
+                int(bool(settings.get("apply_to_sellers"))),
+                int(bool(settings.get("exclude_admins", True))),
+                updated_by,
+            ),
+        )
+        cursor.close()
+
+
+def _table_exists(cursor, table_name: str) -> bool:
+    cursor.execute(
+        """
+        SELECT COUNT(*) FROM information_schema.tables
+        WHERE table_schema = DATABASE() AND table_name = %s
+        """,
+        (table_name,),
+    )
+    return cursor.fetchone()[0] > 0
+
+
+def _column_exists(cursor, table_name: str, column_name: str) -> bool:
+    cursor.execute(
+        """
+        SELECT COUNT(*) FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = %s
+          AND column_name = %s
+        """,
+        (table_name, column_name),
+    )
+    return cursor.fetchone()[0] > 0
+
+
+def get_retention_overrides() -> Dict[int, int]:
+    """Return {user_id: extension_days}."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT user_id, extension_days FROM data_retention_overrides")
+        rows = cursor.fetchall()
+        cursor.close()
+    return {row["user_id"]: row.get("extension_days", 0) or 0 for row in rows}
+
+
+def set_retention_extension(user_id: int, extension_days: int, updated_by: str = None) -> None:
+    """Set per-user retention extension days (0 clears)."""
+    extension_days = int(extension_days)
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        if extension_days <= 0:
+            cursor.execute(
+                "DELETE FROM data_retention_overrides WHERE user_id = %s",
+                (user_id,),
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO data_retention_overrides (user_id, extension_days, updated_by)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE extension_days = VALUES(extension_days),
+                                        updated_by = VALUES(updated_by)
+                """,
+                (user_id, extension_days, updated_by),
+            )
+        cursor.close()
+
+
+def get_retention_users(apply_to_users: bool = True,
+                        apply_to_sellers: bool = True,
+                        include_admins: bool = False) -> List[Dict[str, Any]]:
+    """Fetch user rows needed for retention overview."""
+    if not apply_to_users and not apply_to_sellers:
+        return []
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        query = """
+            SELECT user_id, first_name, last_name, email, user_type,
+                   created_at, last_login_at
+            FROM users
+        """
+        params: List[Any] = []
+        where_clauses = []
+        role_clauses = []
+        if apply_to_users:
+            role_clauses.append("(user_type = 'user' OR user_type IS NULL)")
+        if apply_to_sellers:
+            role_clauses.append("user_type = 'seller'")
+        if role_clauses:
+            where_clauses.append(f"({' OR '.join(role_clauses)})")
+        if not include_admins:
+            where_clauses.append("(user_type IS NULL OR user_type <> 'admin')")
+        if where_clauses:
+            query += " WHERE " + " AND ".join(where_clauses)
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        cursor.close()
+    return rows
+
+
+def _compute_retention_status(user: Dict[str, Any],
+                              settings: Dict[str, Any],
+                              extension_days: int,
+                              now: datetime) -> Dict[str, Any]:
+    created_at = user.get("created_at")
+    last_login_at = user.get("last_login_at")
+
+    retention_days = None
+    if settings.get("auto_purge_enabled"):
+        retention_days = int(settings.get("retention_days", 365)) + max(extension_days, 0)
+
+    inactivity_days = None
+    if settings.get("inactivity_purge_enabled"):
+        inactivity_days = int(settings.get("inactivity_days", 90)) + max(extension_days, 0)
+
+    retention_deadline = None
+    if retention_days and created_at:
+        retention_deadline = created_at + timedelta(days=retention_days)
+
+    inactivity_deadline = None
+    activity_anchor = last_login_at or created_at
+    if inactivity_days and activity_anchor:
+        inactivity_deadline = activity_anchor + timedelta(days=inactivity_days)
+
+    deadlines = []
+    if retention_deadline:
+        deadlines.append(("retention", retention_deadline, retention_days))
+    if inactivity_deadline:
+        deadlines.append(("inactivity", inactivity_deadline, inactivity_days))
+
+    purge_reason = None
+    purge_deadline = None
+    rule_days = None
+    if deadlines:
+        purge_reason, purge_deadline, rule_days = min(deadlines, key=lambda item: item[1])
+
+    days_remaining = None
+    if purge_deadline:
+        delta = purge_deadline - now
+        days_remaining = int(delta.total_seconds() // 86400)
+
+    status = "unknown"
+    should_purge = False
+    if purge_deadline:
+        if purge_deadline <= now:
+            status = "overdue"
+            should_purge = True
+        elif days_remaining is not None and days_remaining <= 30:
+            status = "due"
+        else:
+            status = "ok"
+
+    progress = 0
+    if rule_days:
+        remaining = max(days_remaining or 0, 0)
+        elapsed = rule_days - remaining
+        if rule_days > 0:
+            progress = int(max(0, min(100, (elapsed / rule_days) * 100)))
+
+    return {
+        "purge_deadline": purge_deadline,
+        "days_remaining": days_remaining,
+        "status": status,
+        "should_purge": should_purge,
+        "purge_reason": purge_reason,
+        "retention_deadline": retention_deadline,
+        "inactivity_deadline": inactivity_deadline,
+        "retention_days_effective": retention_days,
+        "inactivity_days_effective": inactivity_days,
+        "progress": progress,
+    }
+
+
+def get_retention_overview(settings: Dict[str, Any] = None,
+                           include_admins: bool = False) -> List[Dict[str, Any]]:
+    """Return retention overview rows with computed deadlines."""
+    if settings is None:
+        settings = get_retention_settings()
+    overrides = get_retention_overrides()
+    users = get_retention_users(
+        apply_to_users=settings.get("apply_to_users", True),
+        apply_to_sellers=settings.get("apply_to_sellers", True),
+        include_admins=include_admins,
+    )
+    now = datetime.now()
+
+    rows = []
+    for user in users:
+        extension_days = overrides.get(user.get("user_id"), 0)
+        computed = _compute_retention_status(user, settings, extension_days, now)
+        rows.append({
+            **user,
+            **computed,
+            "extension_days": extension_days,
+        })
+    return rows
+
+
+def get_retention_candidates(settings: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Return user rows eligible for retention purge based on settings."""
+    overview = get_retention_overview(settings=settings, include_admins=False)
+    return [row for row in overview if row.get("should_purge")]
+
+
+def purge_user_data(user_id: int, email: str = None) -> Dict[str, int]:
+    """Delete user data across related tables. Returns per-table delete counts."""
+    deleted: Dict[str, int] = {}
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        if email is None and _table_exists(cursor, "users") and _column_exists(cursor, "users", "email"):
+            cursor.execute("SELECT email FROM users WHERE user_id = %s", (user_id,))
+            row = cursor.fetchone()
+            if row:
+                email = row[0] if not isinstance(row, dict) else row.get("email")
+
+        if _table_exists(cursor, "incident_reports") and _column_exists(cursor, "incident_reports", "user_id"):
+            if _table_exists(cursor, "incident_report_files") and _column_exists(cursor, "incident_report_files", "report_id"):
+                cursor.execute("SELECT id FROM incident_reports WHERE user_id = %s", (user_id,))
+                report_rows = cursor.fetchall()
+                report_ids = [
+                    (r[0] if not isinstance(r, dict) else r.get("id"))
+                    for r in report_rows
+                    if (r[0] if not isinstance(r, dict) else r.get("id")) is not None
+                ]
+                if report_ids:
+                    placeholders = ", ".join(["%s"] * len(report_ids))
+                    cursor.execute(
+                        f"DELETE FROM incident_report_files WHERE report_id IN ({placeholders})",
+                        tuple(report_ids),
+                    )
+                    deleted["incident_report_files"] = cursor.rowcount
+
+        delete_targets = [
+            ("booking_fraud_logs", "user_id"),
+            ("vehicle_fraud_logs", "user_id"),
+            ("security_logs", "user_id"),
+            ("audit_logs", "user_id"),
+            ("user_documents", "user_id"),
+            ("signup_tickets", "user_id"),
+            ("bookings", "user_id"),
+            ("incident_reports", "user_id"),
+            ("backup_logs", "created_by_user_id"),
+        ]
+
+        for table_name, column_name in delete_targets:
+            if _table_exists(cursor, table_name) and _column_exists(cursor, table_name, column_name):
+                cursor.execute(
+                    f"DELETE FROM {table_name} WHERE {column_name} = %s",
+                    (user_id,),
+                )
+                deleted[table_name] = cursor.rowcount
+
+        if email and _table_exists(cursor, "password_reset_tokens") and _column_exists(cursor, "password_reset_tokens", "email"):
+            cursor.execute(
+                "DELETE FROM password_reset_tokens WHERE email = %s",
+                (email,),
+            )
+            deleted["password_reset_tokens"] = cursor.rowcount
+
+        if _table_exists(cursor, "users") and _column_exists(cursor, "users", "user_id"):
+            cursor.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
+            deleted["users"] = cursor.rowcount
+
+        cursor.close()
+    return deleted
+
+
+def _record_retention_run(purged_count: int, reason: str) -> None:
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE data_retention_settings
+            SET last_run_at = NOW(),
+                last_run_purged = %s,
+                last_run_reason = %s
+            WHERE id = 1
+            """,
+            (purged_count, reason),
+        )
+        cursor.close()
+
+
+def run_retention_purge(reason: str = "auto") -> Dict[str, Any]:
+    """Run retention purge and return summary."""
+    settings = get_retention_settings()
+    result = {
+        "purged_count": 0,
+        "candidate_count": 0,
+        "errors": [],
+        "skipped_reason": None,
+    }
+
+    if not settings.get("apply_to_users") and not settings.get("apply_to_sellers"):
+        result["skipped_reason"] = "No roles enabled"
+        _record_retention_run(0, reason)
+        return result
+
+    if not settings.get("auto_purge_enabled") and not settings.get("inactivity_purge_enabled"):
+        result["skipped_reason"] = "No purge rules enabled"
+        _record_retention_run(0, reason)
+        return result
+
+    overview = get_retention_overview(settings=settings, include_admins=False)
+    candidates = [row for row in overview if row.get("should_purge")]
+    result["candidate_count"] = len(candidates)
+
+    for user in candidates:
+        user_id = user.get("user_id")
+        try:
+            purge_user_data(user_id, user.get("email"))
+            result["purged_count"] += 1
+        except Exception as exc:
+            result["errors"].append({
+                "user_id": user_id,
+                "error": str(exc),
+            })
+
+    _record_retention_run(result["purged_count"], reason)
+    return result

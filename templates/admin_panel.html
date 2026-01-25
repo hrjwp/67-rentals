@@ -50,6 +50,165 @@
         .section-title { margin-bottom: 1rem; }
         .section-subtitle { color: #94a3b8; margin-bottom: 1.5rem; }
         .stat-card .stat-description { color: #94a3b8; }
+        .retention-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .retention-card {
+            background: rgba(255,255,255,0.9);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+            padding: 1.5rem;
+        }
+        .retention-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        .retention-controls input,
+        .retention-controls select {
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(148,163,184,0.4);
+            background: #f8fafc;
+            font-size: 0.9rem;
+            min-width: 180px;
+        }
+        .retention-table {
+            display: grid;
+            gap: 0.75rem;
+        }
+        .retention-row {
+            display: grid;
+            grid-template-columns: 1.6fr 0.8fr 1.2fr 1fr 0.9fr 1fr 1fr;
+            gap: 1rem;
+            align-items: center;
+            padding: 0.85rem 1rem;
+            border-radius: 14px;
+            background: #ffffff;
+            border: 1px solid rgba(148,163,184,0.2);
+        }
+        .retention-row.header {
+            background: transparent;
+            border: none;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: #94a3b8;
+            font-weight: 700;
+        }
+        .retention-cell.name {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+        .retention-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        .retention-name {
+            font-weight: 700;
+            color: #0f172a;
+        }
+        .retention-email {
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+        .progress-track {
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #0e9f6e;
+            border-radius: 999px;
+        }
+        .progress-meta {
+            margin-top: 6px;
+            font-size: 0.82rem;
+            color: #64748b;
+        }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .status-pill.overdue {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+        .status-pill.due {
+            background: #fef3c7;
+            color: #b45309;
+        }
+        .status-pill.ok {
+            background: #dcfce7;
+            color: #15803d;
+        }
+        .status-pill.unknown {
+            background: #e2e8f0;
+            color: #475569;
+        }
+        .extend-form {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        .extend-form input {
+            width: 80px;
+            padding: 8px;
+            border-radius: 10px;
+            border: 1px solid rgba(148,163,184,0.4);
+            background: #f8fafc;
+            font-size: 0.85rem;
+        }
+        .cta-button.small {
+            padding: 8px 12px;
+            font-size: 0.8rem;
+        }
+        .cta-button.danger {
+            background: #dc2626;
+        }
+        .cta-button.danger:hover {
+            background: #b91c1c;
+        }
+        @media (max-width: 1100px) {
+            .retention-row {
+                grid-template-columns: 1.4fr 0.7fr 1.2fr 1fr 0.9fr 1fr;
+            }
+            .retention-row .actions-cell {
+                grid-column: 1 / -1;
+                display: flex;
+                gap: 0.75rem;
+                align-items: center;
+            }
+        }
+        @media (max-width: 860px) {
+            .retention-row {
+                grid-template-columns: 1fr 1fr;
+            }
+            .retention-row.header {
+                display: none;
+            }
+        }
     </style>
 </head>
 <body>
@@ -225,6 +384,176 @@
         </div>
     </section>
 
+    <!-- Data Retention Overview -->
+    <section class="dashboard-section" id="retention-overview">
+        <div class="dashboard-container">
+            <div class="retention-header">
+                <div>
+                    <h2 class="section-title">Data Retention Overview</h2>
+                    <p class="section-subtitle">Monitor purge timelines, extend retention, or purge instantly.</p>
+                </div>
+                <a href="{{ url_for('data_retention') }}" class="cta-button secondary">Retention Settings</a>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">🧾</div>
+                        <div class="stat-title">Total Tracked</div>
+                    </div>
+                    <div class="stat-value">{{ retention_stats.total }}</div>
+                    <div class="stat-description">Users + sellers</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">⏰</div>
+                        <div class="stat-title">Overdue</div>
+                    </div>
+                    <div class="stat-value">{{ retention_stats.overdue }}</div>
+                    <div class="stat-description">Ready to purge</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">⚠️</div>
+                        <div class="stat-title">Due Soon</div>
+                    </div>
+                    <div class="stat-value">{{ retention_stats.due }}</div>
+                    <div class="stat-description">Next 30 days</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-title">Safe</div>
+                    </div>
+                    <div class="stat-value">{{ retention_stats.ok }}</div>
+                    <div class="stat-description">Beyond 30 days</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon">❔</div>
+                        <div class="stat-title">Unknown</div>
+                    </div>
+                    <div class="stat-value">{{ retention_stats.unknown }}</div>
+                    <div class="stat-description">Missing dates</div>
+                </div>
+            </div>
+
+            <div class="retention-card">
+                <div class="retention-controls">
+                    <input type="text" id="retentionSearch" placeholder="Search name or email">
+                    <select id="retentionRole">
+                        <option value="all">All roles</option>
+                        <option value="user">Users</option>
+                        <option value="seller">Sellers</option>
+                    </select>
+                    <select id="retentionStatus">
+                        <option value="all">All statuses</option>
+                        <option value="overdue">Overdue</option>
+                        <option value="due">Due soon</option>
+                        <option value="ok">Safe</option>
+                        <option value="unknown">Unknown</option>
+                    </select>
+                    <select id="retentionSort">
+                        <option value="days-asc">Sort: Days remaining</option>
+                        <option value="days-desc">Sort: Days remaining (desc)</option>
+                        <option value="name-asc">Sort: Name (A-Z)</option>
+                        <option value="name-desc">Sort: Name (Z-A)</option>
+                    </select>
+                </div>
+
+                <div class="retention-table">
+                    <div class="retention-row header">
+                        <div>Name</div>
+                        <div>Type</div>
+                        <div>Retention</div>
+                        <div>Purge Date</div>
+                        <div>Last Seen</div>
+                        <div>Extension (days)</div>
+                        <div>Actions</div>
+                    </div>
+                    <div id="retentionRows">
+                        {% if retention_rows %}
+                            {% for row in retention_rows %}
+                                <div class="retention-row"
+                                     data-role="{{ row.user_type or 'user' }}"
+                                     data-status="{{ row.status }}"
+                                     data-name="{{ row.display_name|lower }}"
+                                     data-email="{{ row.email|lower }}"
+                                     data-days="{{ row.days_remaining if row.days_remaining is not none else '' }}">
+                                    <div class="retention-cell name">
+                                        <div class="retention-avatar">{{ row.display_initial }}</div>
+                                        <div>
+                                            <div class="retention-name">{{ row.display_name }}</div>
+                                            <div class="retention-email">{{ row.email }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="retention-cell">
+                                        {% if row.user_type == 'seller' %}
+                                            <span class="admin-badge badge-seller">Seller</span>
+                                        {% else %}
+                                            <span class="admin-badge badge-user">User</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="retention-cell">
+                                        <div class="progress-track">
+                                            <div class="progress-fill" style="width: {{ row.progress or 0 }}%;"></div>
+                                        </div>
+                                        <div class="progress-meta">
+                                            {% if row.days_remaining is none %}
+                                                No deadline
+                                            {% elif row.days_remaining < 0 %}
+                                                Overdue {{ row.days_remaining|abs }}d
+                                            {% else %}
+                                                {{ row.days_remaining }} days left
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="retention-cell">
+                                        <div class="retention-name">
+                                            {{ row.purge_deadline.strftime('%b %d, %Y') if row.purge_deadline else 'N/A' }}
+                                        </div>
+                                        <div class="retention-email">
+                                            {{ row.purge_reason|capitalize if row.purge_reason else '—' }}
+                                        </div>
+                                    </div>
+                                    <div class="retention-cell">
+                                        <div class="retention-name">
+                                            {{ row.last_seen.strftime('%b %d, %Y') if row.last_seen else 'N/A' }}
+                                        </div>
+                                        <div class="retention-email">
+                                            {{ row.last_login_at and 'Last login' or 'Created' }}
+                                        </div>
+                                    </div>
+                                    <div class="retention-cell">
+                                        <form method="post"
+                                              action="{{ url_for('data_retention_extend_user', user_id=row.user_id) }}"
+                                              class="extend-form">
+                                            <input type="number" min="0" name="extension_days"
+                                                   value="{{ row.extension_days or 0 }}">
+                                            <button type="submit" class="cta-button secondary small">Save</button>
+                                        </form>
+                                    </div>
+                                    <div class="retention-cell actions-cell">
+                                        <div>
+                                            <span class="status-pill {{ row.status }}">{{ row.status|capitalize }}</span>
+                                        </div>
+                                        <form method="post"
+                                              action="{{ url_for('data_retention_purge_user', user_id=row.user_id) }}"
+                                              onsubmit="return confirm('Purge this user now? This will permanently delete their data.');">
+                                            <button type="submit" class="cta-button danger small">Purge Now</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="section-subtitle" style="margin:0;">No retention data available.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Approved -->
     <section class="dashboard-section" id="approved">
         <div class="dashboard-container">
@@ -330,6 +659,66 @@
             navLinksMobile.classList.toggle('open');
             hamburger.classList.toggle('open');
         });
+
+        const retentionRowsContainer = document.getElementById('retentionRows');
+        if (retentionRowsContainer) {
+            const rows = Array.from(retentionRowsContainer.querySelectorAll('.retention-row'));
+            const searchInput = document.getElementById('retentionSearch');
+            const roleSelect = document.getElementById('retentionRole');
+            const statusSelect = document.getElementById('retentionStatus');
+            const sortSelect = document.getElementById('retentionSort');
+
+            const getDays = (row) => {
+                const value = row.dataset.days;
+                if (value === '' || value === undefined) {
+                    return Number.POSITIVE_INFINITY;
+                }
+                return parseInt(value, 10);
+            };
+
+            const applySort = () => {
+                const sortValue = sortSelect.value;
+                const sorted = rows.slice().sort((a, b) => {
+                    if (sortValue.startsWith('days')) {
+                        const diff = getDays(a) - getDays(b);
+                        return sortValue === 'days-desc' ? -diff : diff;
+                    }
+                    const nameA = (a.dataset.name || '').toLowerCase();
+                    const nameB = (b.dataset.name || '').toLowerCase();
+                    if (nameA < nameB) return sortValue === 'name-desc' ? 1 : -1;
+                    if (nameA > nameB) return sortValue === 'name-desc' ? -1 : 1;
+                    return 0;
+                });
+                sorted.forEach(row => retentionRowsContainer.appendChild(row));
+            };
+
+            const applyFilters = () => {
+                const q = (searchInput.value || '').trim().toLowerCase();
+                const role = roleSelect.value;
+                const status = statusSelect.value;
+
+                rows.forEach(row => {
+                    const matchesRole = role === 'all' || row.dataset.role === role;
+                    const matchesStatus = status === 'all' || row.dataset.status === status;
+                    const matchesQuery = !q || row.dataset.name.includes(q) || row.dataset.email.includes(q);
+                    row.style.display = (matchesRole && matchesStatus && matchesQuery) ? '' : 'none';
+                });
+            };
+
+            const updateView = () => {
+                applySort();
+                applyFilters();
+            };
+
+            [searchInput, roleSelect, statusSelect, sortSelect].forEach(el => {
+                if (el) {
+                    el.addEventListener('input', updateView);
+                    el.addEventListener('change', updateView);
+                }
+            });
+
+            updateView();
+        }
     </script>
 </body>
 </html>

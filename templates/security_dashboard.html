@@ -115,6 +115,18 @@
                         <a href="{{ url_for('backup_management') }}" class="cta-button">Manage Backups</a>
                     </div>
                 </div>
+
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('data_retention') }}'">
+                    <div class="info-icon">🧹</div>
+                    <h3 class="info-title">Data Retention</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        Configure retention windows, inactivity rules, and run manual purges
+                        while excluding admin accounts.
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('data_retention') }}" class="cta-button">Manage Retention</a>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
