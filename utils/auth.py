@@ -1,7 +1,6 @@
 from functools import wraps
 from flask import session, redirect, url_for, flash
 import hashlib
-import os
 import secrets
 from datetime import datetime, timedelta
 import smtplib
@@ -66,14 +65,14 @@ def hash_otp(otp: str, salt: str) -> str:
 
 
 def _get_smtp_config():
-    host = os.environ.get("SMTP_HOST") or Config.SMTP_HOST
-    user = os.environ.get("SMTP_USER") or Config.SMTP_USER
-    password = os.environ.get("SMTP_PASS") or Config.SMTP_PASS
+    host = Config.SMTP_HOST
+    user = Config.SMTP_USER
+    password = Config.SMTP_PASS
     if not host or not user or not password:
         return None
-    port_raw = os.environ.get("SMTP_PORT") or Config.SMTP_PORT
+    port_raw = Config.SMTP_PORT
     port = int(port_raw) if str(port_raw).isdigit() else 587
-    from_email = os.environ.get("SMTP_FROM") or Config.SMTP_FROM or user
+    from_email = Config.SMTP_FROM or user
     return host, port, user, password, from_email
 
 

@@ -23,8 +23,8 @@ class SecureBackup:
     """Handles secure backup and recovery of sensitive data"""
     
     def __init__(self):
-        self.backup_dir = os.environ.get('BACKUP_DIR', 'backups')
-        self.cloud_backup_dir = os.environ.get('CLOUD_BACKUP_DIR')  # Optional cloud storage path
+        self.backup_dir = Config.BACKUP_DIR
+        self.cloud_backup_dir = Config.CLOUD_BACKUP_DIR  # Optional cloud storage path
         self.ensure_backup_directory()
     
     def ensure_backup_directory(self):
@@ -280,7 +280,7 @@ class SecureBackup:
         encrypted_path = file_path + '.encrypted'
         
         # Load encryption key
-        key_b64 = os.environ.get("DATA_ENCRYPTION_KEY")
+        key_b64 = Config.DATA_ENCRYPTION_KEY
         if not key_b64:
             raise RuntimeError("DATA_ENCRYPTION_KEY is not set")
         key = base64.urlsafe_b64decode(key_b64)
@@ -310,7 +310,7 @@ class SecureBackup:
         decrypted_path = encrypted_path.replace('.encrypted', '_decrypted.zip')
         
         # Load encryption key
-        key_b64 = os.environ.get("DATA_ENCRYPTION_KEY")
+        key_b64 = Config.DATA_ENCRYPTION_KEY
         if not key_b64:
             raise RuntimeError("DATA_ENCRYPTION_KEY is not set")
         key = base64.urlsafe_b64decode(key_b64)

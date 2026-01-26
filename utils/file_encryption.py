@@ -9,6 +9,7 @@ from io import BytesIO
 from typing import Dict, Tuple
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from config import Config
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -18,7 +19,7 @@ except ImportError:
 
 
 def _load_key() -> bytes:
-    key_b64 = os.environ.get("DATA_ENCRYPTION_KEY")
+    key_b64 = Config.DATA_ENCRYPTION_KEY
     if not key_b64:
         raise RuntimeError("DATA_ENCRYPTION_KEY is not set")
 

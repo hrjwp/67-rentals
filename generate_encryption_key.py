@@ -21,14 +21,11 @@ def generate_encryption_key():
     print("=" * 60)
     print("\nIMPORTANT: Save this key securely! You'll need it to decrypt backups.")
     print("=" * 60)
-    print("\nTo set it on Windows PowerShell:")
-    print(f'$env:DATA_ENCRYPTION_KEY="{key_b64}"')
-    print("\nOr create a .env file with:")
-    print(f'DATA_ENCRYPTION_KEY={key_b64}')
+    print("\nAdd this to config.py as DATA_ENCRYPTION_KEY:")
+    print(f'DATA_ENCRYPTION_KEY = "{key_b64}"')
     print("\n" + "=" * 60)
     
     return key_b64
 
 if __name__ == "__main__":
     generate_encryption_key()
-

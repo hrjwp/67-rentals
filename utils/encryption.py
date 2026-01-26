@@ -3,6 +3,7 @@ import os
 from typing import Optional
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from config import Config
 
 
 def _load_key() -> bytes:
@@ -10,7 +11,7 @@ def _load_key() -> bytes:
     Load the AES key from DATA_ENCRYPTION_KEY (URL-safe base64 encoded).
     Accepts 128/192/256-bit keys (16/24/32 bytes after decoding).
     """
-    key_b64 = os.environ.get("DATA_ENCRYPTION_KEY")
+    key_b64 = Config.DATA_ENCRYPTION_KEY
     if not key_b64:
         raise RuntimeError("DATA_ENCRYPTION_KEY is not set")
 

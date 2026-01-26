@@ -7,19 +7,6 @@ import os
 import json
 import re
 import secrets
-from dotenv import load_dotenv
-
-# Auto-setup: Load .env file and ensure encryption keys exist
-from utils.auto_setup import ensure_env_file
-
-# Load environment variables from .env file (if it exists)
-load_dotenv()
-
-# Automatically create .env with keys if it doesn't exist
-ensure_env_file()
-
-# Reload environment variables after auto-setup
-load_dotenv(override=True)
 
 # Import configuration
 from config import Config
@@ -1980,7 +1967,7 @@ def stripe_webhook():
     """Stripe webhook handler for secure payment confirmation"""
     payload = request.data
     sig_header = request.headers.get('Stripe-Signature')
-    webhook_secret = os.environ.get('STRIPE_WEBHOOK_SECRET')  # Set this in your env
+    webhook_secret = Config.STRIPE_WEBHOOK_SECRET or None
 
     try:
         if webhook_secret:
@@ -2252,7 +2239,7 @@ def backup_test():
         backup_dir_writable = os.access(backup_system.backup_dir, os.W_OK) if backup_dir_exists else False
 
         # Check encryption key
-        encryption_key_set = os.environ.get('DATA_ENCRYPTION_KEY') is not None
+        encryption_key_set = bool(Config.DATA_ENCRYPTION_KEY)
 
         # List existing backups
         backups = backup_system.list_backups()
@@ -2298,7 +2285,7 @@ def backup_test():
             'backup_system_status': 'error',
             'error': str(e),
             'troubleshooting': {
-                'check_encryption_key': 'Set DATA_ENCRYPTION_KEY environment variable',
+                'check_encryption_key': 'Set DATA_ENCRYPTION_KEY in config.py',
                 'check_backup_dir': f'Ensure {backup_system.backup_dir} directory exists and is writable',
                 'check_database': 'Verify database connection is working'
             }
@@ -3673,7 +3660,7 @@ def test_encryption():
         decrypted = decrypt_value(encrypted)
         
         # Check if encryption key is set
-        encryption_key_set = os.environ.get('DATA_ENCRYPTION_KEY') is not None
+        encryption_key_set = bool(Config.DATA_ENCRYPTION_KEY)
         
         return jsonify({
             "status": "success",
@@ -3689,9 +3676,9 @@ def test_encryption():
     except Exception as e:
         return jsonify({
             "status": "error",
-            "encryption_configured": os.environ.get('DATA_ENCRYPTION_KEY') is not None,
+            "encryption_configured": bool(Config.DATA_ENCRYPTION_KEY),
             "error": str(e),
-            "message": "Encryption is NOT working. Check that DATA_ENCRYPTION_KEY is set in .env file."
+            "message": "Encryption is NOT working. Check that DATA_ENCRYPTION_KEY is set in config.py."
         }), 500
 
 
@@ -4139,10 +4126,10 @@ def log_booking_fraud():
 def start_backup_scheduler():
     """Start automated backup scheduler in background thread"""
     # Check if auto-backup is enabled (defaults to False if not set)
-    auto_backup_enabled = os.environ.get('AUTO_BACKUP_ENABLED', 'False').lower() == 'true'
+    auto_backup_enabled = bool(Config.AUTO_BACKUP_ENABLED)
     
     if not auto_backup_enabled:
-        print("ℹ️  Automated backups are disabled. Set AUTO_BACKUP_ENABLED=true in .env to enable.")
+        print("ℹ️  Automated backups are disabled. Set AUTO_BACKUP_ENABLED in config.py to enable.")
         print("   Backups can still be created manually from the admin panel.")
         return
     
@@ -4152,7 +4139,7 @@ def start_backup_scheduler():
         from utils.backup import SecureBackup
         
         backup_system = SecureBackup()
-        interval_hours = int(os.environ.get('AUTO_BACKUP_INTERVAL_HOURS', '24'))
+        interval_hours = int(Config.AUTO_BACKUP_INTERVAL_HOURS)
         interval_seconds = interval_hours * 3600
         
         print(f"✅ Automated backup scheduler started. Backups will run every {interval_hours} hours.")
@@ -4173,7 +4160,7 @@ def start_backup_scheduler():
                 print(f"    Checksum: {backup_info['checksum_sha256']}")
                 
                 # Cleanup old backups
-                retention_days = int(os.environ.get('BACKUP_RETENTION_DAYS', '30'))
+                retention_days = int(Config.BACKUP_RETENTION_DAYS)
                 deleted = backup_system.delete_old_backups(keep_days=retention_days)
                 if deleted:
                     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🗑️  Deleted {len(deleted)} old backup(s)")
@@ -4199,7 +4186,7 @@ start_backup_scheduler()
 def start_retention_scheduler():
     """Start automated data retention purge in background thread."""
     def retention_worker():
-        interval_hours = int(os.environ.get('RETENTION_CHECK_INTERVAL_HOURS', '24'))
+        interval_hours = int(Config.RETENTION_CHECK_INTERVAL_HOURS)
         interval_seconds = interval_hours * 3600
 
         print(f"✅ Data retention scheduler started. Checks every {interval_hours} hours.")
