@@ -41,21 +41,40 @@ def ensure_env_file() -> None:
     data_key = values.get("DATA_ENCRYPTION_KEY") or _generate_encryption_key()
     secret_key = values.get("SECRET_KEY") or secrets.token_urlsafe(32)
 
-    missing_keys = []
+    backup_defaults = {
+        "AUTO_BACKUP_ENABLED": values.get("AUTO_BACKUP_ENABLED", "False"),
+        "AUTO_BACKUP_INTERVAL_HOURS": values.get("AUTO_BACKUP_INTERVAL_HOURS", "24"),
+        "BACKUP_RETENTION_DAYS": values.get("BACKUP_RETENTION_DAYS", "30"),
+    }
+
+    missing_entries = []
     if "DATA_ENCRYPTION_KEY" not in values:
-        missing_keys.append(f"DATA_ENCRYPTION_KEY={data_key}")
+        missing_entries.append(f"DATA_ENCRYPTION_KEY={data_key}")
     if "SECRET_KEY" not in values:
-        missing_keys.append(f"SECRET_KEY={secret_key}")
+        missing_entries.append(f"SECRET_KEY={secret_key}")
+
+    missing_backup = []
+    for key, default_value in backup_defaults.items():
+        if key not in values:
+            missing_backup.append(f"{key}={default_value}")
 
     if not os.path.exists(env_path):
         with open(env_path, "w") as env_file:
             env_file.write("DATA_ENCRYPTION_KEY=" + data_key + "\n")
             env_file.write("SECRET_KEY=" + secret_key + "\n")
+            if missing_backup:
+                env_file.write("\n# Automated Backup Configuration\n")
+                for entry in missing_backup:
+                    env_file.write(entry + "\n")
         return
 
-    if missing_keys:
+    if missing_entries or missing_backup:
         with open(env_path, "a") as env_file:
             if lines and lines[-1].strip():
                 env_file.write("\n")
-            for entry in missing_keys:
+            for entry in missing_entries:
                 env_file.write(entry + "\n")
+            if missing_backup:
+                env_file.write("\n# Automated Backup Configuration\n")
+                for entry in missing_backup:
+                    env_file.write(entry + "\n")
