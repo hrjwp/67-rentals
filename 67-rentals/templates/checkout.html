@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Checkout - 67 Rentals</title>
+
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/bootstrap-icons.css') }}" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/templatemo-tiya-golf-club.css') }}" rel="stylesheet">
+
+        <style>
+            .navbar {
+                background-color: #3D405B !important;
+                padding: 20px 0;
+            }
+
+            .navbar-brand-text {
+                color: #ffffff;
+                font-size: 28px;
+                font-weight: 700;
+            }
+
+            .navbar-brand-text small {
+                display: block;
+                font-size: 14px;
+                font-weight: 400;
+            }
+
+            .nav-link {
+                color: #ffffff !important;
+                font-weight: 500;
+                padding: 10px 20px !important;
+            }
+
+            .nav-link:hover {
+                color: #F2CC8F !important;
+            }
+
+            .checkout-section {
+                padding: 80px 0;
+                min-height: 70vh;
+                background-color: #ffffff;
+            }
+
+            .checkout-header h2 {
+                color: #3D405B;
+                font-weight: 700;
+                margin-bottom: 40px;
+            }
+
+            .checkout-card {
+                background: #ffffff;
+                border: 1px solid #e9eaeb;
+                border-radius: 10px;
+                padding: 30px;
+                margin-bottom: 20px;
+            }
+
+            .checkout-card h4 {
+                color: #3D405B;
+                font-weight: 700;
+                margin-bottom: 20px;
+                padding-bottom: 15px;
+                border-bottom: 2px solid #81B29A;
+            }
+
+            .order-item {
+                padding: 15px 0;
+                border-bottom: 1px solid #e9eaeb;
+            }
+
+            .order-item:last-child {
+                border-bottom: none;
+            }
+
+            .order-summary {
+                background: #F4F1DE;
+                border-radius: 10px;
+                padding: 30px;
+                position: sticky;
+                top: 20px;
+            }
+
+            .order-summary h4 {
+                color: #3D405B;
+                font-weight: 700;
+                margin-bottom: 25px;
+            }
+
+            .summary-row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 15px;
+                padding-bottom: 15px;
+                border-bottom: 1px solid #e9eaeb;
+            }
+
+            .summary-row:last-child {
+                border-bottom: none;
+                font-size: 20px;
+                font-weight: 700;
+                color: #3D405B;
+            }
+
+            .form-label {
+                color: #3D405B;
+                font-weight: 600;
+                margin-bottom: 8px;
+            }
+
+            .form-control {
+                border: 1px solid #e9eaeb;
+                border-radius: 5px;
+                padding: 12px;
+            }
+
+            .form-control:focus {
+                border-color: #81B29A;
+                box-shadow: 0 0 0 0.2rem rgba(129, 178, 154, 0.25);
+            }
+
+            #card-element {
+                border: 1px solid #e9eaeb;
+                border-radius: 5px;
+                padding: 15px;
+                background-color: white;
+            }
+
+            #card-errors {
+                color: #dc3545;
+                margin-top: 10px;
+                font-size: 14px;
+            }
+
+            .pay-button {
+                background-color: #F2CC8F;
+                color: #ffffff;
+                border: none;
+                padding: 15px;
+                border-radius: 5px;
+                font-weight: 700;
+                font-size: 16px;
+                width: 100%;
+                transition: all 0.3s ease;
+                margin-top: 20px;
+            }
+
+            .pay-button:hover:not(:disabled) {
+                background-color: #E07A5F;
+                color: #ffffff;
+            }
+
+            .pay-button:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+            .badge-type {
+                background-color: #81B29A;
+                color: #ffffff;
+                padding: 5px 12px;
+                border-radius: 20px;
+                font-size: 12px;
+            }
+
+            .secure-badge {
+                background-color: #81B29A;
+                color: white;
+                padding: 10px 15px;
+                border-radius: 5px;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 20px;
+            }
+
+            .spinner {
+                display: none;
+                width: 20px;
+                height: 20px;
+                border: 3px solid #ffffff;
+                border-top-color: transparent;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+            }
+
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+        </style>
+    </head>
+
+    <body>
+        <nav class="navbar navbar-expand-lg">
+            <div class="container">
+                <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index_logged') }}">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="67 Rentals" style="width: 50px;">
+                    <span class="navbar-brand-text">
+                        67
+                        <small>Rentals</small>
+                    </span>
+                </a>
+
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-lg-auto">
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <section class="checkout-section">
+            <div class="container">
+                <div class="checkout-header">
+                    <h2><i class="bi bi-credit-card"></i> Secure Checkout</h2>
+                    <div class="secure-badge">
+                        <i class="bi bi-shield-lock-fill"></i>
+                        <span>Secure Payment powered by Stripe</span>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-7">
+                        <!-- Contact Information -->
+                        <div class="checkout-card">
+                            <h4><i class="bi bi-person-circle"></i> Contact Information</h4>
+                            <form id="checkout-form">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">First Name *</label>
+                                        <input type="text" class="form-control" id="first-name" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Last Name *</label>
+                                        <input type="text" class="form-control" id="last-name" required>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Email Address *</label>
+                                    <input type="email" class="form-control" id="email" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Phone Number *</label>
+                                    <input type="tel" class="form-control" id="phone" placeholder="+65 1234 5678" required>
+                                </div>
+
+                            </form>
+                        </div>
+
+                        <!-- Payment Information -->
+                        <div class="checkout-card">
+                            <h4><i class="bi bi-credit-card-2-front"></i> Payment Information</h4>
+
+                            <div class="mb-3">
+                                <label class="form-label">Card Details *</label>
+                                <div id="card-element"></div>
+                                <div id="card-errors" role="alert"></div>
+                            </div>
+
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> Your payment information is secure and encrypted. We use Stripe for payment processing.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-5">
+                        <!-- Order Summary -->
+                        <div class="order-summary">
+                            <h4>Order Summary</h4>
+
+                            {% for item in cart_items %}
+                            <div class="order-item">
+                                <h6 style="color: #3D405B; font-weight: 700;">{{ item.name }}</h6>
+                                <span class="badge-type">{{ item.type }}</span>
+                                <p class="mb-1 mt-2" style="font-size: 14px; color: #717275;">
+                                    <i class="bi bi-calendar-check"></i> {{ item.pickup_date }} to {{ item.return_date }}<br>
+                                    <i class="bi bi-geo-alt"></i> {{ item.pickup_location }}
+                                </p>
+                                <p class="mb-0" style="color: #81B29A; font-weight: 700;">
+                                    ${{ item.price_per_day }}/day × {{ item.days }} days = ${{ item.item_subtotal }}
+                                </p>
+                            </div>
+                            {% endfor %}
+
+                            <div class="mt-4">
+                                <div class="summary-row">
+                                    <span>Subtotal:</span>
+                                    <span>$<span id="subtotal">{{ subtotal }}</span></span>
+                                </div>
+
+                                <div class="summary-row">
+                                    <span>Insurance Fee:</span>
+                                    <span>$<span id="insurance">{{ insurance_fee }}</span></span>
+                                </div>
+
+                                <div class="summary-row">
+                                    <span>Service Fee:</span>
+                                    <span>$<span id="service-fee">{{ service_fee }}</span></span>
+                                </div>
+
+                                <div class="summary-row">
+                                    <span>Total:</span>
+                                    <span>$<span id="total">{{ total }}</span></span>
+                                </div>
+                            </div>
+
+                            <button id="submit-payment" class="pay-button">
+                                <span id="button-text">Pay ${{ total }}</span>
+                                <div class="spinner" id="spinner"></div>
+                            </button>
+
+                            <div class="text-center mt-3">
+                                <a href="{{ url_for('cart_logged') }}" class="text-decoration-none" style="color: #717275;">
+                                    <i class="bi bi-arrow-left"></i> Back to Cart
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="site-footer" style="background-color: #3D405B; color: white; padding: 40px 0;">
+            <div class="container">
+                <div class="row">
+                    <div class="col-lg-6 col-12 text-center text-lg-start mb-3">
+                        <span class="navbar-brand-text">
+                            67
+                            <small>Rentals</small>
+                        </span>
+                    </div>
+                    <div class="col-lg-6 col-12 text-center text-lg-end">
+                        <p class="mb-0">Copyright © 2048 67 Rentals</p>
+                    </div>
+                </div>
+            </div>
+        </footer>
+
+        <script src="https://js.stripe.com/v3/"></script>
+        <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
+        <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+        <script>
+            // Initialize Stripe with your publishable key
+            const stripe = Stripe('{{ stripe_public_key }}');
+            const elements = stripe.elements();
+
+            // Create card element
+            const cardElement = elements.create('card', {
+                style: {
+                    base: {
+                        fontSize: '16px',
+                        color: '#3D405B',
+                        '::placeholder': {
+                            color: '#aab7c4',
+                        },
+                    },
+                    invalid: {
+                        color: '#dc3545',
+                    },
+                },
+            });
+
+            cardElement.mount('#card-element');
+
+            // Handle card errors
+            cardElement.on('change', function(event) {
+                const displayError = document.getElementById('card-errors');
+                if (event.error) {
+                    displayError.textContent = event.error.message;
+                } else {
+                    displayError.textContent = '';
+                }
+            });
+
+            // Handle form submission
+            const form = document.getElementById('checkout-form');
+            const submitButton = document.getElementById('submit-payment');
+
+            submitButton.addEventListener('click', async function(event) {
+                event.preventDefault();
+
+                // Validate form
+                if (!form.checkValidity()) {
+                    form.reportValidity();
+                    return;
+                }
+
+                // Disable button and show loading
+                submitButton.disabled = true;
+                document.getElementById('button-text').style.display = 'none';
+                document.getElementById('spinner').style.display = 'inline-block';
+
+                // Get customer details (NO LICENSE FIELD)
+                const customerData = {
+                    name: document.getElementById('first-name').value + ' ' + document.getElementById('last-name').value,
+                    email: document.getElementById('email').value,
+                    phone: document.getElementById('phone').value
+                };
+
+                try {
+                    // Create payment intent on server
+                    const response = await fetch('/create-payment-intent', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(customerData),
+                    });
+
+                    const data = await response.json();
+
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+
+                    // Confirm card payment with Stripe
+                    const {paymentIntent, error: confirmError} = await stripe.confirmCardPayment(
+                        data.clientSecret,
+                        {
+                            payment_method: {
+                                card: cardElement,
+                                billing_details: {
+                                    name: customerData.name,
+                                    email: customerData.email,
+                                    phone: customerData.phone,
+                                },
+                            },
+                        }
+                    );
+
+                    if (confirmError) {
+                        // Show error to customer
+                        document.getElementById('card-errors').textContent = confirmError.message;
+                        submitButton.disabled = false;
+                        document.getElementById('button-text').style.display = 'inline';
+                        document.getElementById('spinner').style.display = 'none';
+                        
+                        // Track payment failure for fraud detection
+                        // Note: avoid referencing any undefined client-side cart var; server infers vehicle_id from session cart.
+                        try {
+                            await fetch('/api/track-payment-failure', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    error_type: confirmError.type || 'card_declined',
+                                    error_message: confirmError.message || 'Card was declined',
+                                    payment_intent_id: data.paymentIntentId || null
+                                })
+                            });
+                        } catch (trackError) {
+                            console.error('Failed to track payment failure:', trackError);
+                        }
+                    } else {
+                        // Payment succeeded
+                        if (paymentIntent.status === 'succeeded') {
+                            console.log('Payment successful. Payment Method ID:', paymentIntent.payment_method);
+                            // Redirect to success page
+                            window.location.href = '/payment-success?payment_intent=' + paymentIntent.id;
+                        }
+                    }
+                } catch (error) {
+                    document.getElementById('card-errors').textContent = error.message;
+                    submitButton.disabled = false;
+                    document.getElementById('button-text').style.display = 'inline';
+                    document.getElementById('spinner').style.display = 'none';
+                    
+                    // Track payment failure for fraud detection
+                    // Note: server infers vehicle_id from session cart.
+                    try {
+                        await fetch('/api/track-payment-failure', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                error_type: 'payment_error',
+                                error_message: error.message || 'Payment failed',
+                                payment_intent_id: null
+                            })
+                        });
+                    } catch (trackError) {
+                        console.error('Failed to track payment failure:', trackError);
+                    }
+                }
+            });
+        </script>
+    </body>
+</html>

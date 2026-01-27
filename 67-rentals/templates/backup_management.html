@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backup Management - 67 Rentals</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/templatemo-graph-page.css') }}">
+    <style>
+        /* --- Confidential / Anti-exfiltration (deterrence) --- */
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+        .security-banner {
+            background: #ff6b6b;
+            color: #fff;
+            padding: 10px 16px;
+            text-align: center;
+            font-weight: 700;
+            position: fixed;
+            top: 80px; /* Will be adjusted dynamically below navbar */
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+            font-size: 13px;
+            letter-spacing: 0.3px;
+        }
+        .watermark-overlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 9997;
+            overflow: hidden;
+        }
+        .watermark-text {
+            position: absolute;
+            font-size: 72px;
+            font-weight: 800;
+            color: rgba(61, 64, 91, 0.06);
+            white-space: nowrap;
+            transform: rotate(-20deg);
+        }
+        .watermark-text:nth-child(1) { top: 12%; left: 6%; }
+        .watermark-text:nth-child(2) { top: 52%; left: 50%; transform: translate(-50%, -50%) rotate(-20deg); }
+        .watermark-text:nth-child(3) { bottom: 10%; right: 6%; }
+        .blocked-action {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #ff6b6b;
+            color: #fff;
+            padding: 22px 28px;
+            border-radius: 14px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+            z-index: 10001;
+            text-align: center;
+            display: none;
+            max-width: 520px;
+        }
+        .blocked-action h4 {
+            margin: 0 0 8px 0;
+            font-weight: 800;
+        }
+        .blocked-action p {
+            margin: 0;
+            opacity: 0.95;
+        }
+        @media print {
+            body * { display: none !important; }
+            body::before {
+                content: "Printing is disabled for CONFIDENTIAL pages.";
+                display: block;
+                padding: 40px;
+                font-size: 22px;
+                font-weight: 800;
+                color: #111;
+            }
+        }
+
+        .backup-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .stat-card {
+            background: var(--section-bg-color);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin: 10px 0;
+        }
+        .stat-label {
+            color: var(--p-color);
+            font-size: 0.9em;
+        }
+        .backup-table {
+            width: 100%;
+            margin-top: 30px;
+            background: var(--section-bg-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .backup-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .backup-table th,
+        .backup-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .backup-table th {
+            background: rgba(255,255,255,0.05);
+            font-weight: 600;
+        }
+        .backup-table tr:hover {
+            background: rgba(255,255,255,0.02);
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        .status-success {
+            background: #28a745;
+            color: white;
+        }
+        .status-failed {
+            background: #dc3545;
+            color: white;
+        }
+        .status-pending {
+            background: #ffc107;
+            color: #000;
+        }
+        .status-verified {
+            background: #17a2b8;
+            color: white;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.85em;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #218838;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        .btn-warning {
+            background: #ffc107;
+            color: #000;
+        }
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+        .checksum {
+            font-family: monospace;
+            font-size: 0.85em;
+            color: var(--p-color);
+            word-break: break-all;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--p-color);
+        }
+        .alert {
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="security-banner">
+        CONFIDENTIAL — Printing Prohibited
+    </div>
+    <div class="watermark-overlay" aria-hidden="true">
+        <div class="watermark-text">CONFIDENTIAL</div>
+        <div class="watermark-text">CONFIDENTIAL</div>
+        <div class="watermark-text">CONFIDENTIAL</div>
+    </div>
+    <div class="blocked-action" id="blockedAction">
+        <h4>Action blocked</h4>
+        <p id="blockedActionMsg">This action is disabled for security reasons.</p>
+    </div>
+
+    <!-- Navigation -->
+    <nav id="navbar">
+        <div class="nav-container">
+            <a href="{{ url_for('index') }}" class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M3 13h2v8H3zm4-8h2v13H7zm4-2h2v15h-2zm4 4h2v11h-2zm4-2h2v13h-2z"/>
+                    </svg>
+                </div>
+                <span class="logo-text">67 Rentals</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
+                <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
+                <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
+            </ul>
+            <div class="hamburger" id="hamburger">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+        <ul class="nav-links-mobile" id="navLinksMobile">
+            <li><a href="{{ url_for('index') }}">Home</a></li>
+            <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+            <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
+            <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
+            <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
+        </ul>
+    </nav>
+
+    <!-- Backup Management Section -->
+    <section class="dashboard-section" style="padding-top: 140px; min-height: 100vh;">
+        <div class="dashboard-container">
+            <h2 class="section-title">Backup Management</h2>
+            
+            <div id="alert-container"></div>
+
+            <!-- Statistics -->
+            <div class="backup-stats" id="backup-stats">
+                <div class="stat-card">
+                    <div class="stat-label">Total Backups</div>
+                    <div class="stat-value" id="stat-total">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Successful</div>
+                    <div class="stat-value" id="stat-success" style="color: #28a745;">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Failed</div>
+                    <div class="stat-value" id="stat-failed" style="color: #dc3545;">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Size</div>
+                    <div class="stat-value" id="stat-size">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Verified</div>
+                    <div class="stat-value" id="stat-verified" style="color: #17a2b8;">-</div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="margin: 30px 0; display: flex; gap: 15px; flex-wrap: wrap;">
+                <button class="cta-button" onclick="createBackup()">Create Backup Now</button>
+                <button class="cta-button secondary" onclick="loadBackups()">Refresh List</button>
+                <button class="cta-button secondary" onclick="loadStats()">Refresh Stats</button>
+                <button class="cta-button secondary" onclick="cleanupOldBackups()">Cleanup Old Backups</button>
+            </div>
+
+            <!-- Recovery Info -->
+            <div class="alert alert-info" style="margin: 20px 0;">
+                <strong><i class="bi bi-info-circle"></i> Recover Deleted Entries:</strong> 
+                Find a backup created <strong>before</strong> you deleted the entry, then click <strong>"Restore"</strong> on that backup. 
+                This will restore all listings (including deleted ones) from that backup. 
+                <strong>Important:</strong> Restart your Flask app after restoring to see the recovered entries.
+            </div>
+
+            <!-- Backup List -->
+            <div class="backup-table">
+                <div id="backup-loading" class="loading">Loading backups...</div>
+                <table id="backup-table" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>Filename</th>
+                            <th>Type</th>
+                            <th>Size</th>
+                            <th>Status</th>
+                            <th>Verification</th>
+                            <th>Created</th>
+                            <th>Checksum</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="backup-tbody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <p class="copyright">© 2026 67 Rentals. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/templatemo-graph-script.js') }}"></script>
+    <script>
+        // --- Confidential page protections (enhanced screenshot detection) ---
+        let screenshotAttempts = 0;
+        const sessionId = 'SID-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+
+        function showBlockedAlert(message) {
+            const box = document.getElementById('blockedAction');
+            const msg = document.getElementById('blockedActionMsg');
+            if (!box || !msg) return;
+            msg.textContent = message;
+            box.style.display = 'block';
+            setTimeout(() => { box.style.display = 'none'; }, 3000);
+        }
+
+        // Block copy/cut/paste
+        document.addEventListener('copy', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Copying data is not allowed for security reasons.');
+        });
+
+        document.addEventListener('cut', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Cutting data is not allowed for security reasons.');
+        });
+
+        document.addEventListener('paste', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Pasting is not allowed in this secure area.');
+        });
+
+        // Block right-click context menu
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Right-click menu is disabled in secure areas.');
+        });
+
+        // Enhanced key blocking and screenshot detection
+        document.addEventListener('keydown', (e) => {
+            // Block F12 (DevTools)
+            if (e.keyCode === 123) {
+                e.preventDefault();
+                showBlockedAlert('Developer tools are disabled.');
+                return false;
+            }
+
+            // Block Ctrl+Shift+I/J/C (DevTools)
+            if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) {
+                e.preventDefault();
+                showBlockedAlert('Developer tools are disabled.');
+                return false;
+            }
+
+            // Block Ctrl+U (View Source)
+            if (e.ctrlKey && e.key === 'u') {
+                e.preventDefault();
+                showBlockedAlert('Viewing source code is disabled.');
+                return false;
+            }
+
+            // Block Ctrl+S (Save Page)
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                showBlockedAlert('Saving pages is disabled.');
+                return false;
+            }
+
+            // Block Ctrl+P (Print)
+            if (e.ctrlKey && e.key === 'p') {
+                e.preventDefault();
+                showBlockedAlert('Printing is disabled for security reasons.');
+                return false;
+            }
+
+            // Enhanced Print Screen Detection - silently block
+            if (e.key === 'PrintScreen') {
+                e.preventDefault();
+                e.stopPropagation();
+                screenshotAttempts++;
+                // Clear clipboard silently
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText('').catch(() => {});
+                }
+                // Visual deterrent - invert colors briefly (no popup)
+                document.body.style.filter = 'invert(1)';
+                setTimeout(() => { document.body.style.filter = 'none'; }, 150);
+                return false;
+            }
+        });
+
+        // Detect Snipping Tool (Windows Key + Shift + S) - silently block
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 's' && e.shiftKey && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                screenshotAttempts++;
+                // Silent visual deterrent
+                document.body.style.filter = 'blur(10px)';
+                setTimeout(() => { document.body.style.filter = 'none'; }, 200);
+            }
+        });
+
+        // Detect visibility change (often triggered by screen capture tools) - silently blur
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                screenshotAttempts++;
+                document.body.style.filter = 'blur(10px)';
+            } else {
+                document.body.style.filter = 'none';
+            }
+        });
+
+        // Detect focus loss (often happens when clicking screenshot tools) - silently blur
+        window.addEventListener('blur', () => {
+            screenshotAttempts++;
+            document.body.style.filter = 'blur(10px)';
+        });
+        
+        window.addEventListener('focus', () => {
+            document.body.style.filter = 'none';
+        });
+
+
+        window.addEventListener('beforeprint', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Printing is disabled for security reasons.');
+            return false;
+        });
+
+        function showAlert(message, type = 'info') {
+            const container = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            container.appendChild(alert);
+            setTimeout(() => alert.remove(), 5000);
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleString();
+        }
+
+        function formatBytes(bytes) {
+            if (!bytes) return '0 B';
+            const mb = bytes / (1024 * 1024);
+            return mb.toFixed(2) + ' MB';
+        }
+
+        function createBackup() {
+            if (!confirm('Create a new backup now? This may take a few moments.')) return;
+            
+            fetch('/admin/backup/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ include_files: true })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(`Backup created successfully: ${data.backup_file} (${data.backup_size_mb} MB)`, 'success');
+                    loadBackups();
+                    loadStats();
+                } else {
+                    showAlert('Backup failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(err => {
+                showAlert('Error creating backup: ' + err.message, 'error');
+            });
+        }
+
+        function loadStats() {
+            fetch('/admin/backup/stats')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const stats = data.statistics;
+                    document.getElementById('stat-total').textContent = stats.total_backups || 0;
+                    document.getElementById('stat-success').textContent = stats.successful_backups || 0;
+                    document.getElementById('stat-failed').textContent = stats.failed_backups || 0;
+                    document.getElementById('stat-size').textContent = stats.total_size_mb ? stats.total_size_mb + ' MB' : '0 MB';
+                    document.getElementById('stat-verified').textContent = stats.verified_backups || 0;
+                }
+            })
+            .catch(err => console.error('Error loading stats:', err));
+        }
+
+        function loadBackups() {
+            document.getElementById('backup-loading').style.display = 'block';
+            document.getElementById('backup-table').style.display = 'none';
+            
+            fetch('/admin/backup/list')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('backup-loading').style.display = 'none';
+                
+                if (data.success) {
+                    const tbody = document.getElementById('backup-tbody');
+                    tbody.innerHTML = '';
+                    
+                    if (data.backups.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px;">No backups found</td></tr>';
+                    } else {
+                        data.backups.forEach(backup => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${backup.filename || backup.backup_filename || '-'}</td>
+                                <td>${backup.backup_type || 'Unknown'}</td>
+                                <td>${formatBytes(backup.size || backup.backup_size_bytes)}</td>
+                                <td><span class="status-badge status-${backup.status === 'Success' ? 'success' : backup.status === 'Failed' ? 'failed' : 'pending'}">${backup.status || 'Unknown'}</span></td>
+                                <td><span class="status-badge status-${backup.verification_status === 'Verified' ? 'verified' : 'pending'}">${backup.verification_status || 'Pending'}</span></td>
+                                <td>${formatDate(backup.created || backup.timestamp)}</td>
+                                <td class="checksum" title="${backup.checksum_sha256 || ''}">${backup.checksum_sha256 ? backup.checksum_sha256.substring(0, 16) + '...' : '-'}</td>
+                                <td class="action-buttons">
+                                    ${backup.status === 'Success' ? `<button class="btn-sm btn-success" onclick="verifyBackup('${backup.filename || backup.backup_filename}')">Verify</button>` : ''}
+                                    ${backup.status === 'Success' ? `<button class="btn-sm btn-warning" onclick="restoreBackup('${backup.filename || backup.backup_filename}')" style="background: #ffc107; color: #000; border: none;">Restore</button>` : ''}
+                                    <button class="btn-sm btn-primary" onclick="viewBackupDetails('${backup.filename || backup.backup_filename}')">Details</button>
+                                </td>
+                            `;
+                            tbody.appendChild(row);
+                        });
+                    }
+                    
+                    document.getElementById('backup-table').style.display = 'table';
+                } else {
+                    showAlert('Error loading backups: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(err => {
+                document.getElementById('backup-loading').style.display = 'none';
+                showAlert('Error loading backups: ' + err.message, 'error');
+            });
+        }
+
+        function verifyBackup(filename) {
+            fetch(`/admin/backup/verify/${encodeURIComponent(filename)}`, {
+                method: 'POST'
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.verification.verified) {
+                    showAlert(`Backup verified successfully! Checksum: ${data.verification.checksum.substring(0, 16)}...`, 'success');
+                    loadBackups();
+                } else {
+                    showAlert('Verification failed: ' + (data.verification.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(err => {
+                showAlert('Error verifying backup: ' + err.message, 'error');
+            });
+        }
+
+        function viewBackupDetails(filename) {
+            fetch('/admin/backup/list')
+            .then(r => r.json())
+            .then(data => {
+                const backup = data.backups.find(b => (b.filename || b.backup_filename) === filename);
+                if (backup) {
+                    const details = `
+Filename: ${backup.filename || backup.backup_filename}
+Type: ${backup.backup_type || 'Unknown'}
+Size: ${formatBytes(backup.size || backup.backup_size_bytes)}
+Status: ${backup.status || 'Unknown'}
+Verification: ${backup.verification_status || 'Pending'}
+Created: ${formatDate(backup.created || backup.timestamp)}
+Checksum: ${backup.checksum_sha256 || 'N/A'}
+Tables Backed Up: ${Array.isArray(backup.tables_backed_up) ? backup.tables_backed_up.join(', ') : 'N/A'}
+Files Included: ${backup.files_included || 0}
+Cloud Backup: ${backup.cloud_backup_enabled ? 'Yes' : 'No'}
+                    `;
+                    alert(details);
+                }
+            });
+        }
+
+        function restoreBackup(filename) {
+            if (!confirm('⚠️ WARNING: This will restore data from backup, including deleted listings.\n\n' +
+                        'This will:\n' +
+                        '- Restore all listings from the backup (overwrites current listings)\n' +
+                        '- Optionally restore database tables (skips duplicates safely)\n\n' +
+                        'Make sure you have a recent backup before proceeding!\n\n' +
+                        'Continue with restore?')) return;
+            
+            const restoreTables = confirm('Restore database tables too?\n\n' +
+                                        'OK = Full restore (listings + database, duplicates skipped)\n' +
+                                        'Cancel = Listings only (recommended for recovering deleted entries)') ? null : [];
+            
+            fetch('/admin/backup/restore', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    backup_filename: filename,
+                    restore_tables: restoreTables
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    let message = 'Backup restored successfully!\n\n';
+                    if (data.restored_in_memory && data.restored_in_memory.listings) {
+                        message += `✅ Restored ${data.restored_in_memory.listings} listing(s)\n`;
+                    }
+                    if (data.restored_tables && data.restored_tables.length > 0) {
+                        message += `✅ Restored database tables: ${data.restored_tables.join(', ')}\n`;
+                    }
+                    message += '\n⚠️ Please restart your Flask app to see restored listings.';
+                    showAlert(message, 'success');
+                    loadBackups();
+                    loadStats();
+                } else {
+                    showAlert('Restore failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(err => {
+                showAlert('Error restoring backup: ' + err.message, 'error');
+            });
+        }
+
+        function cleanupOldBackups() {
+            if (!confirm('Delete backups older than retention period? This cannot be undone.')) return;
+            
+            fetch('/admin/backup/cleanup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ keep_days: 30 })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(`Cleaned up ${data.deleted_files.length} old backup(s)`, 'success');
+                    loadBackups();
+                    loadStats();
+                } else {
+                    showAlert('Cleanup failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(err => {
+                showAlert('Error cleaning up backups: ' + err.message, 'error');
+            });
+        }
+
+        // Position security banner below navbar dynamically
+        function positionSecurityBanner() {
+            const navbar = document.getElementById('navbar');
+            const banner = document.querySelector('.security-banner');
+            if (navbar && banner) {
+                const navbarHeight = navbar.offsetHeight;
+                banner.style.top = navbarHeight + 'px';
+                // Adjust section padding to account for banner
+                const section = document.querySelector('.dashboard-section');
+                if (section) {
+                    section.style.paddingTop = (navbarHeight + 60) + 'px';
+                }
+            }
+        }
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            positionSecurityBanner();
+            // Re-position on window resize
+            window.addEventListener('resize', positionSecurityBanner);
+            
+            loadStats();
+            loadBackups();
+            
+            // Auto-refresh every 60 seconds
+            setInterval(() => {
+                loadStats();
+                loadBackups();
+            }, 60000);
+        });
+    </script>
+</body>
+</html>

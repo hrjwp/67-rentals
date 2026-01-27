@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security - 67 Rentals</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/templatemo-graph-page.css') }}">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav id="navbar">
+        <div class="nav-container">
+            <a href="{{ url_for('index') }}" class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M3 13h2v8H3zm4-8h2v13H7zm4-2h2v15h-2zm4 4h2v11h-2zm4-2h2v13h-2z"/>
+                    </svg>
+                </div>
+                <span class="logo-text">67 Rentals</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
+                <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
+                <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
+            </ul>
+            <div class="hamburger" id="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+        <ul class="nav-links-mobile" id="navLinksMobile">
+            <li><a href="{{ url_for('index') }}">Home</a></li>
+            <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+            <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
+            <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
+            <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
+        </ul>
+    </nav>
+
+    <!-- Security Section -->
+    <section class="dashboard-section" style="padding-top: 120px; min-height: 100vh;">
+        <div class="dashboard-container">
+            <h2 class="section-title">Security Management</h2>
+            
+            <div class="info-grid" style="max-width: 800px; margin: 0 auto;">
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('data_classification') }}'">
+                    <div class="info-icon">🔐</div>
+                    <h3 class="info-title">Data Classification</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        Manage data classification levels and security policies
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('data_classification') }}" class="cta-button">View Classifications</a>
+                    </div>
+                </div>
+
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('audit_logs') }}'">
+                    <div class="info-icon">📊</div>
+                    <h3 class="info-title">Audit Logs</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        View and monitor all system activity and security events
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('audit_logs') }}" class="cta-button">View Logs</a>
+                    </div>
+                </div>
+
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('audit_logs') }}'">
+                    <div class="info-icon">🛡️</div>
+                    <h3 class="info-title">Access Security Logs</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        Monitors RBAC violations, export blocking, copy/paste attempts,
+                        screenshot prevention, session timeouts, IP mismatches, and other security alerts.
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('security_logs') }}" class="cta-button">View Logs</a>
+                    </div>
+                </div>
+
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('audit_logs') }}'">
+                    <div class="info-icon">🚗</div>
+                    <h3 class="info-title">Vehicle Fraud Logs</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        Tracks GPS jumps, impossible travel speeds, and fake
+                        mileage reports to detect vehicle-related fraud.
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('vehicle_fraud_logs') }}" class="cta-button">View Logs</a>
+                    </div>
+                </div>
+
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('audit_logs') }}'">
+                    <div class="info-icon">⚠️</div>
+                    <h3 class="info-title">Booking Fraud Logs</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        Monitors rapid bookings, repeated card declines, and
+                        machine-learning risk scores to identify fraudulent booking patterns.
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('booking_fraud_logs') }}" class="cta-button">View Logs</a>
+                    </div>
+                </div>
+
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('backup_management') }}'">
+                    <div class="info-icon">💾</div>
+                    <h3 class="info-title">Backup Management</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        Manage automated backups, verify backup integrity, view backup logs,
+                        and ensure all sensitive data is securely backed up with proof.
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('backup_management') }}" class="cta-button">Manage Backups</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <p class="copyright">© 2026 67 Rentals. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/templatemo-graph-script.js') }}"></script>
+</body>
+</html>

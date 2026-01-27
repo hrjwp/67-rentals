@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Contact Submissions - 67 Rentals</title>
+
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/templatemo-tiya-golf-club.css') }}" rel="stylesheet">
+
+        <style>
+            body {
+                font-family: 'DM Sans', sans-serif;
+                background-color: #f8f9fa;
+            }
+
+            .navbar {
+                background-color: #3D405B !important;
+                padding: 20px 0;
+            }
+
+            .submissions-section {
+                padding: 60px 0;
+                min-height: 70vh;
+            }
+
+            .page-header {
+                background: #3D405B;
+                color: white;
+                padding: 40px;
+                border-radius: 15px;
+                margin-bottom: 40px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            }
+
+            .page-header h2 {
+                font-weight: 700;
+                margin-bottom: 10px;
+            }
+
+            .stats-row {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 20px;
+                margin-bottom: 30px;
+            }
+
+            .stat-card {
+                background: white;
+                padding: 25px;
+                border-radius: 10px;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+                text-align: center;
+            }
+
+            .stat-card i {
+                font-size: 40px;
+                color: #81B29A;
+                margin-bottom: 15px;
+            }
+
+            .stat-number {
+                font-size: 32px;
+                font-weight: 700;
+                color: #3D405B;
+                margin-bottom: 5px;
+            }
+
+            .stat-label {
+                color: #717275;
+                font-size: 14px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .contact-card {
+                background: white;
+                border-radius: 10px;
+                padding: 25px;
+                margin-bottom: 20px;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+                transition: transform 0.3s ease, box-shadow 0.3s ease;
+                border-left: 5px solid #81B29A;
+            }
+
+            .contact-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            }
+
+            .contact-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: start;
+                margin-bottom: 20px;
+                flex-wrap: wrap;
+                gap: 15px;
+            }
+
+            .contact-id {
+                font-size: 18px;
+                font-weight: 700;
+                color: #3D405B;
+            }
+
+            .status-badge {
+                padding: 8px 16px;
+                border-radius: 20px;
+                font-weight: 600;
+                font-size: 14px;
+                display: inline-block;
+            }
+
+            .status-new {
+                background-color: #fff3cd;
+                color: #856404;
+            }
+
+            .status-read {
+                background-color: #cfe2ff;
+                color: #084298;
+            }
+
+            .status-replied {
+                background-color: #d1e7dd;
+                color: #0f5132;
+            }
+
+            .contact-info {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 15px;
+                margin-bottom: 20px;
+            }
+
+            .info-item {
+                display: flex;
+                align-items: start;
+                gap: 10px;
+            }
+
+            .info-item i {
+                color: #81B29A;
+                font-size: 18px;
+                margin-top: 2px;
+            }
+
+            .info-label {
+                font-weight: 600;
+                color: #3D405B;
+                margin-bottom: 3px;
+                font-size: 13px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .info-value {
+                color: #717275;
+                font-size: 15px;
+            }
+
+            .message-box {
+                background-color: #f8f9fa;
+                padding: 15px;
+                border-radius: 8px;
+                margin-top: 15px;
+                color: #717275;
+                line-height: 1.6;
+            }
+
+            .btn-read {
+                background-color: #3D405B;
+                color: white;
+                border: none;
+                padding: 10px 25px;
+                border-radius: 5px;
+                font-weight: 600;
+                transition: all 0.3s ease;
+            }
+
+            .btn-read:hover {
+                background-color: #2a2c3e;
+            }
+
+            .btn-replied {
+                background-color: #81B29A;
+                color: white;
+                border: none;
+                padding: 10px 25px;
+                border-radius: 5px;
+                font-weight: 600;
+                transition: all 0.3s ease;
+            }
+
+            .btn-replied:hover {
+                background-color: #6a9a82;
+            }
+
+            .btn-delete {
+                background-color: #E07A5F;
+                color: white;
+                border: none;
+                padding: 10px 25px;
+                border-radius: 5px;
+                font-weight: 600;
+                transition: all 0.3s ease;
+            }
+
+            .btn-delete:hover {
+                background-color: #c9685a;
+            }
+
+            .empty-state {
+                text-align: center;
+                padding: 60px 20px;
+                background: white;
+                border-radius: 10px;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            }
+
+            .empty-state i {
+                font-size: 80px;
+                color: #81B29A;
+                margin-bottom: 20px;
+            }
+
+            .empty-state h3 {
+                color: #3D405B;
+                font-weight: 700;
+                margin-bottom: 15px;
+            }
+
+            .filter-bar {
+                background: white;
+                padding: 25px;
+                border-radius: 10px;
+                margin-bottom: 30px;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            }
+            .bi {
+            color: white;
+            }
+        </style>
+    </head>
+
+    <body>
+        <nav class="navbar navbar-expand-lg">
+            <div class="container">
+                <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="67 Rentals" style="width: 50px;">
+                    <span class="navbar-brand-text">
+                        67
+                        <small>Rentals</small>
+                    </span>
+                </a>
+
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-lg-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('index') }}#section_1">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('index') }}#section_2">About</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('vehicle_listing') }}">Vehicles</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('index') }}#section_4">Contact</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('cases') }}">Cases</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="{{ url_for('contact_submissions') }}">Contacts</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <section class="submissions-section">
+            <div class="container">
+                <div class="page-header">
+                    <h2 class="bi"><i class="bi bi-envelope-open"></i> Contact Form Submissions</h2>
+                    <p class="bi">View and manage all customer inquiries</p>
+                </div>
+
+                <!-- Statistics -->
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <i class="bi bi-envelope"></i>
+                        <div class="stat-number">{{ contacts|length }}</div>
+                        <div class="stat-label">Total Messages</div>
+                    </div>
+                    <div class="stat-card">
+                        <i class="bi bi-envelope-exclamation"></i>
+                        <div class="stat-number">{{ contacts|selectattr('status', 'equalto', 'New')|list|length }}</div>
+                        <div class="stat-label">New Messages</div>
+                    </div>
+                    <div class="stat-card">
+                        <i class="bi bi-envelope-check"></i>
+                        <div class="stat-number">{{ contacts|selectattr('status', 'equalto', 'Replied')|list|length }}</div>
+                        <div class="stat-label">Replied</div>
+                    </div>
+                </div>
+
+                <!-- Filter Bar -->
+                <div class="filter-bar">
+                    <div class="row align-items-center">
+                        <div class="col-md-6 mb-3 mb-md-0">
+                            <label class="form-label mb-2" style="font-weight: 600; color: #3D405B;">Filter by Status</label>
+                            <select class="form-select" id="statusFilter">
+                                <option value="all">All Messages</option>
+                                <option value="New">New</option>
+                                <option value="Read">Read</option>
+                                <option value="Replied">Replied</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label mb-2" style="font-weight: 600; color: #3D405B;">Search</label>
+                            <input type="text" class="form-control" id="searchInput" placeholder="Search by email...">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contact Submissions List -->
+                <div id="contactsList">
+                    {% for contact in contacts %}
+                    <div class="contact-card" data-status="{{ contact.status }}">
+                        <div class="contact-header">
+                            <div>
+                                <div class="contact-id"><i class="bi bi-hash"></i> {{ contact.id }}</div>
+                                <small style="color: #717275;">
+                                    <i class="bi bi-calendar3"></i>
+                                    {{ contact.timestamp|replace('T', ' at ')|truncate(19, True, '') }}
+                                </small>
+                            </div>
+                            <div>
+                                <span class="status-badge status-{{ contact.status.lower() }}">
+                                    {{ contact.status }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="contact-info">
+                            <div class="info-item">
+                                <i class="bi bi-person-fill"></i>
+                                <div>
+                                    <div class="info-label">Name</div>
+                                    <div class="info-value">{{ contact.full_name }}</div>
+                                </div>
+                            </div>
+                            <div class="info-item">
+                                <i class="bi bi-envelope-fill"></i>
+                                <div>
+                                    <div class="info-label">Email</div>
+                                    <div class="info-value">{{ contact.email }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="message-box">
+                            <strong style="color: #3D405B;">Message:</strong><br>
+                            {{ contact.message }}
+                        </div>
+
+                        <div class="d-flex gap-2 mt-3 flex-wrap">
+                            {% if contact.status == 'New' %}
+                            <a href="{{ url_for('update_contact_status', contact_id=contact.id, status='Read') }}" class="btn-read">
+                                <i class="bi bi-eye"></i> Mark as Read
+                            </a>
+                            {% endif %}
+                            {% if contact.status == 'Read' %}
+                            <a href="{{ url_for('update_contact_status', contact_id=contact.id, status='Replied') }}" class="btn-replied">
+                                <i class="bi bi-check-circle"></i> Mark as Replied
+                            </a>
+                            {% endif %}
+                            {% if contact.status == 'Replied' %}
+                            <a href="{{ url_for('update_contact_status', contact_id=contact.id, status='New') }}" class="btn-read">
+                                <i class="bi bi-arrow-clockwise"></i> Reopen
+                            </a>
+                            {% endif %}
+                            <a href="mailto:{{ contact.email }}" class="btn-replied">
+                                <i class="bi bi-reply"></i> Reply via Email
+                            </a>
+                            <a href="{{ url_for('delete_contact', contact_id=contact.id) }}" class="btn-delete" onclick="return confirm('Are you sure you want to delete this message?')">
+                                <i class="bi bi-trash"></i> Delete
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Empty State -->
+                {% if contacts|length == 0 %}
+                <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <h3>No Messages Yet</h3>
+                    <p>No contact form submissions have been received.</p>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.0/jquery.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+        <script>
+            // Filter functionality
+            const statusFilter = document.getElementById('statusFilter');
+            const searchInput = document.getElementById('searchInput');
+            const contactCards = document.querySelectorAll('.contact-card');
+
+            function filterContacts() {
+                const statusValue = statusFilter.value.toLowerCase();
+                const searchValue = searchInput.value.toLowerCase();
+
+                contactCards.forEach(card => {
+                    const status = card.getAttribute('data-status').toLowerCase();
+                    const name = card.querySelector('.info-value').textContent.toLowerCase();
+                    const email = card.querySelectorAll('.info-value')[1].textContent.toLowerCase();
+
+                    const statusMatch = statusValue === 'all' || status === statusValue;
+                    const searchMatch = name.includes(searchValue) || email.includes(searchValue);
+
+                    if (statusMatch && searchMatch) {
+                        card.style.display = 'block';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+            }
+
+            statusFilter.addEventListener('change', filterContacts);
+            searchInput.addEventListener('input', filterContacts);
+        </script>
+    </body>
+</html>

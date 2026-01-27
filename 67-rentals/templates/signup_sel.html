@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <title>67 Rentals - Sign Up</title>
+
+    <!-- CSS FILES -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap"
+        rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --white-color: #ffffff;
+            --primary-color: #81B29A;
+            --secondary-color: #3D405B;
+            --section-bg-color: #F4F1DE;
+            --custom-btn-bg-color: #F2CC8F;
+            --custom-btn-bg-hover-color: #E07A5F;
+            --dark-color: #000000;
+            --p-color: #717275;
+            --link-hover-color: #F2CC8F;
+            --body-font-family: 'DM Sans', sans-serif;
+            --h4-font-size: 24px;
+            --menu-font-size: 16px;
+            --p-font-size: 18px;
+            --border-radius-large: 100px;
+            --border-radius-medium: 20px;
+            --font-weight-normal: 400;
+            --font-weight-medium: 500;
+            --font-weight-bold: 700;
+        }
+
+        body {
+            background-color: var(--section-bg-color);
+            font-family: var(--body-font-family);
+            margin: 0;
+            padding: 0;
+            padding-top: 90px;
+        }
+
+        /* Navbar Styles */
+        .navbar {
+            background-color: var(--secondary-color);
+            padding-top: 15px;
+            padding-bottom: 15px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .navbar-brand {
+            font-size: var(--h4-font-size);
+            font-weight: var(--font-weight-bold);
+            color: var(--white-color);
+            display: flex;
+            align-items: center;
+        }
+
+        .navbar-brand-image {
+            width: 80px;
+            height: 60px;
+            filter: brightness(0) invert(1);
+        }
+
+        .navbar-brand-text {
+            line-height: normal;
+            margin-left: 10px;
+            color: var(--white-color);
+        }
+
+        .navbar-brand-text small {
+            display: block;
+            font-size: 10px;
+            line-height: 1;
+            text-transform: uppercase;
+        }
+
+        .navbar-nav .nav-link {
+            display: inline-block;
+            color: var(--white-color);
+            font-size: var(--menu-font-size);
+            font-weight: var(--font-weight-medium);
+            padding-top: 15px;
+            padding-bottom: 15px;
+        }
+
+        .navbar-nav .nav-link:hover {
+            color: var(--link-hover-color);
+        }
+
+        .custom-btn {
+            background: var(--custom-btn-bg-color);
+            border: 2px solid transparent;
+            border-radius: var(--border-radius-large);
+            color: var(--white-color);
+            font-weight: var(--font-weight-bold);
+            padding: 10px 20px;
+            transition: all 0.3s;
+        }
+
+        .custom-btn:hover {
+            background: var(--custom-btn-bg-hover-color);
+            color: var(--white-color);
+        }
+
+        .custom-border-btn {
+            background: transparent;
+            border: 2px solid var(--custom-btn-bg-color);
+            color: var(--custom-btn-bg-color);
+        }
+
+        .custom-border-btn:hover {
+            background: var(--custom-btn-bg-color);
+            color: var(--white-color);
+        }
+
+        .navbar-toggler {
+            border: 0;
+            padding: 0;
+        }
+
+        .navbar-toggler-icon {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255, 255, 255, 1)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+        }
+
+        /* Sign Up Container */
+        .signup-container {
+            min-height: calc(100vh - 100px);
+            display: flex;
+            align-items: center;
+            padding: 50px 0;
+        }
+
+        .signup-card {
+            background: var(--white-color);
+            border-radius: var(--border-radius-medium);
+            padding: 60px 50px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .signup-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .signup-header h1 {
+            color: var(--secondary-color);
+            font-weight: var(--font-weight-bold);
+            font-size: 32px;
+            margin-bottom: 15px;
+        }
+
+        .signup-header p {
+            color: var(--p-color);
+            font-size: var(--p-font-size);
+        }
+
+        .user-type-selection {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .user-type-card {
+            background: var(--section-bg-color);
+            border: 3px solid var(--primary-color);
+            border-radius: var(--border-radius-medium);
+            padding: 40px 30px;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .user-type-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .user-type-icon {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, var(--custom-btn-bg-color), var(--primary-color));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 25px;
+            transition: all 0.3s ease;
+        }
+
+        .user-type-card:hover .user-type-icon {
+            transform: scale(1.1);
+        }
+
+        .user-type-icon i {
+            font-size: 50px;
+            color: var(--white-color);
+        }
+
+        .user-type-card h3 {
+            color: var(--secondary-color);
+            font-size: 24px;
+            font-weight: var(--font-weight-bold);
+            margin-bottom: 15px;
+        }
+
+        .user-type-card p {
+            color: var(--p-color);
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .user-type-card ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            text-align: left;
+        }
+
+        .user-type-card ul li {
+            color: var(--p-color);
+            padding: 8px 0;
+            padding-left: 30px;
+            position: relative;
+            font-size: 14px;
+        }
+
+        .user-type-card ul li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: var(--primary-color);
+            font-weight: var(--font-weight-bold);
+            font-size: 16px;
+        }
+
+
+        .btn-signup {
+            background: var(--custom-btn-bg-color);
+            border: none;
+            border-radius: var(--border-radius-large);
+            color: var(--white-color);
+            font-weight: var(--font-weight-bold);
+            padding: 12px 30px;
+            font-size: 16px;
+            transition: all 0.3s;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 20px;
+        }
+
+        .btn-signup:hover {
+            background: var(--custom-btn-bg-hover-color);
+            color: var(--white-color);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(224, 122, 95, 0.3);
+        }
+
+        .login-link {
+            text-align: center;
+            margin-top: 30px;
+            color: var(--p-color);
+        }
+
+        .login-link a {
+            color: var(--primary-color);
+            font-weight: var(--font-weight-bold);
+            text-decoration: none;
+        }
+
+        .login-link a:hover {
+            color: var(--custom-btn-bg-hover-color);
+        }
+
+        @media screen and (max-width: 768px) {
+            .signup-card {
+                padding: 40px 25px;
+            }
+
+            .signup-header h1 {
+                font-size: 26px;
+            }
+
+            .user-type-selection {
+                grid-template-columns: 1fr;
+            }
+
+            .user-type-card {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                <img src="logo.png" class="navbar-brand-image img-fluid" alt="67 Rentals">
+                <span class="navbar-brand-text">
+                    67
+                    <small>Rentals</small>
+                </span>
+            </a>
+
+            <div class="d-lg-none ms-auto me-3">
+                <a class="btn custom-btn custom-border-btn" data-bs-toggle="offcanvas" href="#offcanvasExample"
+                    role="button" aria-controls="offcanvasExample">Member Login</a>
+            </div>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-lg-auto">
+                    <li class="nav-item">
+                        <a class="nav-link click-scroll" href="/#section_1">Home</a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link click-scroll" href="/#section_2">About</a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link click-scroll" href="/vehicles">Vehicles</a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link click-scroll" href="/#section_4">Contact Us</a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="/cart">
+                            <i class="bi bi-cart3"></i> Cart</a>
+                    </li>
+                </ul>
+
+                <div class="d-none d-lg-block ms-lg-3">
+                    <a class="btn custom-btn custom-border-btn" data-bs-toggle="offcanvas" href="#offcanvasExample"
+                        role="button" aria-controls="offcanvasExample">Member Login</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Login Offcanvas -->
+    <div class="offcanvas offcanvas-end" data-bs-scroll="true" tabindex="-1" id="offcanvasExample"
+        aria-labelledby="offcanvasExampleLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="offcanvasExampleLabel">Member Login</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+
+        <div class="offcanvas-body d-flex flex-column">
+            <form class="custom-form member-login-form" action="{{ url_for('login') }}" method="post" role="form">
+                <div class="member-login-form-body">
+                    <div class="mb-4">
+                        <label class="form-label mb-2" for="member-login-email">Email</label>
+                        <input type="email" name="email" id="member-login-email" class="form-control"
+                            placeholder="example@email.com" required>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label mb-2" for="member-login-password">Password</label>
+                        <input type="password" name="password" id="member-login-password"
+                             class="form-control" placeholder="Password" required="">
+                    </div>
+
+                    <div class="form-check mb-4">
+                        <input class="form-check-input" type="checkbox" value="" id="flexCheckDefault">
+                        <label class="form-check-label" for="flexCheckDefault">
+                            Remember me
+                        </label>
+                    </div>
+
+                    <div class="col-lg-5 col-md-7 col-8 mx-auto">
+                        <button type="submit" class="form-control">Login</button>
+                    </div>
+
+                    <div class="text-center my-4">
+                        <a href="/forgot-password">Forgotten password?</a>
+                    </div>
+
+                    <div class="text-center my-4">
+                        <a href="/signup">No account? Sign up here!</a>
+                    </div>
+                </div>
+            </form>
+            <div class="mt-auto mb-5">
+                <p>
+                    <strong class="text-white me-3">Any Questions?</strong>
+                    <a href="tel: 6566006655" class="contact-link">
+                        65-6600-6655
+                    </a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sign Up Container -->
+    <div class="signup-container">
+        <div class="container">
+            <div class="signup-card">
+                <div class="signup-header">
+                    <h1>Join 67 Rentals</h1>
+                    <p>Choose your account type to get started</p>
+                </div>
+
+                <div class="user-type-selection">
+                    <!-- Renter Card -->
+                    <div class="user-type-card">
+                        <div class="user-type-icon">
+                            <i class="bi bi-person-circle"></i>
+                        </div>
+                        <h3>I Want to Rent</h3>
+                        <p>Looking for a vehicle to rent for your needs</p>
+                        <ul>
+                            <li>Browse available vehicles</li>
+                            <li>Book instantly online</li>
+                            <li>Flexible rental periods</li>
+                            <li>24/7 customer support</li>
+                            <li>Verified vehicle owners</li>
+                        </ul>
+                        <a href="{{ url_for('signup') }}" class="btn-signup">Sign Up as Renter</a>
+                    </div>
+
+                    <!-- Seller Card -->
+                    <div class="user-type-card">
+                        <div class="user-type-icon">
+                            <i class="bi bi-car-front-fill"></i>
+                        </div>
+                        <h3>I Want to List My Vehicle</h3>
+                        <p>Own a vehicle and want to earn extra income</p>
+                        <ul>
+                            <li>List your vehicle for free</li>
+                            <li>Set your own rental prices</li>
+                            <li>Reach thousands of renters</li>
+                            <li>Secure payment processing</li>
+                            <li>Insurance coverage options</li>
+                        </ul>
+                        <a href="{{ url_for('signup_seller') }}" class="btn-signup">Sign Up as Seller</a>
+                    </div>
+                </div>
+
+                <div class="login-link">
+                    Already have an account? <a href="#" data-bs-toggle="offcanvas"
+                        data-bs-target="#offcanvasExample">Login here</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

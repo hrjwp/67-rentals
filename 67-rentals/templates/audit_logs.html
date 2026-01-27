@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audit Logs - 67 Rentals</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/templatemo-graph-page.css') }}">
+    <style>
+        .table-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 12px 20px;
+            border: 1px solid var(--primary-color);
+            border-radius: var(--border-radius-small);
+            background: var(--section-bg-color);
+            color: var(--secondary-color);
+            font-size: 14px;
+        }
+        
+        .filter-select {
+            padding: 12px 20px;
+            border: 1px solid var(--primary-color);
+            border-radius: var(--border-radius-small);
+            background: var(--section-bg-color);
+            color: var(--secondary-color);
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .export-btn {
+            padding: 12px 25px;
+            background: var(--custom-btn-bg-color);
+            color: var(--white-color);
+            border: none;
+            border-radius: var(--border-radius-large);
+            font-weight: var(--font-weight-bold);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+        
+        .export-btn:hover {
+            background: var(--custom-btn-bg-hover-color);
+        }
+        
+        .audit-table {
+            width: 100%;
+            background: var(--white-color);
+            border: 1px solid var(--primary-color);
+            border-radius: var(--border-radius-medium);
+            overflow-x: auto;
+        }
+        
+        .audit-table table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 900px;
+        }
+        
+        .audit-table thead {
+            background: var(--secondary-color);
+            color: var(--white-color);
+        }
+        
+        .audit-table th {
+            padding: 18px 16px;
+            text-align: left;
+            font-weight: var(--font-weight-medium);
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        
+        .audit-table tbody tr {
+            border-bottom: 1px solid var(--section-bg-color);
+            transition: background 0.2s ease;
+        }
+        
+        .audit-table tbody tr:hover {
+            background: var(--section-bg-color);
+        }
+        
+        .audit-table td {
+            padding: 16px;
+            font-size: 14px;
+            color: var(--p-color);
+        }
+        
+        .log-level {
+            padding: 5px 12px;
+            border-radius: var(--border-radius-large);
+            font-size: 12px;
+            font-weight: var(--font-weight-medium);
+        }
+        
+        .level-info {
+            background: rgba(129, 178, 154, 0.2);
+            color: var(--primary-color);
+        }
+        
+        .level-warning {
+            background: rgba(242, 204, 143, 0.2);
+            color: var(--custom-btn-bg-color);
+        }
+        
+        .level-error {
+            background: rgba(224, 122, 95, 0.2);
+            color: var(--custom-btn-bg-hover-color);
+        }
+        
+        .level-success {
+            background: rgba(129, 178, 154, 0.3);
+            color: #2d7a52;
+        }
+        
+        .action-type {
+            font-weight: var(--font-weight-medium);
+            color: var(--secondary-color);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav id="navbar">
+        <div class="nav-container">
+            <a href="{{ url_for('index') }}" class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M3 13h2v8H3zm4-8h2v13H7zm4-2h2v15h-2zm4 4h2v11h-2zm4-2h2v13h-2z"/>
+                    </svg>
+                </div>
+                <span class="logo-text">67 Rentals</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
+                <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
+                <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
+            </ul>
+            <div class="hamburger" id="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+        <ul class="nav-links-mobile" id="navLinksMobile">
+            <li><a href="{{ url_for('index') }}">Home</a></li>
+            <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+            <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
+            <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
+            <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
+        </ul>
+    </nav>
+
+    <!-- Audit Logs Section -->
+    <section class="dashboard-section" style="padding-top: 120px; min-height: 100vh;">
+        <div class="dashboard-container">
+            <h2 class="section-title">Audit Logs</h2>
+            
+            <!-- Table Controls -->
+            <div class="table-controls">
+                <div class="search-box">
+                    <input type="text" placeholder="Search logs by user, action, or IP address..." id="searchInput">
+                </div>
+                <select class="filter-select" id="levelFilter">
+                    <option value="">All Levels</option>
+                    <option value="info">Info</option>
+                    <option value="warning">Warning</option>
+                    <option value="error">Error</option>
+                    <option value="success">Success</option>
+                </select>
+                <button class="export-btn" onclick="alert('Export functionality coming soon')">
+                    📥 Export CSV
+                </button>
+            </div>
+            
+            <!-- Audit Logs Table -->
+            <div class="audit-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>User</th>
+                            <th>Action</th>
+                            <th>Resource</th>
+                            <th>IP Address</th>
+                            <th>Result</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in audit_logs %}
+                        <tr>
+                            <td>{{ log.timestamp }}</td>
+                            <td>{{ log.user_email or log.user_id }}</td>
+                            <td><span class="action-type">{{ log.action }}</span></td>
+                            <td>{{ log.entity_type }} #{{ log.entity_id }}</td>
+                            <td>{{ log.ip_address or '-' }}</td>
+                            <td>
+                                {% if log.result == 'Success' %}
+                                    <span class="log-level level-success">{{ log.result }}</span>
+                                {% elif log.result == 'Failure' %}
+                                    <span class="log-level level-error">{{ log.result }}</span>
+                                {% else %}
+                                    <span class="log-level level-info">{{ log.result }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if log.previous_values %}
+                                    <strong>Before:</strong> {{ log.previous_values }}<br>
+                                {% endif %}
+                                {% if log.new_values %}
+                                    <strong>After:</strong> {{ log.new_values }}
+                                {% endif %}
+                                {% if log.reason %}
+                                    <br><strong>Reason:</strong> {{ log.reason }}
+                                {% endif %}
+                                {% if log.risk_score %}
+                                    <br><strong>Risk:</strong> {{ log.risk_score }} ({{ log.severity }})
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>               
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <p class="copyright">© 2026 67 Rentals. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/templatemo-graph-script.js') }}"></script>
+    <script>
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            filterTable();
+        });
+        
+        // Level filter
+        document.getElementById('levelFilter').addEventListener('change', function(e) {
+            filterTable();
+        });
+        
+        function filterTable() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const levelFilter = document.getElementById('levelFilter').value.toLowerCase();
+            const rows = document.querySelectorAll('.audit-table tbody tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                const matchesSearch = text.includes(searchTerm);
+                const levelCell = row.querySelector('.log-level');
+                const matchesLevel = !levelFilter || (levelCell && levelCell.textContent.toLowerCase().includes(levelFilter));
+                
+                row.style.display = (matchesSearch && matchesLevel) ? '' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>

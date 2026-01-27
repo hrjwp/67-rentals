@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicles - 67 Rentals</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/templatemo-graph-page.css') }}">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav id="navbar">
+        <div class="nav-container">
+            <a href="{{ url_for('index') }}" class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M3 13h2v8H3zm4-8h2v13H7zm4-2h2v15h-2zm4 4h2v11h-2zm4-2h2v13h-2z"/>
+                    </svg>
+                </div>
+                <span class="logo-text">67 Rentals</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
+                <li><a href="{{ url_for('vehicles_page') }}" class="active">Management</a></li>
+                <li><a href="{{ url_for('security_dashboard') }}">Security</a></li>
+            </ul>
+            <div class="hamburger" id="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+        <ul class="nav-links-mobile" id="navLinksMobile">
+            <li><a href="{{ url_for('index') }}">Home</a></li>
+            <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+            <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
+            <li><a href="{{ url_for('vehicles_page') }}" class="active">Management</a></li>
+            <li><a href="{{ url_for('security_dashboard') }}">Security</a></li>
+        </ul>
+    </nav>
+
+    <!-- Vehicles Section -->
+    <section class="dashboard-section" style="padding-top: 120px; min-height: 100vh;">
+        <div class="dashboard-container">
+            <h2 class="section-title">Business Management</h2>
+            
+            <div class="info-grid" style="max-width: 800px; margin: 0 auto;">
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('vehicle_management') }}'">
+                    <div class="info-icon">🚗</div>
+                    <h3 class="info-title">Vehicle Management</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        View, add, edit and manage all vehicles in your fleet
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('vehicle_management') }}" class="cta-button">Manage Vehicles</a>
+                    </div>
+                </div>
+
+                <div class="info-card" style="cursor: pointer; opacity: 0.7;">
+                    <div class="info-icon">📋</div>
+                    <h3 class="info-title">Vehicle Condition Log</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        Track vehicle condition and maintenance history
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <button class="cta-button" disabled style="opacity: 0.6; cursor: not-allowed;">Coming Soon</button>
+                    </div>
+                </div>
+
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('contact_submissions') }}'">
+                    <div class="info-icon">📩</div>
+                    <h3 class="info-title">Customer Enquiries</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        View and manage enquiries submitted by customers
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('contact_submissions') }}" class="cta-button">View Enquiries</a>
+                    </div>
+                </div>
+
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('cases') }}'">  
+                    <div class="info-icon">📝</div>
+                    <h3 class="info-title">Incident Reports</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        View and manage all submitted incident reports
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('cases') }}" class="cta-button">View Reports</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <p class="copyright">© 2026 67 Rentals. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/templatemo-graph-script.js') }}"></script>
+</body>
+</html>

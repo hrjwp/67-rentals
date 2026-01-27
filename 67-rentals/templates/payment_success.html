@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Payment Successful - 67 Rentals</title>
+
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/bootstrap-icons.css') }}" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/templatemo-tiya-golf-club.css') }}" rel="stylesheet">
+
+        <style>
+            .success-section {
+                padding: 100px 0;
+                min-height: 70vh;
+                background-color: #ffffff;
+            }
+
+            .success-card {
+                background: #ffffff;
+                border: 2px solid #81B29A;
+                border-radius: 15px;
+                padding: 60px 40px;
+                text-align: center;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            }
+
+            .success-icon {
+                width: 100px;
+                height: 100px;
+                background-color: #81B29A;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 30px;
+                animation: scaleIn 0.5s ease-out;
+            }
+
+            .success-icon i {
+                font-size: 50px;
+                color: white;
+            }
+
+            @keyframes scaleIn {
+                0% {
+                    transform: scale(0);
+                }
+                50% {
+                    transform: scale(1.1);
+                }
+                100% {
+                    transform: scale(1);
+                }
+            }
+
+            .success-card h2 {
+                color: #3D405B;
+                font-weight: 700;
+                margin-bottom: 20px;
+            }
+
+            .success-card p {
+                color: #717275;
+                font-size: 18px;
+                margin-bottom: 30px;
+            }
+
+            .info-box {
+                background-color: #F4F1DE;
+                border-radius: 10px;
+                padding: 25px;
+                margin: 30px 0;
+                text-align: left;
+            }
+
+            .info-box h5 {
+                color: #3D405B;
+                font-weight: 700;
+                margin-bottom: 15px;
+            }
+
+            .info-box p {
+                color: #717275;
+                font-size: 16px;
+                margin-bottom: 8px;
+            }
+
+            .btn-primary-custom {
+                background-color: #F2CC8F;
+                color: #ffffff;
+                border: none;
+                padding: 15px 40px;
+                border-radius: 5px;
+                font-weight: 700;
+                font-size: 16px;
+                text-decoration: none;
+                display: inline-block;
+                transition: all 0.3s ease;
+            }
+
+            .btn-primary-custom:hover {
+                background-color: #E07A5F;
+                color: #ffffff;
+                transform: translateY(-2px);
+            }
+
+            .btn-secondary-custom {
+                background-color: transparent;
+                color: #3D405B;
+                border: 2px solid #3D405B;
+                padding: 15px 40px;
+                border-radius: 5px;
+                font-weight: 700;
+                font-size: 16px;
+                text-decoration: none;
+                display: inline-block;
+                transition: all 0.3s ease;
+                margin-left: 10px;
+            }
+
+            .btn-secondary-custom:hover {
+                background-color: #3D405B;
+                color: #ffffff;
+            }
+        </style>
+    </head>
+
+    <body>
+        <nav class="navbar navbar-expand-lg">
+            <div class="container">
+                <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index_logged') }}">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="67 Rentals" style="width: 50px;">
+                    <span class="navbar-brand-text">
+                        67
+                        <small>Rentals</small>
+                    </span>
+                </a>
+
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-lg-auto">
+                        <li class="nav-item">
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <section class="success-section">
+            <div class="container">
+                <div class="row justify-content-center">
+                    <div class="col-lg-8">
+                        <div class="success-card">
+                            <div class="success-icon">
+                                <i class="bi bi-check-lg"></i>
+                            </div>
+
+                            <h2>Payment Successful!</h2>
+                            <p>Thank you for your booking with 67 Rentals. Your payment has been processed successfully.</p>
+
+                            <div class="info-box">
+                                <h5><i class="bi bi-info-circle"></i> What's Next?</h5>
+                                <p><i class="bi bi-envelope"></i> <strong>Confirmation Email:</strong> You'll receive a booking confirmation email shortly with all the details.</p>
+                                <p><i class="bi bi-calendar-check"></i> <strong>Pickup Instructions:</strong> Please bring your driver's license and booking confirmation to the pickup location.</p>
+                                <p><i class="bi bi-clock"></i> <strong>Pickup Time:</strong> Arrive 15 minutes before your scheduled pickup time.</p>
+                                <p><i class="bi bi-telephone"></i> <strong>Questions?</strong> Contact us at (65) 6600-6655 or 67Rentals@company.com</p>
+                            </div>
+
+                            <div class="info-box" style="background-color: #e8f5e9;">
+                                <p class="mb-0"><i class="bi bi-receipt"></i> <strong>Transaction ID:</strong> {{ payment_intent_id }}</p>
+                            </div>
+
+                            <div class="mt-4">
+                                <a href="{{ url_for('index_logged') }}" class="btn-primary-custom">
+                                    <i class="bi bi-house"></i> Back to Home
+                                </a>
+                                <a href="{{ url_for('vehicle_listing_logged') }}" class="btn-secondary-custom">
+                                    <i class="bi bi-car-front"></i> Browse More Vehicles
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="site-footer" style="background-color: #3D405B; color: white; padding: 40px 0;">
+            <div class="container">
+                <div class="row">
+                    <div class="col-lg-6 col-12 text-center text-lg-start mb-3">
+                        <span class="navbar-brand-text">
+                            67
+                            <small>Rentals</small>
+                        </span>
+                    </div>
+                    <div class="col-lg-6 col-12 text-center text-lg-end">
+                        <p class="mb-0">Copyright © 2048 67 Rentals</p>
+                    </div>
+                </div>
+            </div>
+        </footer>
+
+        <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+    </body>
+</html>

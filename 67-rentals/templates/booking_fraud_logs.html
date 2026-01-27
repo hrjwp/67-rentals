@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Fraud Detection Logs - 67 Rentals</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --white-color: #ffffff;
+            --primary-color: #81B29A;
+            --secondary-color: #3D405B;
+            --section-bg-color: #F4F1DE;
+            --custom-btn-bg-color: #F2CC8F;
+            --custom-btn-bg-hover-color: #E07A5F;
+            --p-color: #717275;
+            --body-font-family: 'DM Sans', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            /* Security: Prevent text selection */
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        body {
+            font-family: var(--body-font-family);
+            background: var(--section-bg-color);
+            min-height: 100vh;
+        }
+
+        /* --- Security Overlays Start --- */
+        .security-banner {
+            background: #ff6b6b;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            font-weight: 600;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            font-size: 14px;
+        }
+
+        .session-timer {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 9999;
+            font-weight: 600;
+            color: var(--secondary-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        .timer-warning {
+            background: #ff6b6b !important;
+            color: white !important;
+            animation: pulse 1s infinite;
+            border-color: #ff6b6b;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .watermark-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9997;
+            overflow: hidden;
+        }
+
+        .watermark-text {
+            position: absolute;
+            font-size: 80px;
+            font-weight: bold;
+            color: rgba(61, 64, 91, 0.05);
+            white-space: nowrap;
+            transform: rotate(-20deg);
+        }
+
+        .watermark-text:nth-child(1) { top: 10%; left: 5%; }
+        .watermark-text:nth-child(2) { top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-20deg); }
+        .watermark-text:nth-child(3) { bottom: 10%; right: 5%; }
+
+        .blocked-action {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #ff6b6b;
+            color: white;
+            padding: 30px 50px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+            z-index: 10001;
+            text-align: center;
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translate(-50%, -60%); opacity: 0; }
+            to { transform: translate(-50%, -50%); opacity: 1; }
+        }
+
+        .session-expired {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(61, 64, 91, 0.95);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10002;
+        }
+
+        .expired-content {
+            background: white;
+            padding: 50px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .expired-content h1 { color: #ff6b6b; margin-bottom: 20px; }
+        .expired-content .btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-weight: 600;
+        }
+
+        .activity-log {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            max-width: 300px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            z-index: 9998;
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        .activity-log h4 { margin-bottom: 10px; color: var(--secondary-color); font-weight: 700; }
+        .activity-item { padding: 5px 0; border-bottom: 1px solid #e0e0e0; color: #666; }
+        /* --- Security Overlays End --- */
+
+        .navbar {
+            background: var(--secondary-color);
+            z-index: 99;
+            padding-top: 15px;
+            padding-bottom: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-top: 40px; /* Push down to fit security banner */
+        }
+
+        .navbar-brand-text {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--white-color);
+        }
+
+        .navbar-brand-text small {
+            font-size: 14px;
+            font-weight: 400;
+            display: block;
+            line-height: 1;
+        }
+
+        .nav-link {
+            color: var(--white-color) !important;
+            font-weight: 500;
+            padding: 8px 16px !important;
+            transition: color 0.3s ease;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            color: var(--custom-btn-bg-color) !important;
+        }
+
+        .custom-btn {
+            background: var(--custom-btn-bg-color);
+            color: var(--secondary-color);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .custom-btn:hover {
+            background: var(--custom-btn-bg-hover-color);
+            color: var(--white-color);
+        }
+
+        .page-header {
+            background: var(--white-color);
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-top: 30px;
+        }
+
+        .page-header h1 {
+            color: var(--secondary-color);
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .page-header p {
+            color: var(--p-color);
+            margin: 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--white-color);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card h3 {
+            color: var(--p-color);
+            font-size: 14px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .stat-card .number {
+            font-size: 36px;
+            font-weight: bold;
+            color: var(--custom-btn-bg-color);
+        }
+
+        .filters-section {
+            background: var(--white-color);
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .filters-section h3 {
+            margin-bottom: 20px;
+            color: var(--secondary-color);
+            font-weight: 600;
+        }
+
+        .filter-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            font-family: var(--body-font-family);
+        }
+
+        .filter-group select:focus,
+        .filter-group input:focus {
+            outline: none;
+            border-color: var(--custom-btn-bg-color);
+        }
+
+        .logs-section {
+            background: var(--white-color);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .logs-section h2 {
+            color: var(--secondary-color);
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .log-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+            background: var(--section-bg-color);
+        }
+
+        .log-card:hover {
+            border-color: var(--custom-btn-bg-color);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .log-id {
+            font-weight: bold;
+            color: var(--custom-btn-bg-color);
+            font-size: 16px;
+        }
+
+        .log-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .meta-label {
+            font-size: 12px;
+            color: var(--p-color);
+            text-transform: uppercase;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .meta-value {
+            font-weight: 600;
+            color: var(--secondary-color);
+        }
+
+        .details-section {
+            background: var(--white-color);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid var(--custom-btn-bg-color);
+        }
+
+        .details-section h4 {
+            color: var(--secondary-color);
+            margin-bottom: 10px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+            color: var(--secondary-color);
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .indicator-tag {
+            display: inline-block;
+            background: var(--primary-color);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            margin: 5px 5px 5px 0;
+            font-weight: 500;
+        }
+
+        .risk-score {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .risk-low {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .risk-medium {
+            background: var(--custom-btn-bg-color);
+            color: var(--secondary-color);
+        }
+
+        .risk-high {
+            background: var(--custom-btn-bg-hover-color);
+            color: white;
+        }
+
+        .risk-critical {
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        .severity-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .severity-medium {
+            background: var(--custom-btn-bg-color);
+            color: var(--secondary-color);
+        }
+
+        .severity-high {
+            background: var(--custom-btn-bg-hover-color);
+            color: white;
+        }
+
+        .severity-critical {
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--p-color);
+        }
+
+        .footer {
+            background: var(--secondary-color);
+            color: var(--white-color);
+            padding: 40px 0;
+            margin-top: 60px;
+        }
+
+        .footer p {
+            margin: 0;
+            color: var(--section-bg-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="security-banner">
+        🔒 SECURE DATABASE ACCESS - Data Copying Disabled - Session: <span id="sessionId"></span>
+    </div>
+
+    <div class="session-timer" id="sessionTimer">
+        ⏱️ Session: <span id="timeLeft">15:00</span>
+    </div>
+
+    <div class="watermark-overlay">
+        <div class="watermark-text">CONFIDENTIAL</div>
+        <div class="watermark-text">CONFIDENTIAL</div>
+        <div class="watermark-text">CONFIDENTIAL</div>
+    </div>
+
+    <div class="blocked-action" id="blockedAlert">
+        <h2>🚫 Action Blocked</h2>
+        <p id="blockedMessage">This action has been blocked for security reasons.</p>
+    </div>
+
+    <div class="session-expired" id="sessionExpired">
+        <div class="expired-content">
+            <h1>⏰ Session Expired</h1>
+            <p>Your session has timed out for security reasons.</p>
+            <p style="margin-top: 15px; color: #666;">All attempted actions have been logged.</p>
+            <button class="btn" onclick="location.reload()">Login Again</button>
+        </div>
+    </div>
+
+    <div class="activity-log" id="activityLog">
+        <h4>🔍 Security Activity</h4>
+        <div id="logEntries"></div>
+    </div>
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                <span class="navbar-brand-text">
+                    67
+                    <small>Rentals</small>
+                </span>
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-lg-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/security-logs">Security Logs</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/vehicle-fraud-logs">Vehicle Fraud</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/booking-fraud-logs">Booking Fraud</a>
+                    </li>
+                </ul>
+                <div class="d-none d-lg-block ms-lg-3">
+                    <a class="btn custom-btn d-flex align-items-center gap-2" href="#" role="button">
+                        <i class="bi bi-person"></i>
+                        Admin
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <div class="container">
+            <div class="page-header">
+                <h1><i class="bi bi-calendar-check me-2"></i>Booking Fraud Detection Logs</h1>
+                <p>Monitor rapid bookings, card declines, and ML risk scores</p>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Total Events</h3>
+                    <div class="number" id="totalEvents">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Last 24 Hours</h3>
+                    <div class="number" id="last24h">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>High Risk (≥0.8)</h3>
+                    <div class="number" id="highRiskCount" style="color: #E07A5F;">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Avg Risk Score</h3>
+                    <div class="number" id="avgRiskScore" style="color: #F2CC8F;">-</div>
+                </div>
+            </div>
+
+            <div class="filters-section">
+                <h3><i class="bi bi-funnel me-2"></i>Filters</h3>
+                <div class="filter-group">
+                    <select id="severityFilter" class="form-select">
+                        <option value="">All Severities</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Critical">Critical</option>
+                    </select>
+
+                    <select id="eventTypeFilter" class="form-select">
+                        <option value="">All Event Types</option>
+                        <option value="Rapid Bookings">Rapid Bookings</option>
+                        <option value="Repeated Card Decline">Repeated Card Decline</option>
+                        <option value="High ML Risk Score">High ML Risk Score</option>
+                    </select>
+
+                    <input type="text" id="userIdFilter" class="form-control" placeholder="Filter by User ID">
+
+                    <select id="riskFilter" class="form-select">
+                        <option value="">All Risk Levels</option>
+                        <option value="0.5">Risk ≥ 0.5</option>
+                        <option value="0.7">Risk ≥ 0.7</option>
+                        <option value="0.8">Risk ≥ 0.8</option>
+                        <option value="0.9">Risk ≥ 0.9</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="logs-section">
+                <h2><i class="bi bi-list-ul me-2"></i>Booking Fraud Logs</h2>
+                <div id="logsContainer" class="loading">Loading logs...</div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-6 col-12 text-center text-lg-start mb-3">
+                    <span class="navbar-brand-text">
+                        67
+                        <small>Rentals</small>
+                    </span>
+                </div>
+                <div class="col-lg-6 col-12 text-center text-lg-end">
+                    <p>Copyright © 2048 67 Rentals</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // --- Security Scripts Start ---
+        const SESSION_DURATION = 900; // 15 minutes
+        let sessionTimeRemaining = SESSION_DURATION;
+        let sessionInterval;
+        let activityLogs = [];
+        let screenshotAttempts = 0;
+        const _lastReportedAt = {};
+
+        // Generate unique session ID
+        const sessionId = 'SID-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+        document.getElementById('sessionId').textContent = sessionId;
+
+        async function reportSecurityEvent(eventType, severity, description, actionTaken) {
+            const key = `${eventType}:${severity}`;
+            const now = Date.now();
+            if (_lastReportedAt[key] && now - _lastReportedAt[key] < 3000) return;
+            _lastReportedAt[key] = now;
+
+            try {
+                await fetch('/api/log-security-event', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    keepalive: true,
+                    body: JSON.stringify({
+                        event_type: eventType,
+                        severity,
+                        description,
+                        action_taken: actionTaken
+                    })
+                });
+            } catch (e) {}
+        }
+
+        function logActivity(action, severity = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            activityLogs.unshift({action, timestamp, severity});
+
+            if (activityLogs.length > 10) activityLogs.pop();
+
+            const logContainer = document.getElementById('logEntries');
+            logContainer.innerHTML = activityLogs.map(log =>
+                `<div class="activity-item" style="color: ${log.severity === 'warning' ? '#E07A5F' : '#666'}">
+                    ${log.timestamp} - ${log.action}
+                </div>`
+            ).join('');
+        }
+
+        function showBlockedAlert(message) {
+            const alert = document.getElementById('blockedAlert');
+            document.getElementById('blockedMessage').textContent = message;
+            alert.style.display = 'block';
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 2000);
+        }
+
+        function startSessionTimer() {
+            sessionInterval = setInterval(() => {
+                sessionTimeRemaining--;
+
+                const minutes = Math.floor(sessionTimeRemaining / 60);
+                const seconds = sessionTimeRemaining % 60;
+                const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+                document.getElementById('timeLeft').textContent = timeDisplay;
+
+                const timerEl = document.getElementById('sessionTimer');
+                if (sessionTimeRemaining <= 60) {
+                    timerEl.classList.add('timer-warning');
+                }
+
+                if (sessionTimeRemaining <= 0) {
+                    clearInterval(sessionInterval);
+                    document.getElementById('sessionExpired').style.display = 'flex';
+                    logActivity('Session expired - Auto logout', 'warning');
+                    reportSecurityEvent(
+                        'Session Timeout',
+                        'Medium',
+                        `Client session timer expired (SID=${sessionId})`,
+                        'Displayed session expired overlay'
+                    );
+                }
+            }, 1000);
+        }
+
+        function resetSessionTimer() {
+            sessionTimeRemaining = SESSION_DURATION;
+            document.getElementById('sessionTimer').classList.remove('timer-warning');
+        }
+
+        // Security event handlers
+        document.addEventListener('copy', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Copying data is not allowed for security reasons.');
+            logActivity('Copy attempt blocked', 'warning');
+            reportSecurityEvent('Copy/Paste Attempt', 'Medium', `Copy blocked (SID=${sessionId})`, 'Blocked copy');
+        });
+
+        document.addEventListener('cut', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Cutting data is not allowed for security reasons.');
+            logActivity('Cut attempt blocked', 'warning');
+            reportSecurityEvent('Copy/Paste Attempt', 'Medium', `Cut blocked (SID=${sessionId})`, 'Blocked cut');
+        });
+
+        document.addEventListener('paste', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Pasting is not allowed in this secure area.');
+            logActivity('Paste attempt blocked', 'warning');
+            reportSecurityEvent('Copy/Paste Attempt', 'Medium', `Paste blocked (SID=${sessionId})`, 'Blocked paste');
+        });
+
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Right-click menu is disabled in secure areas.');
+            logActivity('Context menu blocked', 'warning');
+        });
+
+        function handlePrintScreen(e) {
+            const isPrintScreen =
+                e.key === 'PrintScreen' ||
+                e.key === 'Print Screen' ||
+                e.keyCode === 44 ||
+                e.which === 44;
+
+            if (!isPrintScreen) return false;
+
+            screenshotAttempts++;
+            showBlockedAlert(`Screenshot attempt detected. Session: ${sessionId}`);
+            logActivity(`Screenshot attempt #${screenshotAttempts}`, 'warning');
+            reportSecurityEvent(
+                'Screenshot Prevented',
+                'High',
+                `PrintScreen detected (attempt #${screenshotAttempts}) (SID=${sessionId})`,
+                e.metaKey ? 'Detected Win+PrintScreen' : 'Detected PrintScreen'
+            );
+
+            // Best-effort clipboard clear (may be unavailable on HTTP)
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText('').catch(() => {});
+                }
+            } catch (err) {}
+
+            document.body.style.filter = 'invert(1)';
+            setTimeout(() => { document.body.style.filter = 'none'; }, 100);
+            return true;
+        }
+
+        document.addEventListener('keydown', (e) => {
+            // Block F12 (DevTools)
+            if (e.keyCode === 123) {
+                e.preventDefault();
+                showBlockedAlert('Developer tools are disabled.');
+                logActivity('DevTools access blocked', 'warning');
+                reportSecurityEvent('Security Alert', 'High', `DevTools blocked (F12) (SID=${sessionId})`, 'Blocked DevTools');
+                return false;
+            }
+
+            // Block Ctrl+Shift+I/J/C
+            if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) {
+                e.preventDefault();
+                showBlockedAlert('Developer tools are disabled.');
+                logActivity('DevTools shortcut blocked', 'warning');
+                return false;
+            }
+
+            // Block Ctrl+U (View Source)
+            if (e.ctrlKey && e.key === 'u') {
+                e.preventDefault();
+                showBlockedAlert('Viewing source code is disabled.');
+                logActivity('View source blocked', 'warning');
+                return false;
+            }
+
+            // Block Ctrl+S (Save Page)
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                showBlockedAlert('Saving pages is disabled.');
+                logActivity('Save page blocked', 'warning');
+                reportSecurityEvent('Export Blocked', 'High', `Save page blocked (SID=${sessionId})`, 'Blocked Ctrl+S');
+                return false;
+            }
+
+            // Block Ctrl+P (Print)
+            if (e.ctrlKey && e.key === 'p') {
+                e.preventDefault();
+                showBlockedAlert('Printing is disabled for security reasons.');
+                logActivity('Print attempt blocked', 'warning');
+                reportSecurityEvent('Export Blocked', 'High', `Print blocked (SID=${sessionId})`, 'Blocked Ctrl+P');
+                return false;
+            }
+
+            // Print Screen Detection
+            if (handlePrintScreen(e)) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+
+            // Any key press resets timer
+            resetSessionTimer();
+        });
+
+        // Also listen on keyup in CAPTURE phase (some browsers only expose PrintScreen here)
+        window.addEventListener('keyup', (e) => {
+            if (handlePrintScreen(e)) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, true);
+
+        // Detect Snipping Tool (Windows Key + Shift + S) and other combinations
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 's' && e.shiftKey && e.metaKey) {
+                screenshotAttempts++;
+                showBlockedAlert(`Snipping tool detected! Attempt #${screenshotAttempts} logged.`);
+                logActivity(`Snipping tool attempt #${screenshotAttempts}`, 'warning');
+                reportSecurityEvent(
+                    'Screenshot Prevented',
+                    'High',
+                    `Snipping tool shortcut suspected (attempt #${screenshotAttempts}) (SID=${sessionId})`,
+                    'Detected Win+Shift+S'
+                );
+            }
+        });
+
+        // Detect visibility change (often triggered by screen capture tools overlaying the window)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // Don't log to DB on tab switches; this causes false positives.
+                // Keep only a visual deterrent.
+                document.body.style.filter = 'blur(10px)';
+            } else {
+                document.body.style.filter = 'none';
+            }
+        });
+
+        // Detect focus loss (often happens when clicking "New" on Snipping Tool)
+        window.addEventListener('blur', () => {
+            logActivity('Window lost focus - possible screenshot tool active', 'warning');
+        });
+
+        window.addEventListener('beforeprint', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Printing is disabled for security reasons.');
+            logActivity('Print blocked', 'warning');
+            return false;
+        });
+
+        // Monitor for Screen Recording API usage
+        setInterval(() => {
+            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                const now = Date.now();
+                if (!window.lastCaptureWarning || now - window.lastCaptureWarning > 60000) {
+                    window.lastCaptureWarning = now;
+                    logActivity('Screen capture API detected - monitoring', 'warning');
+                }
+            }
+        }, 30000);
+
+        // Mouse interaction resets timer
+        document.addEventListener('mousemove', resetSessionTimer);
+        document.addEventListener('click', resetSessionTimer);
+        document.addEventListener('scroll', resetSessionTimer);
+
+        window.addEventListener('beforeunload', (e) => {
+            logActivity(`Session ended - ${screenshotAttempts} screenshot attempts detected`, 'info');
+        });
+        // --- Security Scripts End ---
+
+        async function loadStats() {
+            const response = await fetch('/api/booking-fraud-stats');
+            const stats = await response.json();
+
+            document.getElementById('totalEvents').textContent = stats.total;
+            document.getElementById('last24h').textContent = stats.last_24h;
+            document.getElementById('highRiskCount').textContent = stats.high_risk;
+            document.getElementById('avgRiskScore').textContent = stats.avg_risk_score.toFixed(2);
+        }
+
+        async function loadLogs() {
+            const severity = document.getElementById('severityFilter').value;
+            const eventType = document.getElementById('eventTypeFilter').value;
+            const userId = document.getElementById('userIdFilter').value;
+            const minRisk = document.getElementById('riskFilter').value;
+
+            let url = '/api/booking-fraud-logs?';
+            if (severity) url += `severity=${severity}&`;
+            if (eventType) url += `event_type=${eventType}&`;
+            if (userId) url += `user_id=${userId}&`;
+            if (minRisk) url += `min_risk=${minRisk}&`;
+
+            const response = await fetch(url);
+            const logs = await response.json();
+
+            displayLogs(logs);
+            // NOTE: Do NOT reset session timer here to avoid infinite session loops
+        }
+
+        function displayLogs(logs) {
+            const container = document.getElementById('logsContainer');
+
+            if (logs.length === 0) {
+                container.innerHTML = '<p class="loading">No logs found</p>';
+                return;
+            }
+
+            const getLogId = (log) => {
+                return (
+                    log?.id ??
+                    log?.log_id ??
+                    log?.booking_fraud_log_id ??
+                    log?.event_id ??
+                    '-'
+                );
+            };
+
+            let html = '';
+
+            logs.forEach(log => {
+                const riskClass = log.risk_score >= 0.9 ? 'critical' :
+                                 log.risk_score >= 0.8 ? 'high' :
+                                 log.risk_score >= 0.6 ? 'medium' : 'low';
+                const logId = getLogId(log);
+
+                html += `
+                    <div class="log-card">
+                        <div class="log-header">
+                            <span class="log-id">${logId}</span>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <span class="risk-score risk-${riskClass}">Risk: ${log.risk_score}</span>
+                                <span class="severity-badge severity-${log.severity.toLowerCase()}">${log.severity}</span>
+                            </div>
+                        </div>
+
+                        <div class="log-meta">
+                            <div class="meta-item">
+                                <span class="meta-label">Timestamp</span>
+                                <span class="meta-value">${log.timestamp}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">User ID</span>
+                                <span class="meta-value">${log.user_id}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Booking ID</span>
+                                <span class="meta-value">${log.booking_id}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Vehicle ID</span>
+                                <span class="meta-value">${log.vehicle_id}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Event Type</span>
+                                <span class="meta-value">${log.event_type}</span>
+                            </div>
+                        </div>
+
+                        <p style="color: #717275; margin-bottom: 10px;">${log.description}</p>
+
+                        ${log.booking_data ? `
+                            <div class="details-section">
+                                <h4>📊 Booking Pattern Details</h4>
+                                <div class="detail-row">
+                                    <span>Bookings (Last Hour):</span>
+                                    <strong>${log.booking_data.count_last_hour}</strong>
+                                </div>
+                                <div class="detail-row">
+                                    <span>Bookings (Last Day):</span>
+                                    <strong>${log.booking_data.count_last_day}</strong>
+                                </div>
+                                <div class="detail-row">
+                                    <span>Avg Interval:</span>
+                                    <strong>${log.booking_data.avg_interval_minutes} minutes</strong>
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        ${log.payment_data ? `
+                            <div class="details-section">
+                                <h4>💳 Payment Details</h4>
+                                <div class="detail-row">
+                                    <span>Card Declines:</span>
+                                    <strong style="color: #E07A5F;">${log.payment_data.decline_count}</strong>
+                                </div>
+                                <div class="detail-row">
+                                    <span>Cards Attempted:</span>
+                                    <strong>${log.payment_data.cards_attempted}</strong>
+                                </div>
+                                <div class="detail-row">
+                                    <span>Last Decline Reason:</span>
+                                    <strong>${log.payment_data.last_decline_reason}</strong>
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        ${log.ml_indicators ? `
+                            <div class="details-section">
+                                <h4>🤖 ML Risk Indicators</h4>
+                                <div>
+                                    ${log.ml_indicators.map(indicator =>
+                                        `<span class="indicator-tag">${indicator}</span>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #e0e0e0;">
+                            <strong>Action Taken:</strong> ${log.action_taken}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        document.getElementById('severityFilter').addEventListener('change', loadLogs);
+        document.getElementById('eventTypeFilter').addEventListener('change', loadLogs);
+        document.getElementById('userIdFilter').addEventListener('input', loadLogs);
+        document.getElementById('riskFilter').addEventListener('change', loadLogs);
+
+        // Init
+        loadStats();
+        loadLogs();
+        startSessionTimer();
+        logActivity(`Secure session started - ${sessionId}`, 'info');
+
+        setInterval(() => {
+            loadStats();
+            loadLogs();
+        }, 30000);
+    </script>
+</body>
+</html>

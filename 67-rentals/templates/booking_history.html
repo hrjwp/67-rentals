@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Booking History - 67 Rentals</title>
+
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/bootstrap-icons.css') }}" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/templatemo-tiya-golf-club.css') }}" rel="stylesheet">
+
+        <style>
+            :root {
+              --white-color:                  #ffffff;
+              --primary-color:                #81B29A;
+              --secondary-color:              #3D405B;
+              --section-bg-color:             #F4F1DE;
+              --custom-btn-bg-color:          #F2CC8F;
+              --custom-btn-bg-hover-color:    #E07A5F;
+              --dark-color:                   #000000;
+              --p-color:                      #717275;
+              --link-hover-color:             #F2CC8F;
+
+              --body-font-family:             'DM Sans', sans-serif;
+            }
+
+            body {
+              background-color: var(--white-color);
+              font-family: var(--body-font-family);
+            }
+
+            .navbar {
+                background: #3D405B;
+                z-index: 99;
+                padding-top: 15px;
+                padding-bottom: 15px;
+            }
+
+            .navbar-brand-text {
+                color: var(--white-color);
+                font-size: 28px;
+                font-weight: 700;
+                margin-left: 10px;
+            }
+
+            .navbar-brand-text small {
+                display: block;
+                font-size: 14px;
+                font-weight: 400;
+            }
+
+            .nav-link {
+                color: var(--white-color) !important;
+                font-weight: 500;
+            }
+
+            .nav-link:hover {
+                color: #F2CC8F!important;
+            }
+
+            .booking-section {
+                padding: 150px 0 100px;
+                min-height: 70vh;
+            }
+
+            .booking-header h2 {
+                color: var(--secondary-color);
+                font-weight: 700;
+                margin-bottom: 40px;
+            }
+
+            .booking-card {
+                background: var(--white-color);
+                border: 1px solid #DBDBDB;
+                border-radius: 15px;
+                padding: 30px;
+                margin-bottom: 25px;
+                transition: box-shadow 0.3s ease;
+            }
+
+            .booking-card:hover {
+                box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            }
+
+            .booking-card-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                margin-bottom: 20px;
+                padding-bottom: 20px;
+                border-bottom: 2px solid #F4F1DE;
+            }
+
+            .booking-id {
+                font-size: 18px;
+                font-weight: 700;
+                color: var(--secondary-color);
+            }
+
+            .booking-status {
+                padding: 8px 20px;
+                border-radius: 20px;
+                font-size: 14px;
+                font-weight: 600;
+            }
+
+            .status-confirmed {
+                background-color: #81B29A;
+                color: white;
+            }
+
+            .status-pending {
+                background-color: #F2CC8F;
+                color: var(--secondary-color);
+            }
+
+            .status-cancelled {
+                background-color: #E07A5F;
+                color: white;
+            }
+
+            .status-completed {
+                background-color: #3D405B;
+                color: white;
+            }
+
+            .booking-details {
+                display: grid;
+                grid-template-columns: 1fr 2fr;
+                gap: 30px;
+                margin-bottom: 20px;
+            }
+
+            .vehicle-image {
+                width: 100%;
+                height: 200px;
+                object-fit: cover;
+                border-radius: 10px;
+            }
+
+            .booking-info {
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .info-row {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .info-row i {
+                color: var(--primary-color);
+                font-size: 20px;
+                width: 25px;
+            }
+
+            .info-row strong {
+                color: var(--secondary-color);
+                min-width: 120px;
+            }
+
+            .info-row span {
+                color: var(--p-color);
+            }
+
+            .booking-amount {
+                background-color: #F4F1DE;
+                padding: 20px;
+                border-radius: 10px;
+                text-align: center;
+            }
+
+            .booking-amount h4 {
+                color: var(--secondary-color);
+                font-weight: 700;
+                margin: 0;
+            }
+
+            .empty-state {
+                text-align: center;
+                padding: 80px 20px;
+            }
+
+            .empty-state i {
+                font-size: 80px;
+                color: #DBDBDB;
+                margin-bottom: 20px;
+            }
+
+            .empty-state h3 {
+                color: var(--secondary-color);
+                font-weight: 700;
+                margin-bottom: 15px;
+            }
+
+            .empty-state p {
+                color: var(--p-color);
+                margin-bottom: 30px;
+            }
+
+            .btn-primary-custom {
+                background-color: var(--custom-btn-bg-color);
+                color: var(--secondary-color);
+                border: none;
+                padding: 12px 30px;
+                border-radius: 5px;
+                font-weight: 700;
+                text-decoration: none;
+                display: inline-block;
+                transition: all 0.3s ease;
+            }
+
+            .btn-primary-custom:hover {
+                background-color: var(--custom-btn-bg-hover-color);
+                color: white;
+            }
+
+            @media (max-width: 768px) {
+                .booking-details {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+
+    <body>
+        <!-- Navbar -->
+        <nav class="navbar navbar-expand-lg">
+            <div class="container">
+                <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index_logged') }}">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="67 Rentals" style="width: 50px;">
+                    <span class="navbar-brand-text">
+                        67
+                        <small>Rentals</small>
+                    </span>
+                </a>
+
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-lg-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('index_logged') }}">Home</a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link click-scroll" href="{{ url_for('index_logged') }} ">About</a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('vehicle_listing_logged') }}">Vehicles</a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('report') }}">Report</a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('booking_history') }}">
+                                My Bookings
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link click-scroll" href="#section_4">Contact Us</a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('cart_logged') }}">
+                                <i class="bi bi-cart3"></i> Cart
+                                {% if cart_count > 0 %}
+                                <span class="badge bg-danger">{{ cart_count }}</span>
+                                {% endif %}
+                            </a>
+                        </li>
+
+                    </ul>
+
+                        <div class="d-none d-lg-block ms-lg-3">
+                            <div class="d-flex align-items-center gap-2">
+                                {% set username = user_email.split('@')[0] if user_email else None %}
+                                <div class="btn custom-btn custom-border-btn d-flex align-items-center gap-2">
+                                    <i class="bi bi-person"></i>
+                                    {% if username %}
+                                        {{ username }}
+                                    {% elif user_email %}
+                                        {{ user_email }}
+                                    {% else %}
+                                        Logged In
+                                    {% endif %}
+                                </div>
+                                <a class="btn custom-btn custom-border-btn d-flex align-items-center gap-2" href="{{ url_for('logout') }}">
+                                    <i class="bi bi-box-arrow-right"></i>
+                                    Logout
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+        </nav>
+
+        <!-- Booking History Section -->
+        <section class="booking-section">
+            <div class="container">
+                <div class="booking-header">
+                    <h2><i class="bi bi-clock-history"></i> My Booking History</h2>
+                </div>
+
+                {% if bookings and bookings|length > 0 %}
+                    {% for booking in bookings %}
+                    <div class="booking-card">
+                        <div class="booking-card-header">
+                            <div>
+                                <div class="booking-id">Booking ID: {{ booking.booking_id or 'N/A' }}</div>
+                                <small class="text-muted">Created: {{ booking.pickup_date or 'N/A' }}</small>
+                            </div>
+                            <span class="booking-status status-{{ booking.status|lower if booking.status else 'pending' }}">
+                                {{ booking.status or 'Pending' }}
+                            </span>
+                        </div>
+
+                        <div class="booking-details">
+                            <div>
+                                {% if booking.vehicle_image %}
+                                <img src="{{ url_for('static', filename=booking.vehicle_image) }}" alt="{{ booking.vehicle_name }}" class="vehicle-image">
+                                {% else %}
+                                <div class="vehicle-image" style="background-color: #F4F1DE; display: flex; align-items: center; justify-content: center;">
+                                    <i class="bi bi-car-front" style="font-size: 60px; color: #DBDBDB;"></i>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="booking-info">
+                                <div class="info-row">
+                                    <i class="bi bi-car-front"></i>
+                                    <strong>Vehicle:</strong>
+                                    <span>{{ booking.vehicle_name or 'N/A' }}</span>
+                                </div>
+
+                                {% if booking.vehicle_type %}
+                                <div class="info-row">
+                                    <i class="bi bi-fuel-pump"></i>
+                                    <strong>Type:</strong>
+                                    <span>{{ booking.vehicle_type }}</span>
+                                </div>
+                                {% endif %}
+
+                                <div class="info-row">
+                                    <i class="bi bi-calendar-event"></i>
+                                    <strong>Pickup Date:</strong>
+                                    <span>{{ booking.pickup_date or 'N/A' }}</span>
+                                </div>
+
+                                <div class="info-row">
+                                    <i class="bi bi-calendar-check"></i>
+                                    <strong>Return Date:</strong>
+                                    <span>{{ booking.return_date or 'N/A' }}</span>
+                                </div>
+
+                                <div class="info-row">
+                                    <i class="bi bi-clock"></i>
+                                    <strong>Duration:</strong>
+                                    <span>{{ booking.days or 0 }} day(s)</span>
+                                </div>
+
+                                <div class="info-row">
+                                    <i class="bi bi-geo-alt"></i>
+                                    <strong>Pickup Location:</strong>
+                                    <span>{{ booking.pickup_location or 'N/A' }}</span>
+                                </div>
+
+                                {% if booking.payment_intent_id %}
+                                <div class="info-row">
+                                    <i class="bi bi-receipt"></i>
+                                    <strong>Payment ID:</strong>
+                                    <span>{{ booking.payment_intent_id }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="booking-amount">
+                            <h4>Total Amount: ${{ "%.2f"|format(booking.total_amount or 0) }}</h4>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <i class="bi bi-inbox"></i>
+                        <h3>No Bookings Yet</h3>
+                        <p>You haven't made any bookings yet. Start exploring our vehicles!</p>
+                        <a href="{{ url_for('vehicle_listing_logged') }}" class="btn-primary-custom">
+                            <i class="bi bi-car-front"></i> Browse Vehicles
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="site-footer" style="background-color: #3D405B; color: white; padding: 40px 0; margin-top: 100px;">
+            <div class="container">
+                <div class="row">
+                    <div class="col-lg-6 col-12 text-center text-lg-start mb-3">
+                        <span class="navbar-brand-text">
+                            67
+                            <small>Rentals</small>
+                        </span>
+                    </div>
+                    <div class="col-lg-6 col-12 text-center text-lg-end">
+                        <p class="mb-0">Copyright © 2048 67 Rentals</p>
+                    </div>
+                </div>
+            </div>
+        </footer>
+
+        <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+    </body>
+</html>
+

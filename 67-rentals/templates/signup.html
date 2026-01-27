@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <title>67 Rentals - Sign Up</title>
+
+    <!-- CSS FILES -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap"
+        rel="stylesheet">
+
+    <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+
+    <link href="{{ url_for('static', filename='css/bootstrap-icons.css') }}" rel="stylesheet">
+
+    <link href="{{ url_for('static', filename='css/templatemo-tiya-golf-club.css') }}" rel="stylesheet">
+
+
+    <style>
+        :root {
+            --white-color: #ffffff;
+            --primary-color: #81B29A;
+            --secondary-color: #3D405B;
+            --section-bg-color: #F4F1DE;
+            --custom-btn-bg-color: #F2CC8F;
+            --custom-btn-bg-hover-color: #E07A5F;
+            --dark-color: #000000;
+            --p-color: #717275;
+            --link-hover-color: #F2CC8F;
+
+            --body-font-family: 'DM Sans', sans-serif;
+
+            --h1-font-size: 42px;
+            --h2-font-size: 36px;
+            --h3-font-size: 28px;
+            --h4-font-size: 24px;
+            --h5-font-size: 22px;
+            --h6-font-size: 20px;
+            --p-font-size: 18px;
+            --menu-font-size: 16px;
+            --btn-font-size: 14px;
+
+            --border-radius-large: 100px;
+            --border-radius-medium: 20px;
+            --border-radius-small: 10px;
+
+            --font-weight-normal: 400;
+            --font-weight-medium: 500;
+            --font-weight-bold: 700;
+        }
+
+        body {
+            background-color: var(--white-color);
+            font-family: var(--body-font-family);
+        }
+
+        .navbar {
+            background: #3D405B;
+            z-index: 99;
+            padding-top: 15px;
+            padding-bottom: 15px;
+        }
+
+        .navbar-brand-text {
+            color: var(--white-color);
+            font-size: 28px;
+            font-weight: 700;
+            margin-left: 10px;
+        }
+
+        .navbar-brand-text small {
+            display: block;
+            font-size: 14px;
+            font-weight: 400;
+        }
+
+        .nav-link {
+            color: var(--white-color) !important;
+            font-weight: 500;
+            padding: 10px 20px !important;
+        }
+
+        .nav-link:hover {
+            color: #F2CC8F !important;
+        }
+
+
+        /* Sign Up Form Styles */
+        .signup-container {
+            min-height: calc(100vh - 100px);
+            display: flex;
+            align-items: center;
+            padding: 50px 0;
+            background-color: var(--section-bg-color);
+        }
+
+        .signup-card {
+            background: var(--white-color);
+            border-radius: var(--border-radius-medium);
+            padding: 50px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .signup-card h2 {
+            color: var(--secondary-color);
+            font-weight: var(--font-weight-bold);
+            margin-bottom: 10px;
+        }
+
+        .signup-card p {
+            color: var(--p-color);
+            margin-bottom: 30px;
+        }
+
+        .signup-card .form-control {
+            border-radius: var(--border-radius-large);
+            border: 2px solid #e0e0e0;
+            padding: 12px 20px;
+            font-size: var(--p-font-size);
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+
+        .signup-card .form-control[type="file"] {
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+
+        .text-muted {
+            font-size: 14px;
+            color: var(--p-color);
+            display: block;
+            margin-top: 5px;
+        }
+
+        .signup-card .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(129, 178, 154, 0.25);
+        }
+
+        .signup-card .form-label {
+            color: var(--secondary-color);
+            font-weight: var(--font-weight-medium);
+            margin-bottom: 8px;
+        }
+
+        .btn-signup {
+            background: var(--custom-btn-bg-color);
+            border: none;
+            border-radius: var(--border-radius-large);
+            color: var(--white-color);
+            font-weight: var(--font-weight-bold);
+            padding: 15px;
+            width: 100%;
+            font-size: var(--p-font-size);
+            transition: all 0.3s;
+        }
+
+        .btn-signup:hover {
+            background: var(--custom-btn-bg-hover-color);
+            color: var(--white-color);
+        }
+
+        .form-check-input:checked {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .signin-link {
+            text-align: center;
+            margin-top: 20px;
+            color: var(--p-color);
+        }
+
+        .signin-link a {
+            color: var(--primary-color);
+            font-weight: var(--font-weight-medium);
+            text-decoration: none;
+        }
+
+        .signin-link a:hover {
+            color: var(--custom-btn-bg-hover-color);
+        }
+
+        @media screen and (max-width: 768px) {
+            .signup-card {
+                padding: 30px 20px;
+            }
+
+            .navbar-brand-text {
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid"
+                    alt="67 Rentals" style="width: 50px;">
+                <span class="navbar-brand-text">
+                    67
+                    <small>Rentals</small>
+                </span>
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-lg-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}#section_1">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}#section_4">Contact</a>
+                    </li>
+                </ul>
+                <div class="d-none d-lg-block ms-lg-3">
+                    <a class="btn custom-btn custom-border-btn" data-bs-toggle="offcanvas" href="#offcanvasExample"
+                        role="button" aria-controls="offcanvasExample">Member Login</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="offcanvas offcanvas-end" data-bs-scroll="true" tabindex="-1" id="offcanvasExample"
+        aria-labelledby="offcanvasExampleLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="offcanvasExampleLabel">Member Login</h5>
+
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+
+        <div class="offcanvas-body d-flex flex-column">
+            <form class="custom-form member-login-form" action="{{ url_for('login') }}" method="post" role="form">
+
+                <div class="member-login-form-body">
+                    <div class="mb-4">
+                        <label class="form-label mb-2" for="member-login-email">Email</label>
+
+                        <input type="email" name="email" id="member-login-email" class="form-control"
+                            placeholder="example@email.com" required>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label mb-2" for="member-login-password">Password</label>
+
+                        <input type="password" name="password" id="member-login-password"
+                             class="form-control" placeholder="Password" required="">
+                    </div>
+
+                    <div class="form-check mb-4">
+                        <input class="form-check-input" type="checkbox" value="" id="flexCheckDefault">
+
+                        <label class="form-check-label" for="flexCheckDefault">
+                            Remember me
+                        </label>
+                    </div>
+
+                    <div class="col-lg-5 col-md-7 col-8 mx-auto">
+                        <button type="submit" class="form-control">Login</button>
+                    </div>
+
+                    <div class="text-center my-4">
+                        <a href="{{ url_for('forgot_password') }}">Forgotten password?</a>
+                    </div>
+
+                    <div class="text-center my-4">
+                        <a href="{{ url_for('signup_sel') }}">No account? Sign up here!</a>
+                    </div>
+                </div>
+            </form>
+
+            <div class="mt-auto mb-5">
+                <p>
+                    <strong class="text-white me-3">Any Questions?</strong>
+
+                    <a href="tel: 010-020-0340" class="contact-link">
+                        65-6600-6655
+                    </a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="container mt-4">
+        {% for category, message in messages %}
+        <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show"
+            role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Sign Up Form -->
+    <div class="signup-container">
+        <div class="container">
+            <div class="signup-card">
+                <h2>Create Your Account</h2>
+                <p>Join 67 Rentals and start your journey today</p>
+
+                <form id="signupForm" action="{{ url_for('signup') }}" method="post" enctype="multipart/form-data">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="firstName" class="form-label">First Name</label>
+                                <input type="text" class="form-control" id="firstName" name="firstName" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="lastName" class="form-label">Last Name</label>
+                                <input type="text" class="form-control" id="lastName" name="lastName" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="nric" class="form-label">NRIC / FIN Number</label>
+                        <input type="text" class="form-control" id="nric" name="nric" placeholder="e.g., S1234567D"
+                            required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="license" class="form-label">Driver's License Number</label>
+                        <input type="text" class="form-control" id="license" name="license" placeholder="e.g., S1234567"
+                            required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="phone" class="form-label">Phone Number</label>
+                        <input type="tel" class="form-control" id="phone" name="phone" placeholder="91234567" required>
+                        <small class="text-muted">8 digits starting with 6, 8, or 9</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="nricImage" class="form-label">Upload NRIC Image</label>
+                        <input type="file" class="form-control" id="nricImage" name="nricImage"
+                            accept="image/*,application/pdf" required>
+                        <small class="text-muted">Please upload a clear photo of your NRIC (Max 5MB)</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="licenseImage" class="form-label">Upload Driver's License Image</label>
+                        <input type="file" class="form-control" id="licenseImage" name="licenseImage"
+                            accept="image/*,application/pdf" required>
+                        <small class="text-muted">Please upload a clear photo of your driver's license (Max 5MB)</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                        <small class="text-muted">At least 8 characters with uppercase, lowercase, number and special
+                            character</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="confirmPassword" class="form-label">Confirm Password</label>
+                        <input type="password" class="form-control" id="confirmPassword" name="confirmPassword"
+                            required>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="terms" required>
+                        <label class="form-check-label" for="terms">
+                            I agree to the Terms & Conditions and Privacy Policy
+                        </label>
+                    </div>
+
+                    <button type="submit" class="btn btn-signup">Sign Up</button>
+
+                    <div class="signin-link">
+                        Already have an account? <a href="#offcanvasExample" data-bs-toggle="offcanvas"
+                            data-bs-target="#offcanvasExample">Login</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Function to close login modal and scroll to signup
+        function closeLoginAndScrollToSignup(event) {
+            event.preventDefault();
+            const offcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('offcanvasExample'));
+            if (offcanvas) {
+                offcanvas.hide();
+            }
+            setTimeout(() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 300);
+        }
+    </script>
+</body>
+
+</html>
