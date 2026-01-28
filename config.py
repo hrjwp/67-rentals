@@ -9,7 +9,7 @@ class Config:
     SESSION_COOKIE_SECURE = False  # Will be set dynamically based on HTTPS
     SESSION_COOKIE_HTTPONLY = True     # block JS access to cookies
     SESSION_COOKIE_SAMESITE = 'Lax'    # CSRF-hardening for most flows
-    PREFERRED_URL_SCHEME = 'http'  # Will be set dynamically
+    PREFERRED_URL_SCHEME = 'https'  # Will be set dynamically
 
     # Stripe
     STRIPE_API_KEY = 'sk_test_51Qt62CEu3QerzS1yLWYhnwyX9UfVX2joIEDmUghjcCI1rY1mfscebN6bKttdNw0N446QucqKwOGoNGYZsVaYffx800HM2RGjR1'
@@ -24,14 +24,14 @@ class Config:
 
     # File Upload
     UPLOAD_FOLDER = 'static/uploads'
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf'}
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
     MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
     
     # Backup Configuration
-    BACKUP_DIR = 'backups'
-    CLOUD_BACKUP_DIR = None  # Set to cloud storage path (e.g., AWS S3, Google Drive)
+    BACKUP_DIR = 'backups'  # local encrypted backups
+    CLOUD_BACKUP_DIR = None
     BACKUP_RETENTION_DAYS = 30  # Keep backups for 30 days
-    AUTO_BACKUP_ENABLED = False
+    AUTO_BACKUP_ENABLED = True
     AUTO_BACKUP_INTERVAL_HOURS = 24  # Daily backups
     RETENTION_CHECK_INTERVAL_HOURS = 24  # Data retention scheduler interval
 
