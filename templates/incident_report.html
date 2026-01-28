@@ -303,7 +303,7 @@
                                 {% endif %}
                             {% endwith %}
 
-                            <form id="incidentForm" method="POST" action="{{ url_for('report') }}">
+                            <form id="incidentForm" method="POST" action="{{ url_for('report') }}" enctype="multipart/form-data">
                                 <!-- Personal Information -->
                                 <h5 style="color: #3D405B; font-weight: 700; margin-bottom: 20px;">Personal Information</h5>
 
@@ -435,9 +435,14 @@
 
                                 <div class="mb-3">
                                     <label class="form-label">Photos/Documentation</label>
-                                    <input type="file" class="form-control" id="photos" name="photos" multiple accept="image/*,video/*">
+                                    <input type="file" class="form-control" id="photos" name="photos" multiple accept="image/*,video/*,application/pdf">
                                     <div class="invalid-feedback" id="photos_error"></div>
-                                    <small class="text-muted">Upload photos or videos of the damage, scene, or relevant documentation (Images: jpg, jpeg, png, gif, webp | Videos: mp4, avi, mov, wmv - Max 10 files)</small>
+                                    <small class="text-muted">
+                                        Upload photos of damage, insurance documents, police reports, and other incident evidence.
+                                        For your protection, uploaded files are validated by type, limited in size, renamed on upload, and stored in encrypted, access-controlled storage outside the public site.
+                                        Images are watermarked to help prevent tampering.
+                                        (Images: jpg, jpeg, png, gif, webp | Videos: mp4, avi, mov, wmv | Documents: pdf – Max 10 files, 10&nbsp;MB per file)
+                                    </small>
                                 </div>
 
                                 <div class="alert alert-warning">
@@ -521,8 +526,10 @@
             function validateFiles(files) {
                 const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
                 const allowedVideoTypes = ['video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/quicktime'];
-                const allowedTypes = [...allowedImageTypes, ...allowedVideoTypes];
+                const allowedDocumentTypes = ['application/pdf'];
+                const allowedTypes = [...allowedImageTypes, ...allowedVideoTypes, ...allowedDocumentTypes];
                 const maxFiles = 10;
+                const maxFileSizeBytes = 10 * 1024 * 1024; // 10MB per file
 
                 if (files.length > maxFiles) {
                     return { valid: false, message: `Maximum ${maxFiles} files allowed` };
@@ -530,7 +537,10 @@
 
                 for (let file of files) {
                     if (!allowedTypes.includes(file.type)) {
-                        return { valid: false, message: `Invalid file type: ${file.name}. Only images (jpg, png, gif, webp) and videos (mp4, avi, mov, wmv) are allowed.` };
+                        return { valid: false, message: `Invalid file type: ${file.name}. Only images (jpg, png, gif, webp), videos (mp4, avi, mov, wmv) and documents (pdf) are allowed.` };
+                    }
+                    if (file.size > maxFileSizeBytes) {
+                        return { valid: false, message: `File too large: ${file.name}. Maximum size is 10MB per file.` };
                     }
                 }
 
