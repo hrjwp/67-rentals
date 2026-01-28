@@ -971,7 +971,7 @@ def get_incident_reports(email: str = None, user_id: int = None) -> List[Dict[st
         
         rows = cursor.fetchall()
         
-        # Decrypt sensitive fields and get files from incident_report_files table for each report
+        # Decrypt sensitive fields and hydrate files list from files_json for each report
         filtered_rows = []
         for row in rows:
             # Decrypt sensitive fields
@@ -991,6 +991,21 @@ def get_incident_reports(email: str = None, user_id: int = None) -> List[Dict[st
             except Exception as e:
                 print(f"WARNING: Error decrypting fields for report {row.get('id')}: {e}")
                 # Continue with encrypted values if decryption fails
+
+            # Hydrate files from JSON so templates/routes can access report['files']
+            files_json_val = row.get('files_json')
+            if files_json_val:
+                try:
+                    # MySQL connector may already return JSON as Python object
+                    if isinstance(files_json_val, str):
+                        row['files'] = json.loads(files_json_val)
+                    else:
+                        row['files'] = list(files_json_val)
+                except Exception as e:
+                    print(f"WARNING: Error parsing files_json for report {row.get('id')}: {e}")
+                    row['files'] = []
+            else:
+                row['files'] = []
             
             # Filter by email if email was provided but no user_id (since email is encrypted)
             if email and not user_id:
