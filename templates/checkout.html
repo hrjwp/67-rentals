@@ -443,6 +443,37 @@
                         submitButton.disabled = false;
                         document.getElementById('button-text').style.display = 'inline';
                         document.getElementById('spinner').style.display = 'none';
+                        
+                        // Track payment failure for fraud detection
+                        // Note: avoid referencing any undefined client-side cart var; server infers vehicle_id from session cart.
+                        try {
+                            const trackResponse = await fetch('/api/track-payment-failure', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    error_type: confirmError.type || 'card_declined',
+                                    error_message: confirmError.message || 'Card was declined',
+                                    payment_intent_id: data.paymentIntentId || null
+                                })
+                            });
+
+                            const trackData = await trackResponse.json();
+
+                            // Check if account was blocked (403 response)
+                            if (trackResponse.status === 403 || trackData.blocked) {
+                                alert('⚠️ ACCOUNT BLOCKED\n\nToo many failed payment attempts detected.\n\nYour account has been temporarily blocked due to high fraud risk.\n\nPlease contact support for assistance.');
+
+                                // Redirect to home page after alert
+                                setTimeout(() => {
+                                    window.location.href = '/';
+                                }, 1000);
+                                return;
+                            }
+                        } catch (trackError) {
+                            console.error('Failed to track payment failure:', trackError);
+                        }
                     } else {
                         // Payment succeeded
                         if (paymentIntent.status === 'succeeded') {
@@ -456,6 +487,37 @@
                     submitButton.disabled = false;
                     document.getElementById('button-text').style.display = 'inline';
                     document.getElementById('spinner').style.display = 'none';
+
+                    // Track payment failure for fraud detection
+                    // Note: server infers vehicle_id from session cart.
+                    try {
+                        const trackResponse = await fetch('/api/track-payment-failure', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                error_type: 'payment_error',
+                                error_message: error.message || 'Payment failed',
+                                payment_intent_id: null
+                            })
+                        });
+
+                        const trackData = await trackResponse.json();
+
+                        // Check if account was blocked (403 response)
+                        if (trackResponse.status === 403 || trackData.blocked) {
+                            alert('⚠️ ACCOUNT BLOCKED\n\nToo many failed payment attempts detected.\n\nYour account has been temporarily blocked due to high fraud risk.\n\nPlease contact support for assistance.');
+
+                            // Redirect to home page after alert
+                            setTimeout(() => {
+                                window.location.href = '/';
+                            }, 1000);
+                            return;
+                        }
+                    } catch (trackError) {
+                        console.error('Failed to track payment failure:', trackError);
+                    }
                 }
             });
         </script>
