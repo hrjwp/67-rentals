@@ -23,7 +23,10 @@
                 <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
                 <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
                 <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
-                <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
+                <li><a href="{{ url_for('security_dashboard') }}" class="active">Security {% if high_risk_count and high_risk_count > 0 %}
+                <span style="display: inline-flex; align-items: center; justify-content: center; margin-left: 6px;
+                background: #d32f2f; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 11px;
+                font-weight: 700; position: relative; top: -1px;">{{ high_risk_count }}</span>{% endif %}</a></li>
             </ul>
             <div class="hamburger" id="hamburger">
                 <span></span>
@@ -36,7 +39,10 @@
             <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
             <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
             <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
-            <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
+            <li><a href="{{ url_for('security_dashboard') }}" class="active">Security {% if high_risk_count and high_risk_count > 0 %}
+            <span style="display: inline-flex; align-items: center; justify-content: center; margin-left: 6px; background: #d32f2f;
+            color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; font-weight: 700; position: relative; top:
+            -1px;">{{ high_risk_count }}</span>{% endif %}</a></li>
         </ul>
     </nav>
 
@@ -44,6 +50,49 @@
     <section class="dashboard-section" style="padding-top: 120px; min-height: 100vh;">
         <div class="dashboard-container">
             <h2 class="section-title">Security Management</h2>
+
+            {# Red alert banner for high-risk booking fraud logs #}
+            {% if high_risk_count and high_risk_count > 0 %}
+            <div style="
+                margin: 30px 0;
+                padding: 16px 20px;
+                border-radius: 8px;
+                background: #d32f2f;
+                color: #fff;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+                ">
+                <div>
+                    <div style="font-weight: 700; letter-spacing: 0.05em; font-size: 13px; text-transform: uppercase;">
+                        Booking Fraud Logs
+                    </div>
+                    <div style="margin-top: 6px; font-size: 15px;">
+                        There are currently
+                        <strong>{{ high_risk_count }}</strong>
+                        high-risk booking fraud events detected by machine learning.
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    onclick="window.location.href='{{ url_for('booking_fraud_logs') }}'"
+                    style="
+                        border: none;
+                        border-radius: 999px;
+                        padding: 8px 16px;
+                        background: #ffffff;
+                        color: #b00020;
+                        font-weight: 600;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">
+                    View Booking Fraud Logs
+                </button>
+            </div>
+            {% endif %}
+
             
             <div class="info-grid" style="max-width: 800px; margin: 0 auto;">
                 <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('data_classification') }}'">
@@ -113,6 +162,18 @@
                     </p>
                     <div style="margin-top: 20px;">
                         <a href="{{ url_for('backup_management') }}" class="cta-button">Manage Backups</a>
+                    </div>
+                </div>
+
+                <div class="info-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('data_retention') }}'">
+                    <div class="info-icon">🧹</div>
+                    <h3 class="info-title">Data Retention</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        Configure retention windows, inactivity rules, and run manual purges
+                        while excluding admin accounts.
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('data_retention') }}" class="cta-button">Manage Retention</a>
                     </div>
                 </div>
             </div>

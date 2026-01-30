@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <title>67 Rentals - My Profile</title>
+
+    <!-- CSS FILES -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap"
+        rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css"
+        rel="stylesheet">
+
+    <style>
+        :root {
+            --white-color: #ffffff;
+            --primary-color: #81B29A;
+            --secondary-color: #3D405B;
+            --section-bg-color: #F4F1DE;
+            --custom-btn-bg-color: #F2CC8F;
+            --custom-btn-bg-hover-color: #E07A5F;
+            --dark-color: #000000;
+            --p-color: #717275;
+            --link-hover-color: #F2CC8F;
+
+            --body-font-family: 'DM Sans', sans-serif;
+            --h2-font-size: 36px;
+            --h4-font-size: 24px;
+            --p-font-size: 18px;
+            --border-radius-large: 100px;
+            --border-radius-medium: 20px;
+            --border-radius-small: 10px;
+            --font-weight-normal: 400;
+            --font-weight-medium: 500;
+            --font-weight-bold: 700;
+        }
+
+        body {
+            background-color: var(--section-bg-color);
+            font-family: var(--body-font-family);
+            margin: 0;
+            padding: 0;
+            padding-top: 90px;
+        }
+
+        .navbar {
+            background: #3D405B;
+            z-index: 99;
+            padding-top: 15px;
+            padding-bottom: 15px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .navbar-brand-text {
+            color: var(--white-color);
+            font-size: 28px;
+            font-weight: 700;
+            margin-left: 10px;
+        }
+
+        .navbar-brand-text small {
+            display: block;
+            font-size: 14px;
+            font-weight: 400;
+        }
+
+        .nav-link {
+            color: var(--white-color) !important;
+            font-weight: 500;
+            padding: 10px 20px !important;
+        }
+
+        .nav-link:hover {
+            color: #F2CC8F !important;
+        }
+
+        .profile-container {
+            min-height: calc(100vh - 100px);
+            padding: 50px 0;
+        }
+
+        .profile-header {
+            background: var(--white-color);
+            border-radius: var(--border-radius-medium);
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .profile-avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 48px;
+            color: var(--white-color);
+            font-weight: var(--font-weight-bold);
+        }
+
+        .profile-name {
+            color: var(--secondary-color);
+            font-weight: var(--font-weight-bold);
+            font-size: var(--h2-font-size);
+            margin-bottom: 5px;
+        }
+
+        .profile-email {
+            color: var(--p-color);
+            font-size: var(--p-font-size);
+            margin-bottom: 20px;
+        }
+
+        .verification-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--primary-color);
+            color: var(--white-color);
+            padding: 8px 20px;
+            border-radius: var(--border-radius-large);
+            font-size: 14px;
+            font-weight: var(--font-weight-medium);
+        }
+
+        .verification-badge.pending {
+            background: #f39c12;
+        }
+
+        .profile-card {
+            background: var(--white-color);
+            border-radius: var(--border-radius-medium);
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .profile-card h3 {
+            color: var(--secondary-color);
+            font-weight: var(--font-weight-bold);
+            margin-bottom: 20px;
+            font-size: var(--h4-font-size);
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: var(--p-color);
+            font-weight: var(--font-weight-medium);
+        }
+
+        .info-value {
+            color: var(--secondary-color);
+            font-weight: var(--font-weight-medium);
+            text-align: right;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mask-toggle {
+            background: transparent;
+            border: none;
+            color: var(--secondary-color);
+            padding: 0;
+        }
+
+        .mask-toggle:hover {
+            color: var(--custom-btn-bg-hover-color);
+        }
+
+        .form-control {
+            border-radius: var(--border-radius-large);
+            border: 2px solid #e0e0e0;
+            padding: 12px 18px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(129, 178, 154, 0.25);
+        }
+
+        .btn-save {
+            background: var(--custom-btn-bg-color);
+            border: none;
+            border-radius: var(--border-radius-large);
+            color: var(--white-color);
+            font-weight: var(--font-weight-bold);
+            padding: 12px 30px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .btn-save:hover {
+            background: var(--custom-btn-bg-hover-color);
+            color: var(--white-color);
+        }
+
+        .alert-custom {
+            border-radius: var(--border-radius-medium);
+            border: none;
+            padding: 14px 18px;
+            margin-bottom: 20px;
+        }
+
+        .alert-success {
+            background-color: rgba(129, 178, 154, 0.1);
+            color: var(--primary-color);
+        }
+
+        .alert-danger {
+            background-color: rgba(224, 122, 95, 0.15);
+            color: #b91c1c;
+        }
+
+        @media screen and (max-width: 768px) {
+            .profile-header {
+                padding: 30px 20px;
+            }
+
+            .profile-card {
+                padding: 20px;
+            }
+
+            .info-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 6px;
+            }
+
+            .info-value {
+                text-align: left;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            {% set home_target = 'seller_index' if profile.user_type == 'seller' else 'index_logged' %}
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for(home_target) }}">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid"
+                    alt="67 Rentals" style="width: 50px;">
+                <span class="navbar-brand-text">
+                    67
+                    <small>Rentals</small>
+                </span>
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-lg-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for(home_target) }}">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('profile') }}">Profile</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">
+                            <i class="bi bi-box-arrow-right me-1"></i>Logout
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="profile-container">
+        <div class="container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-custom alert-{{ 'success' if category == 'success' else 'danger' }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <div class="profile-header">
+                <div class="profile-avatar">{{ display_name[:1] | upper }}</div>
+                <h1 class="profile-name">{{ display_name }}</h1>
+                <p class="profile-email">{{ profile.email }}</p>
+                {% if profile.verified %}
+                    <span class="verification-badge"><i class="bi bi-check-circle-fill"></i>Verified Account</span>
+                {% else %}
+                    <span class="verification-badge pending"><i class="bi bi-clock-fill"></i>Pending Verification</span>
+                {% endif %}
+            </div>
+
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="profile-card">
+                        <h3><i class="bi bi-person-circle me-2"></i>Profile Details</h3>
+                        <div class="info-row">
+                            <span class="info-label">Account Type</span>
+                            <span class="info-value text-capitalize">{{ profile.user_type }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Account Status</span>
+                            <span class="info-value text-capitalize">{{ profile.account_status }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Member Since</span>
+                            <span class="info-value">
+                                {% if profile.created_at %}
+                                    {{ profile.created_at.strftime('%b %d, %Y') }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Last Login</span>
+                            <span class="info-value">
+                                {% if profile.last_login_at %}
+                                    {{ profile.last_login_at.strftime('%b %d, %Y') }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="profile-card">
+                        <h3><i class="bi bi-shield-lock me-2"></i>Sensitive Details</h3>
+                        {% for key, field in sensitive.items() %}
+                            <div class="info-row">
+                                <span class="info-label">{{ field.label }}</span>
+                                <span class="info-value">
+                                    <span id="field-{{ key }}"
+                                          data-full="{{ field.full }}"
+                                          data-masked="{{ field.masked }}"
+                                          data-revealed="false">
+                                        {{ field.masked }}
+                                    </span>
+                                    {% if field.full %}
+                                        <button type="button" class="mask-toggle" data-target="field-{{ key }}"
+                                            aria-label="Toggle {{ field.label }}">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    {% endif %}
+                                </span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="profile-card">
+                <h3><i class="bi bi-pencil-square me-2"></i>Edit Profile</h3>
+                <form method="post" action="{{ url_for('profile') }}">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="first_name">First Name</label>
+                            <input class="form-control" type="text" id="first_name" name="first_name"
+                                value="{{ profile.first_name }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="last_name">Last Name</label>
+                            <input class="form-control" type="text" id="last_name" name="last_name"
+                                value="{{ profile.last_name }}" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="email">Email Address</label>
+                            <input class="form-control" type="email" id="email" name="email"
+                                value="{{ profile.email }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="phone">Phone Number</label>
+                            <input class="form-control" type="text" id="phone" name="phone"
+                                value="{{ profile.phone }}" required>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <button class="btn-save" type="submit">
+                            <i class="bi bi-check2-circle me-2"></i>Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.querySelectorAll('.mask-toggle').forEach((button) => {
+            button.addEventListener('click', () => {
+                const targetId = button.getAttribute('data-target');
+                const target = document.getElementById(targetId);
+                if (!target) {
+                    return;
+                }
+                const revealed = target.getAttribute('data-revealed') === 'true';
+                const fullValue = target.getAttribute('data-full') || '';
+                const maskedValue = target.getAttribute('data-masked') || '';
+                target.textContent = revealed ? maskedValue : fullValue;
+                target.setAttribute('data-revealed', revealed ? 'false' : 'true');
+                const icon = button.querySelector('i');
+                if (icon) {
+                    icon.className = revealed ? 'bi bi-eye' : 'bi bi-eye-slash';
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

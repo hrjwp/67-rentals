@@ -5,19 +5,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import stripe
 import os
 import json
-from dotenv import load_dotenv
-
-# Auto-setup: Load .env file and ensure encryption keys exist
-from utils.auto_setup import ensure_env_file
-
-# Load environment variables from .env file (if it exists)
-load_dotenv()
-
-# Automatically create .env with keys if it doesn't exist
-ensure_env_file()
-
-# Reload environment variables after auto-setup
-load_dotenv(override=True)
+import re
+import secrets
 
 # Import configuration
 from config import Config
@@ -27,7 +16,10 @@ from config import Config
 from database import (
     get_user_by_email, create_user_with_documents, get_all_vehicles,
     get_vehicle_by_id, create_booking, get_booking_by_id,
-    update_user_password, save_reset_token, get_reset_token, mark_token_as_used,
+    update_user_password, get_reset_token, mark_token_as_used,
+    invalidate_password_reset_otps, create_password_reset_otp,
+    get_latest_password_reset_otp, increment_password_reset_otp_attempts,
+    mark_password_reset_otp_used,
     get_user_bookings, get_signup_tickets, set_signup_status, get_user_documents,
     get_db_connection, get_security_logs, get_vehicle_fraud_logs, get_booking_fraud_logs,
     get_security_stats, get_vehicle_fraud_stats, get_booking_fraud_stats,
@@ -35,13 +27,16 @@ from database import (
     create_incident_report, get_incident_reports,
     update_incident_status, delete_incident_report, add_audit_log, get_audit_logs, get_user_by_id,
     get_backup_logs, get_backup_stats, update_backup_verification,
-    ensure_incident_report_files_table
+    ensure_incident_report_files_table, update_user_last_login,
+    get_retention_settings, update_retention_settings, run_retention_purge,
+    get_retention_overview, set_retention_extension, purge_user_data,
+    update_user_profile
 )
 
 # Import data models
 from models import (
     VEHICLES, BOOKINGS, CANCELLATION_REQUESTS, REFUNDS,
-    listings, PASSWORD_RESET_TOKENS
+    listings
 )
 
 # Import utilities
@@ -50,7 +45,7 @@ from utils.validation import (
     validate_license, validate_password, validate_file_size, allowed_file
 )
 from utils.auth import (
-    login_required, generate_reset_token, send_password_reset_email
+    login_required, generate_otp, hash_otp, send_password_reset_otp_email
 )
 from utils.helpers import (
     calculate_refund_percentage, calculate_cart_totals,
@@ -60,7 +55,7 @@ from utils.helpers import (
 from utils.encryption import encrypt_value, decrypt_value
 from utils.backup import SecureBackup
 from utils.file_security import validate_uploaded_file, sanitize_filename
-from utils.file_encryption import process_incident_file, decrypt_file
+from utils.file_encryption import process_incident_file, decrypt_file, encrypt_file
 import threading
 import time
 from datetime import datetime, timedelta
@@ -168,7 +163,7 @@ def add_security_headers(response):
         "style-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com "
         "'unsafe-inline'; "
         "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; "
-        "connect-src 'self' https://api.stripe.com; "
+        "connect-src 'self' https://api.stripe.com https://cdnjs.cloudflare.com; "
         "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://js.stripe.com; "
         "frame-ancestors 'self'; "
         "object-src 'none'; "
@@ -287,8 +282,6 @@ def signup_sel():
 @app.route('/signup_seller', methods=['GET', 'POST'])
 def signup_seller():
     if request.method == 'GET':
-        # Clear stale flashes before showing the seller signup form
-        session.pop('_flashes', None)
         return render_template('signup_seller.html')
 
     if request.method == 'POST':
@@ -371,31 +364,41 @@ def signup_seller():
             vehicle_card_filename = secure_filename(f"{email}_vehicle_{safe_vehicle_card_filename}")
             insurance_filename = secure_filename(f"{email}_insurance_{safe_insurance_filename}")
 
-            # Capture bytes and save to upload folder
+            # Capture bytes and encrypt before storage
             nric_bytes = nric_image.read()
             license_bytes = license_image.read()
             vehicle_card_bytes = vehicle_card_image.read()
             insurance_bytes = insurance_image.read()
 
-            # Reset streams and save to disk
-            nric_image.seek(0);
-            license_image.seek(0);
-            vehicle_card_image.seek(0);
-            insurance_image.seek(0)
-            nric_image.save(os.path.join(Config.UPLOAD_FOLDER, nric_filename))
-            license_image.save(os.path.join(Config.UPLOAD_FOLDER, license_filename))
-            vehicle_card_image.save(os.path.join(Config.UPLOAD_FOLDER, vehicle_card_filename))
-            insurance_image.save(os.path.join(Config.UPLOAD_FOLDER, insurance_filename))
+            encrypted_nric_bytes = encrypt_file(nric_bytes)
+            encrypted_license_bytes = encrypt_file(license_bytes)
+            encrypted_vehicle_card_bytes = encrypt_file(vehicle_card_bytes)
+            encrypted_insurance_bytes = encrypt_file(insurance_bytes)
+
+            encrypted_nric_filename = f"{nric_filename}.enc"
+            encrypted_license_filename = f"{license_filename}.enc"
+            encrypted_vehicle_card_filename = f"{vehicle_card_filename}.enc"
+            encrypted_insurance_filename = f"{insurance_filename}.enc"
+
+            # Save encrypted files to disk
+            with open(os.path.join(Config.UPLOAD_FOLDER, encrypted_nric_filename), 'wb') as f:
+                f.write(encrypted_nric_bytes)
+            with open(os.path.join(Config.UPLOAD_FOLDER, encrypted_license_filename), 'wb') as f:
+                f.write(encrypted_license_bytes)
+            with open(os.path.join(Config.UPLOAD_FOLDER, encrypted_vehicle_card_filename), 'wb') as f:
+                f.write(encrypted_vehicle_card_bytes)
+            with open(os.path.join(Config.UPLOAD_FOLDER, encrypted_insurance_filename), 'wb') as f:
+                f.write(encrypted_insurance_bytes)
 
             documents = {
-                'nric_image': {'filename': nric_filename, 'mime': nric_image.mimetype, 'data': nric_bytes,
-                               'path': nric_filename},
-                'license_image': {'filename': license_filename, 'mime': license_image.mimetype, 'data': license_bytes,
-                                  'path': license_filename},
+                'nric_image': {'filename': nric_filename, 'mime': nric_image.mimetype, 'data': encrypted_nric_bytes,
+                               'path': encrypted_nric_filename},
+                'license_image': {'filename': license_filename, 'mime': license_image.mimetype,
+                                  'data': encrypted_license_bytes, 'path': encrypted_license_filename},
                 'vehicle_card_image': {'filename': vehicle_card_filename, 'mime': vehicle_card_image.mimetype,
-                                       'data': vehicle_card_bytes, 'path': vehicle_card_filename},
+                                       'data': encrypted_vehicle_card_bytes, 'path': encrypted_vehicle_card_filename},
                 'insurance_image': {'filename': insurance_filename, 'mime': insurance_image.mimetype,
-                                    'data': insurance_bytes, 'path': insurance_filename}
+                                    'data': encrypted_insurance_bytes, 'path': encrypted_insurance_filename}
             }
 
             seller_data_plain = {
@@ -439,8 +442,6 @@ def signup_seller():
 def signup():
     """Sign up page with comprehensive validation including NRIC checksum"""
     if request.method == 'GET':
-        # Clear stale flashes (e.g., welcome/login) so the form starts clean
-        session.pop('_flashes', None)
         return render_template('signup.html')
 
     if request.method == 'POST':
@@ -568,11 +569,17 @@ def signup():
 
         nric_bytes = nric_image.read()
         license_bytes = license_image.read()
-        nric_image.seek(0)
-        license_image.seek(0)
 
-        nric_image.save(os.path.join(Config.UPLOAD_FOLDER, nric_filename))
-        license_image.save(os.path.join(Config.UPLOAD_FOLDER, license_filename))
+        encrypted_nric_bytes = encrypt_file(nric_bytes)
+        encrypted_license_bytes = encrypt_file(license_bytes)
+
+        encrypted_nric_filename = f"{nric_filename}.enc"
+        encrypted_license_filename = f"{license_filename}.enc"
+
+        with open(os.path.join(Config.UPLOAD_FOLDER, encrypted_nric_filename), 'wb') as f:
+            f.write(encrypted_nric_bytes)
+        with open(os.path.join(Config.UPLOAD_FOLDER, encrypted_license_filename), 'wb') as f:
+            f.write(encrypted_license_bytes)
 
         user_data_plain = {
             'first_name': first_name,
@@ -584,10 +591,10 @@ def signup():
             'password_hash': generate_password_hash(password),
             'user_type': 'user',
             'documents': {
-                'nric_image': {'filename': nric_filename, 'mime': nric_image.mimetype, 'data': nric_bytes,
-                               'path': nric_filename},
-                'license_image': {'filename': license_filename, 'mime': license_image.mimetype, 'data': license_bytes,
-                                  'path': license_filename}
+                'nric_image': {'filename': nric_filename, 'mime': nric_image.mimetype,
+                               'data': encrypted_nric_bytes, 'path': encrypted_nric_filename},
+                'license_image': {'filename': license_filename, 'mime': license_image.mimetype,
+                                  'data': encrypted_license_bytes, 'path': encrypted_license_filename}
             }
         }
 
@@ -675,6 +682,12 @@ def login():
     # Clear any stale flashes from earlier flows before setting the success message
     session.pop('_flashes', None)
 
+    if user.get('user_id'):
+        try:
+            update_user_last_login(user.get('user_id'))
+        except Exception as exc:
+            print(f"Warning: could not update last login: {exc}")
+
     # Login successful
     session['user'] = email
     session['user_id'] = user.get('user_id')
@@ -754,8 +767,37 @@ def admin_panel():
     user_role = session.get('user_type', 'guest')
     user_id = session.get('user_id')
 
+    def _safe_decrypt(value):
+        if not value:
+            return ''
+        try:
+            return decrypt_value(value, fallback_on_error=True)
+        except Exception:
+            return value
+
+    def _looks_encrypted(value):
+        if not value or len(value) < 24:
+            return False
+        return re.fullmatch(r"[A-Za-z0-9_-]+=*", value) is not None
+
+    def _clean_value(value):
+        decrypted = _safe_decrypt(value)
+        return '' if _looks_encrypted(decrypted) else decrypted
+
     def adapt(ticket):
         docs = ticket.get('documents', {})
+        first_name = _clean_value(ticket.get('first_name'))
+        last_name = _clean_value(ticket.get('last_name'))
+        phone = _clean_value(ticket.get('phone'))
+        nric = _clean_value(ticket.get('nric'))
+        license_number = _clean_value(ticket.get('license_number'))
+
+        if not first_name and not last_name:
+            email = ticket.get('email', '')
+            if '@' in email:
+                first_name = email.split('@', 1)[0]
+            elif email:
+                first_name = email
 
         def doc_url(doc):
             if not doc or not isinstance(doc, dict) or not doc.get('id'):
@@ -764,12 +806,12 @@ def admin_panel():
 
         ticket_data = {
             'ticket_id': ticket.get('ticket_id'),
-            'first_name': ticket.get('first_name'),
-            'last_name': ticket.get('last_name'),
+            'first_name': first_name,
+            'last_name': last_name,
             'email': ticket.get('email'),
-            'phone': ticket.get('phone'),
-            'nric': ticket.get('nric'),
-            'license_number': ticket.get('license_number'),
+            'phone': phone or None,
+            'nric': nric or None,
+            'license_number': license_number or None,
             'user_type': ticket.get('user_type'),
             'created_at': ticket.get('submitted_at'),
             'status': ticket.get('status'),
@@ -793,13 +835,46 @@ def admin_panel():
     rejected_users = [adapt(t) for t in rejected_tickets if t.get('user_type') == 'user']
     rejected_sellers = [adapt(t) for t in rejected_tickets if t.get('user_type') == 'seller']
 
+    retention_settings = get_retention_settings()
+    retention_rows = get_retention_overview(settings=retention_settings, include_admins=False)
+
+    for row in retention_rows:
+        first = _clean_value(row.get('first_name'))
+        last = _clean_value(row.get('last_name'))
+        display_name = f"{first} {last}".strip()
+        if not display_name:
+            email = row.get('email', '')
+            if '@' in email:
+                display_name = email.split('@', 1)[0]
+            else:
+                display_name = email or f"User {row.get('user_id')}"
+        row['display_name'] = display_name
+        row['display_initial'] = (display_name[:1] or 'U').upper()
+        row['last_seen'] = row.get('last_login_at') or row.get('created_at')
+
+    retention_rows.sort(
+        key=lambda r: (r.get('days_remaining') is None,
+                       r.get('days_remaining') if r.get('days_remaining') is not None else 999999)
+    )
+
+    retention_stats = {
+        'total': len(retention_rows),
+        'overdue': sum(1 for r in retention_rows if r.get('status') == 'overdue'),
+        'due': sum(1 for r in retention_rows if r.get('status') == 'due'),
+        'ok': sum(1 for r in retention_rows if r.get('status') == 'ok'),
+        'unknown': sum(1 for r in retention_rows if r.get('status') == 'unknown'),
+    }
+
     return render_template('admin_panel.html',
                            pending_users=pending_users,
                            pending_sellers=pending_sellers,
                            approved_users=approved_users,
                            approved_sellers=approved_sellers,
                            rejected_users=rejected_users,
-                           rejected_sellers=rejected_sellers)
+                           rejected_sellers=rejected_sellers,
+                           retention_rows=retention_rows,
+                           retention_stats=retention_stats,
+                           retention_settings=retention_settings)
 
 
 # ============================================
@@ -899,20 +974,163 @@ def admin_document(doc_id):
         with get_db_connection() as conn:
             cursor = conn.cursor(dictionary=True)
             cursor.execute(
-                "SELECT file_name, mime_type, file_data FROM user_documents WHERE id = %s",
+                "SELECT file_name, mime_type, file_data, file_path FROM user_documents WHERE id = %s",
                 (doc_id,)
             )
             row = cursor.fetchone()
             cursor.close()
-            if not row or not row.get('file_data'):
+            if not row:
                 return "File not found", 404
+
+            file_data = row.get('file_data')
+            if not file_data and row.get('file_path'):
+                file_path = row.get('file_path')
+                if file_path and os.path.exists(os.path.join(Config.UPLOAD_FOLDER, file_path)):
+                    with open(os.path.join(Config.UPLOAD_FOLDER, file_path), 'rb') as f:
+                        file_data = f.read()
+
+            if not file_data:
+                return "File not found", 404
+
+            try:
+                file_data = decrypt_file(file_data)
+            except Exception:
+                # Backward compatibility: serve plaintext files if not encrypted
+                pass
+
             return send_file(
-                BytesIO(row['file_data']),
+                BytesIO(file_data),
                 download_name=row.get('file_name') or f'doc_{doc_id}',
                 mimetype=row.get('mime_type') or 'application/octet-stream'
             )
     except Error as exc:
         return f"Error retrieving file: {exc}", 500
+
+
+# ============================================
+# PROFILE ROUTE
+# ============================================
+@app.route('/profile', methods=['GET', 'POST'])
+def profile():
+    """Profile page for logged-in users and sellers (no document attachments)."""
+    if 'user' not in session:
+        flash('Please log in to view your profile.', 'error')
+        return redirect(url_for('index'))
+
+    if session.get('user_type') == 'admin':
+        flash('Admin profiles are managed in the admin panel.', 'info')
+        return redirect(url_for('accounts'))
+
+    def _safe_decrypt(value):
+        if not value:
+            return ''
+        try:
+            return decrypt_value(value, fallback_on_error=True)
+        except Exception:
+            return value
+
+    def _mask_value(value, visible_start=2, visible_end=2):
+        if not value:
+            return 'Not provided'
+        raw = str(value)
+        if len(raw) <= visible_start + visible_end:
+            return '*' * len(raw)
+        return f"{raw[:visible_start]}{'*' * (len(raw) - visible_start - visible_end)}{raw[-visible_end:]}"
+
+    user_email = session.get('user')
+    user = get_user_by_email(user_email) if user_email else None
+    if not user:
+        flash('User account not found.', 'error')
+        return redirect(url_for('index'))
+
+    form_values = None
+    if request.method == 'POST':
+        form_values = {
+            'first_name': request.form.get('first_name', '').strip(),
+            'last_name': request.form.get('last_name', '').strip(),
+            'email': request.form.get('email', '').strip().lower(),
+            'phone': request.form.get('phone', '').strip(),
+        }
+
+        errors = []
+        if not form_values['first_name'] or not validate_name(form_values['first_name']):
+            errors.append('First name is required and must be valid.')
+        if not form_values['last_name'] or not validate_name(form_values['last_name']):
+            errors.append('Last name is required and must be valid.')
+        if not form_values['email'] or not validate_email(form_values['email']):
+            errors.append('Email address is invalid.')
+        if not form_values['phone'] or not validate_phone(form_values['phone']):
+            errors.append('Phone number must be 8 digits and start with 6, 8, or 9.')
+
+        if errors:
+            for error in errors:
+                flash(error, 'error')
+        else:
+            ok, error = update_user_profile(
+                user['user_id'],
+                form_values['first_name'],
+                form_values['last_name'],
+                form_values['email'],
+                form_values['phone']
+            )
+            if not ok:
+                flash(error or 'Unable to update profile.', 'error')
+            else:
+                session['user'] = form_values['email']
+                session['user_name'] = f"{form_values['first_name']} {form_values['last_name']}".strip()
+                session.modified = True
+                flash('Profile updated successfully.', 'success')
+                user = get_user_by_email(form_values['email'])
+                form_values = None
+
+    profile_data = {
+        'user_id': user.get('user_id'),
+        'first_name': _safe_decrypt(user.get('first_name')),
+        'last_name': _safe_decrypt(user.get('last_name')),
+        'email': user.get('email') or '',
+        'phone': _safe_decrypt(user.get('phone')) if user.get('phone') else '',
+        'nric': _safe_decrypt(user.get('nric')),
+        'license_number': _safe_decrypt(user.get('license_number')),
+        'user_type': user.get('user_type', 'user'),
+        'verified': bool(user.get('verified')),
+        'account_status': user.get('account_status') or 'active',
+        'created_at': user.get('created_at'),
+        'last_login_at': user.get('last_login_at'),
+    }
+
+    if form_values:
+        profile_data.update(form_values)
+
+    display_name = f"{profile_data['first_name']} {profile_data['last_name']}".strip()
+    if not display_name:
+        display_name = profile_data['email'].split('@')[0] if profile_data['email'] else 'User'
+
+    sensitive = {
+        'phone': {
+            'label': 'Phone Number',
+            'full': profile_data['phone'],
+            'masked': _mask_value(profile_data['phone'], 2, 2),
+        },
+        'nric': {
+            'label': 'NRIC / FIN',
+            'full': profile_data['nric'],
+            'masked': _mask_value(profile_data['nric'], 1, 1),
+        },
+        'license': {
+            'label': "Driver's License",
+            'full': profile_data['license_number'],
+            'masked': _mask_value(profile_data['license_number'], 1, 2),
+        },
+    }
+
+    return render_template(
+        'profile.html',
+        profile=profile_data,
+        sensitive=sensitive,
+        display_name=display_name,
+        user_email=profile_data['email'],
+        user_name=session.get('user_name')
+    )
 
 
 # ============================================
@@ -1112,48 +1330,131 @@ def role_required(*allowed_roles):
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     """Forgot password page - request password reset"""
+    cart_count = get_cart_count(session)
+    session_expires_at = session.get('password_reset_expires_at')
+    if session_expires_at:
+        try:
+            session_expiry = datetime.fromisoformat(session_expires_at)
+        except ValueError:
+            session_expiry = None
+        if not session_expiry or datetime.now() > session_expiry:
+            session.pop('password_reset_step', None)
+            session.pop('password_reset_email', None)
+            session.pop('password_reset_otp_id', None)
+            session.pop('password_reset_expires_at', None)
+            session.pop('password_reset_bypass', None)
+    if session.get('password_reset_step') == 'otp':
+        session['password_reset_step'] = 'email'
+        session.pop('password_reset_otp_id', None)
+        session.pop('password_reset_expires_at', None)
+        session.pop('password_reset_bypass', None)
+
+    def _render(step_override=None, email_override=None):
+        return render_template(
+            'forgot_password.html',
+            cart_count=cart_count,
+            step=step_override or session.get('password_reset_step', 'email'),
+            reset_email=email_override if email_override is not None else session.get('password_reset_email', '')
+        )
+
     if request.method == 'POST':
+        action = request.form.get('action', '').strip()
         email = request.form.get('email', '').strip().lower()
+        if not email:
+            email = session.get('password_reset_email', '')
 
-        if not email or not validate_email(email):
-            return "Invalid email address", 400
+        if action in ('send_otp', 'start_reset'):
+            if not email or not validate_email(email):
+                flash('Please enter a valid email address.', 'error')
+                session['password_reset_step'] = 'email'
+                session.pop('password_reset_bypass', None)
+                return _render('email', email)
 
-        user = get_user_by_email(email)
-        if not user:
-            flash('If an account exists with that email, you will receive a password reset link.', 'info')
-            return render_template('forgot_password.html')
+            user = get_user_by_email(email)
+            if not user:
+                flash('User account not found.', 'error')
+                session['password_reset_step'] = 'email'
+                session.pop('password_reset_bypass', None)
+                return _render('email', email)
 
-        reset_token = generate_reset_token()
+            session['password_reset_email'] = email
+            session['password_reset_step'] = 'new_password'
+            session.pop('password_reset_bypass', None)
+            session.pop('password_reset_otp_id', None)
+            session.pop('password_reset_expires_at', None)
+            flash('Email verification is disabled right now. Please set a new password.', 'success')
+            return _render('new_password', email)
 
-        PASSWORD_RESET_TOKENS[reset_token] = {
-            'email': email,
-            'expires_at': datetime.now() + timedelta(hours=1),
-            'used': False
-        }
+        if action == 'reset_password':
+            if not email or not validate_email(email):
+                flash('Please enter a valid email address.', 'error')
+                session['password_reset_step'] = 'email'
+                session.pop('password_reset_bypass', None)
+                return _render('email')
 
-        send_password_reset_email(email, reset_token)
+            if session.get('password_reset_step') != 'new_password':
+                flash('Please enter your email to start the reset.', 'error')
+                session['password_reset_step'] = 'email'
+                return _render('email')
 
-        flash('Password reset link has been sent to your email.', 'success')
-        return render_template('forgot_password.html')
+            new_password = request.form.get('password', '')
+            confirm_password = request.form.get('confirm_password', '')
 
-    return render_template('forgot_password.html')
+            if not new_password:
+                flash('Password is required.', 'error')
+                return _render('new_password', email)
+
+            if new_password != confirm_password:
+                flash('Passwords do not match.', 'error')
+                return _render('new_password', email)
+
+            is_valid, message = validate_password(new_password)
+            if not is_valid:
+                flash(message, 'error')
+                return _render('new_password', email)
+
+            user = get_user_by_email(email)
+            if not user:
+                flash('User account not found.', 'error')
+                session['password_reset_step'] = 'email'
+                return _render('email', email)
+
+            update_user_password(email, generate_password_hash(new_password))
+            session.pop('password_reset_step', None)
+            session.pop('password_reset_email', None)
+            session.pop('password_reset_otp_id', None)
+            session.pop('password_reset_expires_at', None)
+            session.pop('password_reset_bypass', None)
+            flash('Password updated successfully. Please log in again.', 'success')
+            return _render('done', email)
+
+        flash('Unsupported action.', 'error')
+        return _render()
+
+    return _render()
 
 
 @app.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
     """Reset password page - user clicks link from email"""
-    token_data = PASSWORD_RESET_TOKENS.get(token)
+    token_data = get_reset_token(token)
 
     if not token_data:
         flash('Invalid or expired reset link.', 'error')
         return redirect(url_for('forgot_password'))
 
-    if datetime.now() > token_data['expires_at']:
+    expires_at = token_data.get('expires_at')
+    if isinstance(expires_at, str):
+        try:
+            expires_at = datetime.fromisoformat(expires_at)
+        except ValueError:
+            expires_at = None
+
+    if not expires_at or datetime.now() > expires_at:
         flash('This reset link has expired. Please request a new one.', 'error')
-        del PASSWORD_RESET_TOKENS[token]
         return redirect(url_for('forgot_password'))
 
-    if token_data['used']:
+    if token_data.get('used'):
         flash('This reset link has already been used.', 'error')
         return redirect(url_for('forgot_password'))
 
@@ -1179,7 +1480,7 @@ def reset_password(token):
         if user:
             update_user_password(email, generate_password_hash(new_password))
 
-            PASSWORD_RESET_TOKENS[token]['used'] = True
+            mark_token_as_used(token)
 
             # --- Audit log for password reset ---
             add_audit_log(
@@ -1194,7 +1495,7 @@ def reset_password(token):
             )
 
             flash('Password has been reset successfully! You can now login.', 'success')
-            return redirect(url_for('login'))
+            return redirect(url_for('index'))
         else:
             flash('User account not found.', 'error')
             return redirect(url_for('forgot_password'))
@@ -1914,7 +2215,7 @@ def stripe_webhook():
     """Stripe webhook handler for secure payment confirmation"""
     payload = request.data
     sig_header = request.headers.get('Stripe-Signature')
-    webhook_secret = os.environ.get('STRIPE_WEBHOOK_SECRET')  # Set this in your env
+    webhook_secret = Config.STRIPE_WEBHOOK_SECRET or None
 
     try:
         if webhook_secret:
@@ -2186,7 +2487,7 @@ def backup_test():
         backup_dir_writable = os.access(backup_system.backup_dir, os.W_OK) if backup_dir_exists else False
 
         # Check encryption key
-        encryption_key_set = os.environ.get('DATA_ENCRYPTION_KEY') is not None
+        encryption_key_set = bool(Config.DATA_ENCRYPTION_KEY)
 
         # List existing backups
         backups = backup_system.list_backups()
@@ -2232,7 +2533,7 @@ def backup_test():
             'backup_system_status': 'error',
             'error': str(e),
             'troubleshooting': {
-                'check_encryption_key': 'Set DATA_ENCRYPTION_KEY environment variable',
+                'check_encryption_key': 'Set DATA_ENCRYPTION_KEY in config.py',
                 'check_backup_dir': f'Ensure {backup_system.backup_dir} directory exists and is writable',
                 'check_database': 'Verify database connection is working'
             }
@@ -3017,6 +3318,117 @@ def backup_management():
     return render_template('security_dashboard.html')
 
 
+@app.route('/admin/data-retention', methods=['GET', 'POST'])
+def data_retention():
+    """Admin-only data retention configuration."""
+    if 'user' not in session or session.get('user_type') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('index'))
+
+    if request.method == 'POST':
+        current = get_retention_settings()
+        try:
+            retention_days = int(request.form.get('retention_days', current.get('retention_days', 365)))
+            inactivity_days = int(request.form.get('inactivity_days', current.get('inactivity_days', 90)))
+            if retention_days < 1 or inactivity_days < 1:
+                raise ValueError
+        except ValueError:
+            flash('Retention days must be positive numbers.', 'error')
+            return redirect(url_for('data_retention'))
+
+        settings = {
+            "auto_purge_enabled": bool(request.form.get('auto_purge_enabled')),
+            "retention_days": retention_days,
+            "inactivity_purge_enabled": bool(request.form.get('inactivity_purge_enabled')),
+            "inactivity_days": inactivity_days,
+            "apply_to_users": bool(request.form.get('apply_to_users')),
+            "apply_to_sellers": bool(request.form.get('apply_to_sellers')),
+            "exclude_admins": True,
+        }
+        update_retention_settings(settings, updated_by=session.get('user'))
+        flash('Data retention settings updated.', 'success')
+        return redirect(url_for('data_retention'))
+
+    settings = get_retention_settings()
+    return render_template('data_retention.html', settings=settings)
+
+
+@app.route('/admin/data-retention/purge', methods=['POST'])
+def data_retention_purge():
+    """Manual retention purge (admin only)."""
+    if 'user' not in session or session.get('user_type') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('index'))
+
+    result = run_retention_purge(reason='manual')
+    if result.get('skipped_reason'):
+        flash(f"Purge skipped: {result['skipped_reason']}.", 'error')
+    elif result.get('errors'):
+        flash(
+            f"Purged {result.get('purged_count', 0)} accounts with "
+            f"{len(result['errors'])} errors. Check server logs.",
+            'error',
+        )
+    elif result.get('purged_count', 0) == 0:
+        flash('No accounts matched the current retention rules.', 'success')
+    else:
+        flash(f"Purged {result.get('purged_count', 0)} accounts.", 'success')
+
+    return redirect(url_for('data_retention'))
+
+
+@app.route('/admin/data-retention/extend/<int:user_id>', methods=['POST'])
+def data_retention_extend_user(user_id):
+    """Update per-user retention extension days."""
+    if 'user' not in session or session.get('user_type') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('index'))
+
+    try:
+        extension_days = int(request.form.get('extension_days', 0))
+        if extension_days < 0:
+            raise ValueError
+    except ValueError:
+        flash('Extension days must be zero or a positive number.', 'error')
+        return redirect(request.referrer or url_for('accounts'))
+
+    set_retention_extension(user_id, extension_days, updated_by=session.get('user'))
+    if extension_days == 0:
+        flash('Retention extension cleared.', 'success')
+    else:
+        flash('Retention extension updated.', 'success')
+    return redirect(request.referrer or url_for('accounts'))
+
+
+@app.route('/admin/data-retention/purge-user/<int:user_id>', methods=['POST'])
+def data_retention_purge_user(user_id):
+    """Immediate purge for a specific user (admin only)."""
+    if 'user' not in session or session.get('user_type') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('index'))
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT user_id, email, user_type FROM users WHERE user_id = %s",
+            (user_id,),
+        )
+        user_row = cursor.fetchone()
+        cursor.close()
+
+    if not user_row:
+        flash('User not found.', 'error')
+        return redirect(request.referrer or url_for('accounts'))
+
+    if user_row.get('user_type') == 'admin':
+        flash('Admins cannot be purged.', 'error')
+        return redirect(request.referrer or url_for('accounts'))
+
+    purge_user_data(user_id, user_row.get('email'))
+    flash('User data purged.', 'success')
+    return redirect(request.referrer or url_for('accounts'))
+
+
 @app.route('/data-classification')
 def data_classification():
     """Data classification page"""
@@ -3677,7 +4089,7 @@ def test_encryption():
         decrypted = decrypt_value(encrypted)
         
         # Check if encryption key is set
-        encryption_key_set = os.environ.get('DATA_ENCRYPTION_KEY') is not None
+        encryption_key_set = bool(Config.DATA_ENCRYPTION_KEY)
         
         return jsonify({
             "status": "success",
@@ -3693,9 +4105,9 @@ def test_encryption():
     except Exception as e:
         return jsonify({
             "status": "error",
-            "encryption_configured": os.environ.get('DATA_ENCRYPTION_KEY') is not None,
+            "encryption_configured": bool(Config.DATA_ENCRYPTION_KEY),
             "error": str(e),
-            "message": "Encryption is NOT working. Check that DATA_ENCRYPTION_KEY is set in .env file."
+            "message": "Encryption is NOT working. Check that DATA_ENCRYPTION_KEY is set in config.py."
         }), 500
 
 
@@ -4291,10 +4703,10 @@ def handle_access_denied(e):
 def start_backup_scheduler():
     """Start automated backup scheduler in background thread"""
     # Check if auto-backup is enabled (defaults to False if not set)
-    auto_backup_enabled = os.environ.get('AUTO_BACKUP_ENABLED', 'False').lower() == 'true'
+    auto_backup_enabled = bool(Config.AUTO_BACKUP_ENABLED)
     
     if not auto_backup_enabled:
-        print("ℹ️  Automated backups are disabled. Set AUTO_BACKUP_ENABLED=true in .env to enable.")
+        print("ℹ️  Automated backups are disabled. Set AUTO_BACKUP_ENABLED in config.py to enable.")
         print("   Backups can still be created manually from the admin panel.")
         return
     
@@ -4304,7 +4716,7 @@ def start_backup_scheduler():
         from utils.backup import SecureBackup
         
         backup_system = SecureBackup()
-        interval_hours = int(os.environ.get('AUTO_BACKUP_INTERVAL_HOURS', '24'))
+        interval_hours = int(Config.AUTO_BACKUP_INTERVAL_HOURS)
         interval_seconds = interval_hours * 3600
         
         print(f"✅ Automated backup scheduler started. Backups will run every {interval_hours} hours.")
@@ -4325,7 +4737,7 @@ def start_backup_scheduler():
                 print(f"    Checksum: {backup_info['checksum_sha256']}")
                 
                 # Cleanup old backups
-                retention_days = int(os.environ.get('BACKUP_RETENTION_DAYS', '30'))
+                retention_days = int(Config.BACKUP_RETENTION_DAYS)
                 deleted = backup_system.delete_old_backups(keep_days=retention_days)
                 if deleted:
                     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🗑️  Deleted {len(deleted)} old backup(s)")
@@ -4343,6 +4755,44 @@ def start_backup_scheduler():
 
 # Start automated backup scheduler on app startup
 start_backup_scheduler()
+
+
+# ============================================
+# DATA RETENTION SCHEDULER
+# ============================================
+def start_retention_scheduler():
+    """Start automated data retention purge in background thread."""
+    def retention_worker():
+        interval_hours = int(Config.RETENTION_CHECK_INTERVAL_HOURS)
+        interval_seconds = interval_hours * 3600
+
+        print(f"✅ Data retention scheduler started. Checks every {interval_hours} hours.")
+        time.sleep(60)
+
+        while True:
+            try:
+                result = run_retention_purge(reason='auto')
+                if result.get("skipped_reason"):
+                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ℹ️  Retention skipped: {result['skipped_reason']}")
+                else:
+                    print(
+                        f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🧹 Retention purge "
+                        f"completed: {result.get('purged_count', 0)} purged "
+                        f"out of {result.get('candidate_count', 0)} candidates."
+                    )
+                    if result.get("errors"):
+                        print(f"    Errors: {len(result['errors'])}")
+            except Exception as exc:
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ❌ Retention purge failed: {exc}")
+
+            time.sleep(interval_seconds)
+
+    retention_thread = threading.Thread(target=retention_worker, daemon=True)
+    retention_thread.start()
+
+
+# Start data retention scheduler on app startup
+start_retention_scheduler()
 
 
 if __name__ == "__main__":

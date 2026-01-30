@@ -1,6 +1,33 @@
-# Python virtual environment
-.venv/
+# created by virtualenv automatically
+*
 
-# Python cache
+# Python
 __pycache__/
 *.pyc
+venv/
+
+# Environment & IDE
+*.env
+.idea/
+.vscode/
+
+# Generated / runtime
+backups/
+models/*.pkl
+backups/*.zip.encrypted
+
+
+# Environment variables
+.env
+# Backups
+*.zip
+*.encrypted
+
+# IDE / Editor files
+*.iml
+
+
+**/__pycache__/
+*.pyo
+*.pyd
+

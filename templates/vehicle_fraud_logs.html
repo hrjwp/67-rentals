@@ -644,10 +644,32 @@
         let sessionInterval;
         let activityLogs = [];
         let screenshotAttempts = 0;
+        const _lastReportedAt = {};
 
         // Generate unique session ID
         const sessionId = 'SID-' + Math.random().toString(36).substr(2, 9).toUpperCase();
         document.getElementById('sessionId').textContent = sessionId;
+
+        async function reportSecurityEvent(eventType, severity, description, actionTaken) {
+            const key = `${eventType}:${severity}`;
+            const now = Date.now();
+            if (_lastReportedAt[key] && now - _lastReportedAt[key] < 3000) return;
+            _lastReportedAt[key] = now;
+
+            try {
+                await fetch('/api/log-security-event', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    keepalive: true,
+                    body: JSON.stringify({
+                        event_type: eventType,
+                        severity,
+                        description,
+                        action_taken: actionTaken
+                    })
+                });
+            } catch (e) {}
+        }
 
         function logActivity(action, severity = 'info') {
             const timestamp = new Date().toLocaleTimeString();
@@ -691,6 +713,12 @@
                     clearInterval(sessionInterval);
                     document.getElementById('sessionExpired').style.display = 'flex';
                     logActivity('Session expired - Auto logout', 'warning');
+                    reportSecurityEvent(
+                        'Session Timeout',
+                        'Medium',
+                        `Client session timer expired (SID=${sessionId})`,
+                        'Displayed session expired overlay'
+                    );
                 }
             }, 1000);
         }
@@ -705,18 +733,21 @@
             e.preventDefault();
             showBlockedAlert('Copying data is not allowed for security reasons.');
             logActivity('Copy attempt blocked', 'warning');
+            reportSecurityEvent('Copy/Paste Attempt', 'Medium', `Copy blocked (SID=${sessionId})`, 'Blocked copy');
         });
 
         document.addEventListener('cut', (e) => {
             e.preventDefault();
             showBlockedAlert('Cutting data is not allowed for security reasons.');
             logActivity('Cut attempt blocked', 'warning');
+            reportSecurityEvent('Copy/Paste Attempt', 'Medium', `Cut blocked (SID=${sessionId})`, 'Blocked cut');
         });
 
         document.addEventListener('paste', (e) => {
             e.preventDefault();
             showBlockedAlert('Pasting is not allowed in this secure area.');
             logActivity('Paste attempt blocked', 'warning');
+            reportSecurityEvent('Copy/Paste Attempt', 'Medium', `Paste blocked (SID=${sessionId})`, 'Blocked paste');
         });
 
         document.addEventListener('contextmenu', (e) => {
@@ -725,12 +756,44 @@
             logActivity('Context menu blocked', 'warning');
         });
 
+        function handlePrintScreen(e) {
+            const isPrintScreen =
+                e.key === 'PrintScreen' ||
+                e.key === 'Print Screen' ||
+                e.keyCode === 44 ||
+                e.which === 44;
+
+            if (!isPrintScreen) return false;
+
+            screenshotAttempts++;
+            showBlockedAlert(`Screenshot attempt detected. Session: ${sessionId}`);
+            logActivity(`Screenshot attempt #${screenshotAttempts}`, 'warning');
+            reportSecurityEvent(
+                'Screenshot Prevented',
+                'High',
+                `PrintScreen detected (attempt #${screenshotAttempts}) (SID=${sessionId})`,
+                e.metaKey ? 'Detected Win+PrintScreen' : 'Detected PrintScreen'
+            );
+
+            // Best-effort clipboard clear (may be unavailable on HTTP)
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText('').catch(() => {});
+                }
+            } catch (err) {}
+
+            document.body.style.filter = 'invert(1)';
+            setTimeout(() => { document.body.style.filter = 'none'; }, 100);
+            return true;
+        }
+
         document.addEventListener('keydown', (e) => {
             // Block F12 (DevTools)
             if (e.keyCode === 123) {
                 e.preventDefault();
                 showBlockedAlert('Developer tools are disabled.');
                 logActivity('DevTools access blocked', 'warning');
+                reportSecurityEvent('Security Alert', 'High', `DevTools blocked (F12) (SID=${sessionId})`, 'Blocked DevTools');
                 return false;
             }
 
@@ -755,6 +818,7 @@
                 e.preventDefault();
                 showBlockedAlert('Saving pages is disabled.');
                 logActivity('Save page blocked', 'warning');
+                reportSecurityEvent('Export Blocked', 'High', `Save page blocked (SID=${sessionId})`, 'Blocked Ctrl+S');
                 return false;
             }
 
@@ -763,22 +827,28 @@
                 e.preventDefault();
                 showBlockedAlert('Printing is disabled for security reasons.');
                 logActivity('Print attempt blocked', 'warning');
+                reportSecurityEvent('Export Blocked', 'High', `Print blocked (SID=${sessionId})`, 'Blocked Ctrl+P');
                 return false;
             }
 
             // Print Screen Detection
-            if (e.key === 'PrintScreen') {
-                navigator.clipboard.writeText(''); // Clear clipboard
-                screenshotAttempts++;
-                showBlockedAlert(`Screenshot attempt detected. Session: ${sessionId}`);
-                logActivity(`Screenshot attempt #${screenshotAttempts}`, 'warning');
-                document.body.style.filter = 'invert(1)';
-                setTimeout(() => { document.body.style.filter = 'none'; }, 100);
+            if (handlePrintScreen(e)) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
             }
 
             // Any key press resets timer
             resetSessionTimer();
         });
+
+        // Also listen on keyup in CAPTURE phase (some browsers only expose PrintScreen here)
+        window.addEventListener('keyup', (e) => {
+            if (handlePrintScreen(e)) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, true);
 
         // Detect Snipping Tool (Windows Key + Shift + S) and other combinations
         document.addEventListener('keyup', (e) => {
@@ -786,14 +856,20 @@
                 screenshotAttempts++;
                 showBlockedAlert(`Snipping tool detected! Attempt #${screenshotAttempts} logged.`);
                 logActivity(`Snipping tool attempt #${screenshotAttempts}`, 'warning');
+                reportSecurityEvent(
+                    'Screenshot Prevented',
+                    'High',
+                    `Snipping tool shortcut suspected (attempt #${screenshotAttempts}) (SID=${sessionId})`,
+                    'Detected Win+Shift+S'
+                );
             }
         });
 
         // Detect visibility change (often triggered by screen capture tools overlaying the window)
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
-                screenshotAttempts++;
-                logActivity(`Window hidden (potential screenshot #${screenshotAttempts})`, 'warning');
+                // Don't log to DB on tab switches; this causes false positives.
+                // Keep only a visual deterrent.
                 document.body.style.filter = 'blur(10px)';
             } else {
                 document.body.style.filter = 'none';
@@ -871,17 +947,28 @@
                 return;
             }
 
+            const getLogId = (log) => {
+                return (
+                    log?.id ??
+                    log?.log_id ??
+                    log?.vehicle_fraud_log_id ??
+                    log?.event_id ??
+                    '-'
+                );
+            };
+
             let html = '';
 
             logs.forEach(log => {
                 const riskClass = log.risk_score >= 0.9 ? 'critical' :
                                  log.risk_score >= 0.8 ? 'high' :
                                  log.risk_score >= 0.6 ? 'medium' : 'low';
+                const logId = getLogId(log);
 
                 html += `
                     <div class="log-card">
                         <div class="log-header">
-                            <span class="log-id">${log.id}</span>
+                            <span class="log-id">${logId}</span>
                             <div style="display: flex; gap: 10px; align-items: center;">
                                 <span class="risk-score risk-${riskClass}">Risk: ${log.risk_score}</span>
                                 <span class="severity-badge severity-${log.severity.toLowerCase()}">${log.severity}</span>

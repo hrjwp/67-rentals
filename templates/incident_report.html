@@ -201,55 +201,72 @@
     </head>
 
     <body>
-        <nav class="navbar navbar-expand-lg">
-            <div class="container">
-                <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index_logged') }}">
-                    <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="67 Rentals" style="width: 50px;">
-                    <span class="navbar-brand-text">
-                        67
-                        <small>Rentals</small>
-                    </span>
-                </a>
+<!-- Navbar -->
+            <nav class="navbar navbar-expand-lg">
+                <div class="container">
+                    <a class="navbar-brand d-flex align-items-center" href="#">
+                        <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="Tiya Golf Club">
+                        <span class="navbar-brand-text">
+                            67
+                            <small>Rentals</small>
+                        </span>
+                    </a>
 
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
+                    <div class="d-lg-none ms-auto me-3">
+                        <a class="btn custom-btn custom-border-btn d-flex align-items-center gap-2" href="{{ url_for('logout') }}">
+                            <i class="bi bi-box-arrow-right"></i>
+                            Logout
+                        </a>
+                    </div>
 
-                <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav ms-lg-auto">
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('index_logged') }}#section_1">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('index_logged') }}#section_2">About</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('vehicle_listing_logged') }}">Vehicles</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="{{ url_for('report') }}">Report</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('index_logged') }}#section_4">Contact Us</a>
-                        </li>
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+
+                    <div class="collapse navbar-collapse" id="navbarNav">
+                        <ul class="navbar-nav ms-lg-auto">
+                            <li class="nav-item">
+                                <a class="nav-link click-scroll" href="{{ url_for('index_logged') }}#section_1">Home</a>
+                            </li>
+
+                            <li class="nav-item">
+                                <a class="nav-link click-scroll" href="{{ url_for('index_logged') }}#section_2">About</a>
+                            </li>
+
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('vehicle_listing_logged') }}">Vehicles</a>
+                            </li>
+
+                            <li class="nav-item">
+                                <a class="nav-link active" href="{{ url_for('report') }}">Report</a>
+                            </li>
+
+                            <li class="nav-item">
+                                <a class="nav-link click-scroll" href="{{ url_for('index_logged') }}#section_4">Contact Us</a>
+                            </li>
+
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ url_for('booking_history') }}">
                                     My Bookings
                                 </a>
                             </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('cart') }}">
-                                <i class="bi bi-cart3"></i> Cart
-                                {% if cart_count > 0 %}
-                                <span class="badge bg-danger">{{ cart_count }}</span>
-                                {% endif %}
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
 
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('cart_logged') }}">
+                                    <i class="bi bi-cart3"></i> Cart
+                                    {% if cart_count > 0 %}
+                                    <span class="badge bg-danger">{{ cart_count }}</span>
+                                    {% endif %}
+                                </a>
+                            </li>
+
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+
+
+<!-- Navbar end -->
 
         <section class="incident-section">
             <div class="container">
@@ -286,7 +303,7 @@
                                 {% endif %}
                             {% endwith %}
 
-                            <form id="incidentForm" method="POST" action="{{ url_for('report') }}">
+                            <form id="incidentForm" method="POST" action="{{ url_for('report') }}" enctype="multipart/form-data">
                                 <!-- Personal Information -->
                                 <h5 style="color: #3D405B; font-weight: 700; margin-bottom: 20px;">Personal Information</h5>
 
@@ -418,9 +435,14 @@
 
                                 <div class="mb-3">
                                     <label class="form-label">Photos/Documentation</label>
-                                    <input type="file" class="form-control" id="photos" name="photos" multiple accept="image/*,video/*">
+                                    <input type="file" class="form-control" id="photos" name="photos" multiple accept="image/*,video/*,application/pdf">
                                     <div class="invalid-feedback" id="photos_error"></div>
-                                    <small class="text-muted">Upload photos or videos of the damage, scene, or relevant documentation (Images: jpg, jpeg, png, gif, webp | Videos: mp4, avi, mov, wmv - Max 10 files)</small>
+                                    <small class="text-muted">
+                                        Upload photos of damage, insurance documents, police reports, and other incident evidence.
+                                        For your protection, uploaded files are validated by type, limited in size, renamed on upload, and stored in encrypted, access-controlled storage outside the public site.
+                                        Images are watermarked to help prevent tampering.
+                                        (Images: jpg, jpeg, png, gif, webp | Videos: mp4, avi, mov, wmv | Documents: pdf – Max 10 files, 10&nbsp;MB per file)
+                                    </small>
                                 </div>
 
                                 <div class="alert alert-warning">
@@ -504,8 +526,10 @@
             function validateFiles(files) {
                 const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
                 const allowedVideoTypes = ['video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/quicktime'];
-                const allowedTypes = [...allowedImageTypes, ...allowedVideoTypes];
+                const allowedDocumentTypes = ['application/pdf'];
+                const allowedTypes = [...allowedImageTypes, ...allowedVideoTypes, ...allowedDocumentTypes];
                 const maxFiles = 10;
+                const maxFileSizeBytes = 10 * 1024 * 1024; // 10MB per file
 
                 if (files.length > maxFiles) {
                     return { valid: false, message: `Maximum ${maxFiles} files allowed` };
@@ -513,7 +537,10 @@
 
                 for (let file of files) {
                     if (!allowedTypes.includes(file.type)) {
-                        return { valid: false, message: `Invalid file type: ${file.name}. Only images (jpg, png, gif, webp) and videos (mp4, avi, mov, wmv) are allowed.` };
+                        return { valid: false, message: `Invalid file type: ${file.name}. Only images (jpg, png, gif, webp), videos (mp4, avi, mov, wmv) and documents (pdf) are allowed.` };
+                    }
+                    if (file.size > maxFileSizeBytes) {
+                        return { valid: false, message: `File too large: ${file.name}. Maximum size is 10MB per file.` };
                     }
                 }
 

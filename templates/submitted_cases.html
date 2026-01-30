@@ -547,9 +547,6 @@
                     <i class="bi bi-inbox"></i>
                     <h3>No Incident Reports Found</h3>
                     <p>There are no incident reports submitted yet.</p>
-                    <a href="{{ url_for('report') }}" class="btn-new-report">
-                        <i class="bi bi-flag"></i> File a New Incident Report
-                    </a>
                 </div>
             </div>
         </section>
@@ -925,7 +922,8 @@
                                         }).join('')}
                                     </div>
                                     <small style="color: #717275; margin-top: 15px; display: block;">
-                                        <i class="bi bi-shield-lock"></i> Files are encrypted and watermarked for security
+                                        <i class="bi bi-shield-lock"></i>
+                                        Files are stored outside the public site in encrypted, access-controlled storage, renamed on upload, and watermarked to deter tampering or misuse. Access to each file is logged.
                                     </small>
                                 </div>
                             ` : ''}

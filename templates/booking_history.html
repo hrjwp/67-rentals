@@ -225,6 +225,9 @@
                     grid-template-columns: 1fr;
                 }
             }
+            .nav-link.active {
+                color: #F2CC8F !important;
+            }
         </style>
     </head>
 
@@ -247,11 +250,11 @@
                 <div class="collapse navbar-collapse" id="navbarNav">
                     <ul class="navbar-nav ms-lg-auto">
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('index_logged') }}">Home</a>
+                            <a class="nav-link" href="{{ url_for('index_logged') }}#section_1">Home</a>
                         </li>
 
                         <li class="nav-item">
-                            <a class="nav-link click-scroll" href="{{ url_for('index_logged') }} ">About</a>
+                            <a class="nav-link click-scroll" href="{{ url_for('index_logged') }}#section_2 ">About</a>
                         </li>
 
                         <li class="nav-item">
@@ -263,13 +266,11 @@
                         </li>
 
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('booking_history') }}">
-                                My Bookings
-                            </a>
+                            <a class="nav-link active" href="{{ url_for('booking_history') }}"> My Bookings</a>
                         </li>
 
                         <li class="nav-item">
-                            <a class="nav-link click-scroll" href="#section_4">Contact Us</a>
+                            <a class="nav-link click-scroll" href="{{ url_for('index_logged') }}#section_4">Contact Us</a>
                         </li>
 
                         <li class="nav-item">
@@ -286,7 +287,7 @@
                         <div class="d-none d-lg-block ms-lg-3">
                             <div class="d-flex align-items-center gap-2">
                                 {% set username = user_email.split('@')[0] if user_email else None %}
-                                <div class="btn custom-btn custom-border-btn d-flex align-items-center gap-2">
+                                <a class="btn custom-btn custom-border-btn d-flex align-items-center gap-2" href="{{ url_for('profile') }}">
                                     <i class="bi bi-person"></i>
                                     {% if username %}
                                         {{ username }}
@@ -295,7 +296,7 @@
                                     {% else %}
                                         Logged In
                                     {% endif %}
-                                </div>
+                                </a>
                                 <a class="btn custom-btn custom-border-btn d-flex align-items-center gap-2" href="{{ url_for('logout') }}">
                                     <i class="bi bi-box-arrow-right"></i>
                                     Logout
@@ -424,4 +425,3 @@
         <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
     </body>
 </html>
-
