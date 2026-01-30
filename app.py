@@ -1066,6 +1066,14 @@ def profile():
             for error in errors:
                 flash(error, 'error')
         else:
+            # Store old values for audit logging
+            old_values = {
+                'first_name': user.get('first_name'),
+                'last_name': user.get('last_name'),
+                'email': user.get('email'),
+                'phone': user.get('phone')
+            }
+            
             ok, error = update_user_profile(
                 user['user_id'],
                 form_values['first_name'],
@@ -1076,6 +1084,27 @@ def profile():
             if not ok:
                 flash(error or 'Unable to update profile.', 'error')
             else:
+                # AUDIT: Log profile updates with before/after values
+                new_values = {
+                    'first_name': form_values['first_name'],
+                    'last_name': form_values['last_name'],
+                    'email': form_values['email'],
+                    'phone': form_values['phone']
+                }
+                
+                # Only log if values actually changed
+                if old_values != new_values:
+                    add_audit_log(
+                        action='PROFILE_UPDATED',
+                        user_id=user['user_id'],
+                        ip_address=request.remote_addr,
+                        details=f'Profile updated for {user_email}',
+                        table_name='users',
+                        record_id=user['user_id'],
+                        previous_values=json.dumps(old_values),
+                        new_values=json.dumps(new_values)
+                    )
+                
                 session['user'] = form_values['email']
                 session['user_name'] = f"{form_values['first_name']} {form_values['last_name']}".strip()
                 session.modified = True
@@ -1377,6 +1406,16 @@ def forgot_password():
                 session.pop('password_reset_bypass', None)
                 return _render('email', email)
 
+            # AUDIT: Log password reset request
+            add_audit_log(
+                action='PASSWORD_RESET_REQUESTED',
+                user_id=user['user_id'],
+                ip_address=request.remote_addr,
+                details=f'Password reset requested for {email}',
+                table_name='users',
+                record_id=user['user_id']
+            )
+
             session['password_reset_email'] = email
             session['password_reset_step'] = 'new_password'
             session.pop('password_reset_bypass', None)
@@ -1420,6 +1459,17 @@ def forgot_password():
                 return _render('email', email)
 
             update_user_password(email, generate_password_hash(new_password))
+            
+            # AUDIT: Log successful password reset
+            add_audit_log(
+                action='PASSWORD_RESET_COMPLETED',
+                user_id=user['user_id'],
+                ip_address=request.remote_addr,
+                details=f'Password reset completed for {email}',
+                table_name='users',
+                record_id=user['user_id']
+            )
+            
             session.pop('password_reset_step', None)
             session.pop('password_reset_email', None)
             session.pop('password_reset_otp_id', None)
@@ -3197,6 +3247,16 @@ def delete_listing(listing_id):
     # Remove the listing from the list
     listing_to_delete = next((l for l in listings if l['id'] == listing_id), None)
     if listing_to_delete:
+        # AUDIT: Log listing deletion BEFORE removing
+        add_audit_log(
+            action='LISTING_DELETED',
+            user_id=session.get('user_id'),
+            ip_address=request.remote_addr,
+            details=f"Listing deleted: {listing_to_delete.get('name', 'Unknown')} (ID: {listing_id})",
+            table_name='vehicles',
+            record_id=listing_id
+        )
+        
         listings.remove(listing_to_delete)
         flash('Listing deleted successfully', 'success')
     else:
@@ -3361,6 +3421,16 @@ def data_retention_purge():
         return redirect(url_for('index'))
 
     result = run_retention_purge(reason='manual')
+    
+    # AUDIT: Log data purge execution
+    add_audit_log(
+        action='DATA_PURGE_EXECUTED',
+        user_id=session.get('user_id'),
+        ip_address=request.remote_addr,
+        details=f"Data purge executed: {result.get('purged_count', 0)} accounts purged",
+        table_name='users'
+    )
+    
     if result.get('skipped_reason'):
         flash(f"Purge skipped: {result['skipped_reason']}.", 'error')
     elif result.get('errors'):
@@ -3393,6 +3463,18 @@ def data_retention_extend_user(user_id):
         return redirect(request.referrer or url_for('accounts'))
 
     set_retention_extension(user_id, extension_days, updated_by=session.get('user'))
+    
+    # AUDIT: Log retention extension
+    target_user = get_user_by_id(user_id)
+    add_audit_log(
+        action='RETENTION_EXTENDED',
+        user_id=session.get('user_id'),
+        ip_address=request.remote_addr,
+        details=f"Retention extended for user_id {user_id} ({target_user.get('email') if target_user else 'unknown'}) by {extension_days} days",
+        table_name='users',
+        record_id=user_id
+    )
+    
     if extension_days == 0:
         flash('Retention extension cleared.', 'success')
     else:
@@ -3424,6 +3506,16 @@ def data_retention_purge_user(user_id):
         flash('Admins cannot be purged.', 'error')
         return redirect(request.referrer or url_for('accounts'))
 
+    # AUDIT: Log before individual user purge (CRITICAL - must log before deletion)
+    add_audit_log(
+        action='USER_DATA_PURGED',
+        user_id=session.get('user_id'),
+        ip_address=request.remote_addr,
+        details=f"User data purged for user_id {user_id} ({user_row.get('email')})",
+        table_name='users',
+        record_id=user_id
+    )
+    
     purge_user_data(user_id, user_row.get('email'))
     flash('User data purged.', 'success')
     return redirect(request.referrer or url_for('accounts'))
