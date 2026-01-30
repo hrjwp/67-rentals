@@ -1,0 +1,351 @@
+
+
+═══════════════════════════════════════════════════════════════════════════
+## 📋 COMPLETE AUDIT LOGGING REFERENCE
+═══════════════════════════════════════════════════════════════════════════
+
+### ALL AUDIT LOG ENTRIES (34 Total)
+
+1. ✅ Malicious File Upload Attempt (Seller Registration)
+2. ✅ Seller Registration 
+3. ✅ Malicious File Upload Attempt (repeated for different file types)
+4. ✅ User Registration
+5. ✅ Failed Login
+6. ✅ User Login
+7. ✅ User Logout
+8. ✅ Admin Approve User
+9. ✅ Admin Reject User
+10. ✅ **PROFILE_UPDATED** ⭐ NEW
+11. ✅ **PASSWORD_RESET_REQUESTED** ⭐ NEW
+12. ✅ **PASSWORD_RESET_COMPLETED** ⭐ NEW
+13. ✅ Password Reset (legacy)
+14. ✅ Create Payment Intent
+15. ✅ Create Booking
+16. ✅ Submit Cancellation Request
+17. ✅ Approve Cancellation
+18. ✅ Reject Cancellation
+19. ✅ **LISTING_DELETED** 
+20. ✅ Vehicle Management Actions
+21. ✅ **DATA_PURGE_EXECUTED** 
+22. ✅ **RETENTION_EXTENDED** 
+23. ✅ **USER_DATA_PURGED**
+24. ✅ Submit Incident Report
+25. ✅ Update Case Status
+26. ✅ Delete Case
+27. ✅ Encrypt Existing Users
+28. ✅ Decrypt Existing Users
+29. ✅ Data Access Denied
+30-34. ✅ Additional security logging
+
+
+
+═══════════════════════════════════════════════════════════════════════════
+## 🔍 DETAILED BREAKDOWN BY FUNCTION
+═══════════════════════════════════════════════════════════════════════════
+
+### 1. USER AUTHENTICATION & REGISTRATION
+
+**Function: signup_seller() - Line ~282**
+├─ Audit Log #1: 'Malicious File Upload Attempt' (security check)
+├─ Audit Log #2: 'Seller Registration' (successful registration)
+└─ Audit Log #3: 'Malicious File Upload Attempt' (file validation)
+
+**Function: signup() - Line ~441**
+├─ Audit Log #1: 'Malicious File Upload Attempt' (security check)
+├─ Audit Log #2: 'User Registration' (successful registration)
+└─ Audit Log #3: 'Malicious File Upload Attempt' (file validation)
+
+**Function: login() - Line ~640**
+├─ Audit Log #1: 'Failed Login' (invalid credentials)
+└─ Audit Log #2: 'User Login' (successful login)
+
+**Function: logout() - Line ~725**
+└─ Audit Log: 'User Logout'
+
+---
+
+### 2. ADMIN OPERATIONS
+
+**Function: admin_approve_user() - Line ~883**
+└─ Audit Log: 'Admin Approve User'
+
+**Function: admin_reject_user() - Line ~923**
+└─ Audit Log: 'Admin Reject User'
+
+---
+
+### 3. ⭐ USER PROFILE MANAGEMENT 
+
+**Function: profile() - Line ~1013**
+└─ Audit Log: **'PROFILE_UPDATED'** 
+   - Logs: user_id, ip_address, table_name, record_id
+   - Special: Includes previous_values and new_values (JSON)
+   - Only logs when values actually change
+   
+   Example:
+   ```python
+   add_audit_log(
+       action='PROFILE_UPDATED',
+       user_id=user['user_id'],
+       ip_address=request.remote_addr,
+       details=f'Profile updated for {user_email}',
+       table_name='users',
+       record_id=user['user_id'],
+       previous_values=json.dumps(old_values),
+       new_values=json.dumps(new_values)
+   )
+   ```
+
+---
+
+### 4. ⭐ PASSWORD RESET SYSTEM 
+
+**Function: forgot_password() - Line ~1330**
+├─ Audit Log #1: **'PASSWORD_RESET_REQUESTED'** 
+│  - When: User requests password reset
+│  - Logs: user_id, ip_address, email
+│
+└─ Audit Log #2: **'PASSWORD_RESET_COMPLETED'** 
+   - When: Password successfully changed
+   - Logs: user_id, ip_address, completion timestamp
+
+**Function: reset_password() - Line ~1437**
+└─ Audit Log: 'Password Reset' (legacy token-based)
+
+---
+
+### 5. PAYMENT & BOOKING
+
+**Function: create_payment_intent() - Line ~1991**
+└─ Audit Log: 'Create Payment Intent'
+
+**Function: create_booking() - Line ~2XXX**
+└─ Audit Log: 'Create Booking'
+
+**Function: cancellation routes - Line ~2XXX**
+├─ Audit Log #1: 'Submit Cancellation Request'
+├─ Audit Log #2: 'Approve Cancellation'
+└─ Audit Log #3: 'Reject Cancellation'
+
+---
+
+### 6. ⭐ VEHICLE MANAGEMENT 
+
+**Function: delete_listing() - Line ~3194**
+└─ Audit Log: **'LISTING_DELETED'**
+   - Logs BEFORE deletion (critical!)
+   - Includes: listing name, ID, seller
+   
+   Example:
+   ```python
+   add_audit_log(
+       action='LISTING_DELETED',
+       user_id=session.get('user_id'),
+       ip_address=request.remote_addr,
+       details=f"Listing deleted: {listing_to_delete.get('name', 'Unknown')} (ID: {listing_id})",
+       table_name='vehicles',
+       record_id=listing_id
+   )
+   ```
+
+**Function: vehicle_management() - Line ~3233**
+└─ Audit Log: Dynamic action type based on operation
+
+---
+
+### 7. ⭐ DATA RETENTION & GDPR
+
+**Function: data_retention_purge() - Line ~3356**
+└─ Audit Log: **'DATA_PURGE_EXECUTED'** 
+   - GDPR Compliance: Required for mass deletion tracking
+   - Logs: admin_id, purged_count, timestamp
+   
+   Example:
+   ```python
+   add_audit_log(
+       action='DATA_PURGE_EXECUTED',
+       user_id=session.get('user_id'),
+       ip_address=request.remote_addr,
+       details=f"Data purge executed: {result.get('purged_count', 0)} accounts purged",
+       table_name='users'
+   )
+   ```
+
+**Function: data_retention_extend_user() - Line ~3380**
+└─ Audit Log: **'RETENTION_EXTENDED'** 
+   - Tracks policy exceptions
+   - Logs: target_user, extension_days, admin
+   
+   Example:
+   ```python
+   add_audit_log(
+       action='RETENTION_EXTENDED',
+       user_id=session.get('user_id'),
+       ip_address=request.remote_addr,
+       details=f"Retention extended for user_id {user_id} ({target_user.get('email')}) by {extension_days} days",
+       table_name='users',
+       record_id=user_id
+   )
+   ```
+
+**Function: data_retention_purge_user() - Line ~3403**
+└─ Audit Log: **'USER_DATA_PURGED'** 
+   - GDPR Critical: Right to erasure compliance
+   - Logged BEFORE deletion (essential!)
+   - Logs: user_email, admin_id, timestamp
+   
+   Example:
+   ```python
+   add_audit_log(
+       action='USER_DATA_PURGED',
+       user_id=session.get('user_id'),
+       ip_address=request.remote_addr,
+       details=f"User data purged for user_id {user_id} ({user_row.get('email')})",
+       table_name='users',
+       record_id=user_id
+   )
+   ```
+
+---
+
+### 8. INCIDENT REPORTING
+
+**Function: report() - Line ~3554**
+└─ Audit Log: 'Submit Incident Report'
+
+**Function: update_case_status() - Line ~3808**
+└─ Audit Log: 'Update Case Status'
+
+**Function: delete_case() - Line ~3965**
+└─ Audit Log: 'Delete Case'
+
+---
+
+### 9. ENCRYPTION OPERATIONS
+
+**Function: encrypt_existing_users() - Line ~4200**
+└─ Audit Log: 'Encrypt Existing Users'
+
+**Function: decrypt_existing_users() - Line ~4271**
+└─ Audit Log: 'Decrypt Existing Users'
+
+---
+
+### 10. SECURITY & ACCESS CONTROL
+
+**Function: ErrorHandler for AccessDeniedException**
+└─ Audit Log: 'Data Access Denied'
+   - Triggered when classification violations occur
+   - Logs: column attempted, classification level, user role
+
+═══════════════════════════════════════════════════════════════════════════
+## 🛡️ DATA CLASSIFICATION DECORATORS
+═══════════════════════════════════════════════════════════════════════════
+
+### Routes Protected with @require_classification:
+
+1. **@app.route('/admin/panel')**
+   └─ @require_classification('users.nric')
+   └─ Ensures only ADMIN can access RESTRICTED data
+
+2. **@app.route('/security-dashboard')**
+   └─ @require_classification('security_logs.user_id')
+   └─ Protects security log access
+
+3. **@app.route('/admin/backup-management')**
+   └─ @require_classification('backup_logs.backup_path')
+   └─ Protects backup operations
+
+4. **@app.route('/audit-logs')**
+   └─ @require_classification('audit_logs.user_id')
+   └─ Protects audit log viewing
+
+5. **@app.route('/accounts')**
+   └─ @require_classification('users.nric')
+   └─ Protects user account management
+
+### Data Redaction Functions Used:
+
+1. **redact_dict()** - Used in:
+   - admin_approve_user() - Redacts sensitive ticket data
+   - checkout() - Redacts user profile
+   - booking_details() - Redacts booking info
+   - test_redaction() - Demo endpoint
+
+2. **redact_list()** - Used in:
+   - booking_history() - Redacts booking lists
+   - cart_logged() - Redacts session bookings
+
+═══════════════════════════════════════════════════════════════════════════
+## 📊 CLASSIFICATION LEVELS REFERENCE
+═══════════════════════════════════════════════════════════════════════════
+
+### PUBLIC (Anyone can access)
+- Vehicle listings (name, type, price, location)
+- Public availability information
+
+### INTERNAL (Logged-in users only)
+- user_id, booking_id
+- verified status, user_type
+- vehicle availability status
+
+### CONFIDENTIAL (Owner or Admin only)
+- email, first_name, last_name, phone_number
+- license_number
+- booking dates, total_amount
+- Users can access their OWN confidential data
+
+### RESTRICTED (Admin only)
+- password_hash, nric
+- payment_intent_id
+- audit_logs (ip_address, previous_values, new_values)
+- security_logs (all fields)
+
+═══════════════════════════════════════════════════════════════════════════
+## ✅ VERIFICATION CHECKLIST 
+═══════════════════════════════════════════════════════════════════════════
+
+Use this to verify it works correctly:
+
+### Database Verification:
+```sql
+-- Check total audit logs
+SELECT COUNT(*) FROM audit_logs;
+
+-- Check new audit actions exist
+SELECT action, COUNT(*) as count 
+FROM audit_logs 
+WHERE action IN (
+    'PROFILE_UPDATED',
+    'PASSWORD_RESET_REQUESTED',
+    'PASSWORD_RESET_COMPLETED',
+    'DATA_PURGE_EXECUTED',
+    'RETENTION_EXTENDED',
+    'USER_DATA_PURGED',
+    'LISTING_DELETED'
+)
+GROUP BY action;
+```
+
+### Functional Testing:
+1. □ Update profile → Check for PROFILE_UPDATED in audit_logs
+2. □ Request password reset → Check for PASSWORD_RESET_REQUESTED
+3. □ Complete reset → Check for PASSWORD_RESET_COMPLETED
+4. □ Delete listing → Check for LISTING_DELETED
+5. □ Try accessing /admin/panel as user → Should be denied
+6. □ Run data purge → Check for DATA_PURGE_EXECUTED
+
+### Code Verification:
+```bash
+# Count audit log calls
+grep -c "add_audit_log" app.py
+# Should output: 34
+
+# Find new audit actions
+grep "PROFILE_UPDATED\|PASSWORD_RESET_REQUESTED\|DATA_PURGE_EXECUTED" app.py
+# Should show all new audit log calls
+
+# Find classification decorators
+grep "@require_classification" app.py
+# Should show 5+ decorators
+```
