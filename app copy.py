@@ -65,40 +65,6 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-# Import data classification functions
-from data_classification import (
-    check_access, #testing
-    enforce_classification,
-    redact_dict,
-    require_classification,
-    can_access_table,
-    get_classification_stats,
-    AccessDeniedException
-)
-from data_classification_config import (
-    UserRole,
-    DATA_CLASSIFICATION,
-    TABLE_CLASSIFICATIONS,
-    CLASSIFICATION_METADATA
-)
-
-
-def normalize_severity(severity_value):
-    """Normalize severity to: Low, Medium, High, or Critical"""
-    if not severity_value:
-        return 'Low'
-    
-    severity_lower = str(severity_value).lower().strip()
-    
-    severity_map = {
-        'low': 'Low', 'minor': 'Low',
-        'medium': 'Medium', 'moderate': 'Medium',
-        'high': 'High', 'major': 'High', 'severe': 'High',
-        'critical': 'Critical', 'emergency': 'Critical'
-    }
-    
-    return severity_map.get(severity_lower, 'Low')
-
 # Import audit log decorator
 from audit_helper import audit_log
 
@@ -336,18 +302,6 @@ def signup_seller():
                         is_valid, error_msg, detected_type = validate_uploaded_file(file_field)
                         if not is_valid:
                             errors.append(f'{file_name}: {error_msg}')
-                            # --- Security audit log for malicious file upload ---
-                            add_audit_log(
-                                user_id=0,  # Not yet registered
-                                action='Malicious File Upload Attempt',
-                                entity_type='SECURITY',
-                                entity_id='file_upload',
-                                reason=f'File validation failed: {error_msg}',
-                                result='Blocked',
-                                severity='High',
-                                ip_address=request.remote_addr,
-                                device_info=request.headers.get("User-Agent")
-                            )
 
             # If there are validation errors, return them
             if errors:
@@ -408,19 +362,7 @@ def signup_seller():
                 'documents': documents
             }
 
-            user_id = create_user_with_documents(seller_data_plain)
-
-            # --- Audit log for seller registration ---
-            add_audit_log(
-                user_id=user_id if user_id else 0,
-                action='Seller Registration',
-                entity_type='USER',
-                entity_id=user_id if user_id else 0,
-                new_values=json.dumps({'email': email, 'user_type': 'seller', 'first_name': first_name, 'last_name': last_name}),
-                result='Success',
-                ip_address=request.remote_addr,
-                device_info=request.headers.get("User-Agent")
-            )
+            create_user_with_documents(seller_data_plain)
 
             # Show pending approval page immediately after successful submission
             return render_template('pending_reg.html')
@@ -508,18 +450,6 @@ def signup():
             is_valid, error_msg, detected_type = validate_uploaded_file(nric_image)
             if not is_valid:
                 errors.append(f'NRIC image: {error_msg}')
-                # --- Security audit log for malicious file upload ---
-                add_audit_log(
-                    user_id=0,  # Not yet registered
-                    action='Malicious File Upload Attempt',
-                    entity_type='SECURITY',
-                    entity_id='file_upload',
-                    reason=f'NRIC image validation failed: {error_msg}',
-                    result='Blocked',
-                    severity='High',
-                    ip_address=request.remote_addr,
-                    device_info=request.headers.get("User-Agent")
-                )
 
         if not license_image or license_image.filename == '':
             errors.append('Driver\'s license image is required')
@@ -532,18 +462,6 @@ def signup():
             is_valid, error_msg, detected_type = validate_uploaded_file(license_image)
             if not is_valid:
                 errors.append(f'License image: {error_msg}')
-                # --- Security audit log for malicious file upload ---
-                add_audit_log(
-                    user_id=0,  # Not yet registered
-                    action='Malicious File Upload Attempt',
-                    entity_type='SECURITY',
-                    entity_id='file_upload',
-                    reason=f'License image validation failed: {error_msg}',
-                    result='Blocked',
-                    severity='High',
-                    ip_address=request.remote_addr,
-                    device_info=request.headers.get("User-Agent")
-                )
 
         existing = get_user_by_email(email)
         if existing:
@@ -592,19 +510,7 @@ def signup():
         }
 
         # Persist to DB with pending status for admin review
-        user_id = create_user_with_documents(user_data_plain)
-
-        # --- Audit log for user registration ---
-        add_audit_log(
-            user_id=user_id if user_id else 0,
-            action='User Registration',
-            entity_type='USER',
-            entity_id=user_id if user_id else 0,
-            new_values=json.dumps({'email': email, 'user_type': 'user', 'first_name': first_name, 'last_name': last_name}),  # ← Convert to JSON string
-            result='Success',
-            ip_address=request.remote_addr,
-            device_info=request.headers.get("User-Agent")
-        )
+        create_user_with_documents(user_data_plain)
 
         # Show pending approval page immediately after successful submission
         return render_template('pending_reg.html')
@@ -642,18 +548,6 @@ def login():
 
     user = get_user_by_email(email)
     if not user or not check_password_hash(user.get('password_hash', ''), password):
-        # --- Audit log for failed login ---
-        add_audit_log(
-            user_id=user.get('user_id') if user else 0,
-            action='Failed Login',
-            entity_type='USER',
-            entity_id=user.get('user_id') if user else 0,
-            reason='Invalid email or password',
-            result='Failure',
-            severity='Medium',
-            ip_address=request.remote_addr,
-            device_info=request.headers.get("User-Agent")
-        )
         flash('Invalid email or password', 'error')
         return redirect(request.referrer or url_for('index'))
 
@@ -682,17 +576,6 @@ def login():
     session['user_type'] = user.get('user_type', 'user')  # Get user type from stored data
     session.modified = True
 
-    # --- Audit log for successful login ---
-    add_audit_log(
-        user_id=user.get('user_id'),
-        action='User Login',
-        entity_type='USER',
-        entity_id=user.get('user_id'),
-        result='Success',
-        ip_address=request.remote_addr,
-        device_info=request.headers.get("User-Agent")
-    )
-
     flash(f"Welcome back, {user['first_name']}!", 'success')
 
     # Redirect based on user type
@@ -712,20 +595,6 @@ def login():
 @app.route('/logout')
 def logout():
     """Handle user logout"""
-    user_id = session.get('user_id', 0)
-    
-    # --- Audit log for logout ---
-    if user_id:
-        add_audit_log(
-            user_id=user_id,
-            action='User Logout',
-            entity_type='USER',
-            entity_id=user_id,
-            result='Success',
-            ip_address=request.remote_addr,
-            device_info=request.headers.get("User-Agent")
-        )
-    
     session.pop('user', None)
     session.pop('user_id', None)
     session.pop('user_name', None)
@@ -739,7 +608,6 @@ def logout():
 # ADMIN PANEL (RENAMED FROM admin_dashboard)
 # ============================================
 @app.route('/admin/panel')
-@require_classification('users.nric')
 def admin_panel():
     """Admin panel to view and approve pending registrations"""
     # Check if user is logged in and is admin
@@ -749,10 +617,6 @@ def admin_panel():
 
     # Clear any lingering flashes from prior login attempts to keep the admin view clean
     session.pop('_flashes', None)
-    
-    # Get user context for data classification
-    user_role = session.get('user_type', 'guest')
-    user_id = session.get('user_id')
 
     def adapt(ticket):
         docs = ticket.get('documents', {})
@@ -762,7 +626,7 @@ def admin_panel():
                 return None
             return url_for('admin_document', doc_id=doc['id'])
 
-        ticket_data = {
+        return {
             'ticket_id': ticket.get('ticket_id'),
             'first_name': ticket.get('first_name'),
             'last_name': ticket.get('last_name'),
@@ -778,9 +642,6 @@ def admin_panel():
             'vehicle_card_image': doc_url(docs.get('vehicle_card_image')),
             'insurance_image': doc_url(docs.get('insurance_image')),
         }
-        
-        # Redact sensitive fields based on user permissions
-        return redact_dict(ticket_data, 'users', user_role, user_id, ticket.get('user_id'))
 
     pending_tickets = get_signup_tickets(status='pending')
     approved_tickets = get_signup_tickets(status='approved')
@@ -806,7 +667,6 @@ def admin_panel():
 # ADMIN APPROVE USER
 # ============================================
 @app.route('/admin/approve/<int:ticket_id>', methods=['POST'])
-@require_classification('users.nric')
 def admin_approve_user(ticket_id):
     """Approve a pending user registration"""
     if 'user' not in session or session.get('user_type') != 'admin':
@@ -815,27 +675,6 @@ def admin_approve_user(ticket_id):
 
     ok = set_signup_status(ticket_id, 'approved', reviewer=session.get('user'))
     if ok:
-        # --- Audit log for admin approval ---
-        # Get user_id from ticket to log properly
-        from database import get_db_connection
-        with get_db_connection() as conn:
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT user_id FROM signup_tickets WHERE ticket_id = %s", (ticket_id,))
-            ticket_info = cursor.fetchone()
-            cursor.close()
-            
-        if ticket_info:
-            add_audit_log(
-                user_id=session.get('user_id', 0),
-                action='Admin Approve User',
-                entity_type='USER',
-                entity_id=ticket_info['user_id'],
-                new_values=json.dumps({'status': 'approved', 'ticket_id': ticket_id}),
-                result='Success',
-                ip_address=request.remote_addr,
-                device_info=request.headers.get("User-Agent")
-            )
-        
         flash('Signup approved successfully!', 'success')
     else:
         flash('Signup ticket not found.', 'error')
@@ -846,7 +685,6 @@ def admin_approve_user(ticket_id):
 # ADMIN REJECT USER
 # ============================================
 @app.route('/admin/reject/<int:ticket_id>', methods=['POST'])
-@require_classification('users.nric')
 def admin_reject_user(ticket_id):
     """Reject and delete a pending user registration"""
     if 'user' not in session or session.get('user_type') != 'admin':
@@ -855,28 +693,6 @@ def admin_reject_user(ticket_id):
 
     ok = set_signup_status(ticket_id, 'rejected', reviewer=session.get('user'))
     if ok:
-        # --- Audit log for admin rejection ---
-        # Get user_id from ticket to log properly
-        from database import get_db_connection
-        with get_db_connection() as conn:
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT user_id FROM signup_tickets WHERE ticket_id = %s", (ticket_id,))
-            ticket_info = cursor.fetchone()
-            cursor.close()
-            
-        if ticket_info:
-            add_audit_log(
-                user_id=session.get('user_id', 0),
-                action='Admin Reject User',
-                entity_type='USER',
-                entity_id=ticket_info['user_id'],
-                new_values=json.dumps({'status': 'rejected', 'ticket_id': ticket_id}),
-                result='Success',
-                severity='Medium',
-                ip_address=request.remote_addr,
-                device_info=request.headers.get("User-Agent")
-            )
-        
         flash('Signup rejected.', 'success')
     else:
         flash('Signup ticket not found.', 'error')
@@ -891,7 +707,6 @@ from io import BytesIO
 
 
 @app.route('/admin/document/<int:doc_id>')
-@require_classification('user_documents.file_data')
 def admin_document(doc_id):
     """Serve a stored document from DB to admin."""
     from mysql.connector import Error
@@ -963,9 +778,8 @@ def seller_dashboard():
 # CREATE INITIAL ADMIN ACCOUNT (HELPER)
 # ============================================
 @app.route('/create-admin-secret-route-12345', methods=['GET', 'POST'])
-@require_classification('users.password_hash')
 def create_admin():
-    """One-time route to create initial admin account - RESTRICTED to admins only"""
+    """One-time route to create initial admin account - REMOVE after first admin is created"""
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
@@ -1180,18 +994,6 @@ def reset_password(token):
             update_user_password(email, generate_password_hash(new_password))
 
             PASSWORD_RESET_TOKENS[token]['used'] = True
-
-            # --- Audit log for password reset ---
-            add_audit_log(
-                user_id=user.get('user_id', 0),
-                action='Password Reset',
-                entity_type='USER',
-                entity_id=user.get('user_id', 0),
-                result='Success',
-                reason='User requested password reset',
-                ip_address=request.remote_addr,
-                device_info=request.headers.get("User-Agent")
-            )
 
             flash('Password has been reset successfully! You can now login.', 'success')
             return redirect(url_for('login'))
@@ -1491,9 +1293,6 @@ def cart():
 def booking_history():
     """Display user's booking history"""
     user_email = session.get('user')
-    user_role = session.get('user_type', 'user')
-    user_id = session.get('user_id')
-    
     if not user_email:
         flash('Please login to view your bookings', 'error')
         return redirect(url_for('login'))
@@ -1504,10 +1303,7 @@ def booking_history():
         user = get_user_by_email(user_email)
         if user and user.get('user_id'):
             # Get user bookings from database
-            raw_bookings = get_user_bookings(user.get('user_id'))
-            # Redact sensitive booking data based on user permissions
-            from data_classification import redact_list
-            bookings = redact_list(raw_bookings, 'bookings', user_role, user_id)
+            bookings = get_user_bookings(user.get('user_id'))
     except Exception as e:
         # If database fails, try session-based bookings
         print(f"Database error: {e}")
@@ -1523,9 +1319,7 @@ def booking_history():
         for booking_id, booking in BOOKINGS.items():
             if booking.get('customer_email') == user_email:
                 session_bookings.append(booking)
-        # Redact session bookings as well
-        from data_classification import redact_list
-        bookings = redact_list(session_bookings, 'bookings', user_role, user_id)
+        bookings = session_bookings
 
     # Get cart count for navbar
     cart_count = get_cart_count(session)
@@ -1660,22 +1454,12 @@ def api_cart_count():
 @login_required
 def checkout():
     """Checkout page"""
-    user_email = session.get('user')
-    user_role = session.get('user_type', 'user')
-    user_id = session.get('user_id')
-    
     cart_items = session.get('cart', {})
 
     if not cart_items:
         return redirect(url_for('cart'))
 
     totals = calculate_cart_totals(cart_items, VEHICLES)
-    
-    # Get user data and redact sensitive fields for display
-    user_data = get_user_by_email(user_email) if user_email else None
-    redacted_user = None
-    if user_data:
-        redacted_user = redact_dict(user_data, 'users', user_role, user_id, user_data.get('user_id'))
 
     return render_template('checkout.html',
                            cart_items=totals['cart_data'],
@@ -1683,8 +1467,7 @@ def checkout():
                            insurance_fee=totals['insurance_fee'],
                            service_fee=totals['service_fee'],
                            total=totals['total'],
-                           stripe_public_key=Config.STRIPE_PUBLIC_KEY,
-                           user=redacted_user)
+                           stripe_public_key=Config.STRIPE_PUBLIC_KEY)
 
 
 @app.route('/create-payment-intent', methods=['POST'])
@@ -1719,18 +1502,6 @@ def create_payment_intent():
                 'booking_type': 'vehicle_rental',
             },
             description='67 Rentals Vehicle Booking',
-        )
-
-        # --- Audit log for payment intent creation ---
-        add_audit_log(
-            user_id=session.get('user_id', 0),
-            action='Create Payment Intent',
-            entity_type='PAYMENT',
-            entity_id=intent.id,
-            new_values=json.dumps({'amount': totals['total'], 'currency': 'sgd', 'cart_items': len(cart_items)}),
-            result='Success',
-            ip_address=request.remote_addr,
-            device_info=request.headers.get("User-Agent")
         )
 
         return jsonify({
@@ -1830,25 +1601,6 @@ def payment_success():
         try:
             # The database function is called here to persist the data.
             db_booking_id = create_booking(booking_data)
-            
-            # --- Audit log for booking creation ---
-            add_audit_log(
-                user_id=user_id,
-                action='Create Booking',
-                entity_type='BOOKING',
-                entity_id=db_booking_id,
-                new_values=json.dumps({
-                    'booking_id': db_booking_id,
-                    'vehicle_id': vehicle_id,
-                    'total_amount': totals['total'],
-                    'payment_intent_id': payment_intent_id,
-                    'status': 'Confirmed'
-                }),
-                result='Success',
-                ip_address=request.remote_addr,
-                device_info=request.headers.get("User-Agent")
-            )
-            
             flash(f'Booking #{db_booking_id} successfully confirmed and recorded. Payment ID: {payment_intent_id}',
                   'success')
 
@@ -2547,37 +2299,23 @@ def file_security_test():
 # ============================================
 
 @app.route('/cancel-booking/<booking_id>')
-@login_required
 def cancel_booking(booking_id):
     """Display cancellation request page"""
-    user_role = session.get('user_type', 'user')
-    user_id = session.get('user_id')
-    user_email = session.get('user')
-    
     booking = BOOKINGS.get(booking_id)
 
     if not booking:
         return "Booking not found", 404
-    
-    # Check if user owns this booking
-    if booking.get('customer_email') != user_email and user_role != 'admin':
-        flash('You can only cancel your own bookings', 'error')
-        return redirect(url_for('booking_history'))
 
     if booking['status'] not in ['Confirmed', 'Pending']:
         return "This booking cannot be cancelled", 400
 
-    # Redact sensitive booking data based on user permissions
-    booking_owner_id = booking.get('user_id')
-    redacted_booking = redact_dict(booking, 'bookings', user_role, user_id, booking_owner_id)
-    
     refund_percentage = calculate_refund_percentage(booking)
     processing_fee = 10 if refund_percentage > 0 else 0
     estimated_refund = (booking['total_amount'] * refund_percentage / 100) - processing_fee
     estimated_refund = max(0, estimated_refund)
 
     return render_template('cancel_booking.html',
-                           booking=redacted_booking,
+                           booking=booking,
                            refund_percentage=refund_percentage,
                            processing_fee=processing_fee,
                            estimated_refund=round(estimated_refund, 2))
@@ -2612,56 +2350,19 @@ def submit_cancellation(booking_id):
 
     BOOKINGS[booking_id]['status'] = 'Pending Cancellation'
 
-    # --- Audit log for cancellation request ---
-    add_audit_log(
-        user_id=session.get('user_id', 0),
-        action='Submit Cancellation Request',
-        entity_type='CANCELLATION',
-        entity_id=request_id,
-        new_values=json.dumps({
-            'booking_id': booking_id,
-            'request_id': request_id,
-            'reason': cancellation_reason,
-            'refund_percentage': calculate_refund_percentage(booking)
-        }),
-        result='Success',
-        ip_address=request.remote_addr,
-        device_info=request.headers.get("User-Agent")
-    )
-
     return render_template('cancellation_submitted.html',
                            request_id=request_id,
                            booking=booking)
 
 
 @app.route('/seller/cancellation-requests')
-@login_required
 def seller_cancellation_requests():
     """Seller page to view all cancellation requests"""
-    user_role = session.get('user_type', 'guest')
-    user_id = session.get('user_id')
-    
-    # Check if user is seller or admin
-    if user_role not in ['seller', 'admin']:
-        flash('Access denied. Seller privileges required.', 'error')
-        return redirect(url_for('index'))
-    
     pending_requests = {
         rid: req for rid, req in CANCELLATION_REQUESTS.items()
         if req['status'] == 'Pending'
     }
-    
-    # Redact sensitive customer data in cancellation requests
-    redacted_requests = {}
-    for rid, req in pending_requests.items():
-        booking = req.get('booking', {})
-        booking_owner_id = booking.get('user_id')
-        redacted_booking = redact_dict(booking, 'bookings', user_role, user_id, booking_owner_id)
-        redacted_req = dict(req)
-        redacted_req['booking'] = redacted_booking
-        redacted_requests[rid] = redacted_req
-    
-    return render_template('seller_cancellations.html', requests=redacted_requests)
+    return render_template('seller_cancellations.html', requests=pending_requests)
 
 
 @app.route('/seller/approve-cancellation/<request_id>', methods=['POST'])
@@ -2699,23 +2400,6 @@ def seller_approve_cancellation(request_id):
     CANCELLATION_REQUESTS[request_id]['reviewed_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     BOOKINGS[booking['booking_id']]['status'] = 'Cancelled'
 
-    # --- Audit log for cancellation approval ---
-    add_audit_log(
-        user_id=session.get('user_id', 0),
-        action='Approve Cancellation',
-        entity_type='CANCELLATION',
-        entity_id=request_id,
-        new_values=json.dumps({
-            'status': 'Approved',
-            'refund_id': refund_id,
-            'refund_amount': refund_amount,
-            'booking_id': booking['booking_id']
-        }),
-        result='Success',
-        ip_address=request.remote_addr,
-        device_info=request.headers.get("User-Agent")
-    )
-
     return jsonify({'success': True, 'refund_id': refund_id, 'refund_amount': refund_amount})
 
 
@@ -2732,22 +2416,6 @@ def seller_reject_cancellation(request_id):
     CANCELLATION_REQUESTS[request_id]['status'] = 'Rejected'
     CANCELLATION_REQUESTS[request_id]['reviewed_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     BOOKINGS[booking['booking_id']]['status'] = 'Confirmed'
-
-    # --- Audit log for cancellation rejection ---
-    add_audit_log(
-        user_id=session.get('user_id', 0),
-        action='Reject Cancellation',
-        entity_type='CANCELLATION',
-        entity_id=request_id,
-        new_values=json.dumps({
-            'status': 'Rejected',
-            'booking_id': booking['booking_id']
-        }),
-        result='Success',
-        severity='Low',
-        ip_address=request.remote_addr,
-        device_info=request.headers.get("User-Agent")
-    )
 
     return jsonify({'success': True})
 
@@ -2914,7 +2582,6 @@ def dashboard():
 
 
 @app.route('/accounts')
-@require_classification('users.nric')
 def accounts():
     """
     Reuse the admin panel experience on the Accounts route
@@ -2994,7 +2661,6 @@ def vehicle_management():
     return render_template('vehicle_management.html', vehicles=VEHICLES)
 
 @app.route('/security-dashboard')
-@require_classification('security_logs.user_id')
 def security_dashboard():
     """Security management page"""
     # Check if user is logged in and is admin
@@ -3006,7 +2672,6 @@ def security_dashboard():
 
 @app.route('/admin/backup-management')
 @login_required
-@require_classification('backup_logs.backup_path')
 def backup_management():
     """Backup management page for admins"""
     # Check if user is logged in and is admin
@@ -3024,21 +2689,12 @@ def data_classification():
 
 
 @app.route('/audit-logs')
-@require_classification('audit_logs.user_id')
 def audit_logs():
     """Audit logs page"""
-    # Check if user can access restricted audit logs table
-    user_role = session.get('user_type', 'guest')
-    user_id = session.get('user_id')
-    
-    if not can_access_table('audit_logs', user_role):
-        flash('Access denied. Administrator privileges required.', 'error')
-        return redirect(url_for('index'))
-    
     # Fetch latest 100 audit logs
     logs = get_audit_logs(limit=100)
 
-    # Attach user email for display and redact sensitive fields
+    # Attach user email for display
     for log in logs:
         if log.get("user_id"):
             user = get_user_by_id(log["user_id"])
@@ -3047,27 +2703,6 @@ def audit_logs():
             log["user_email"] = "System / Unknown"
 
     return render_template('audit_logs.html', audit_logs=logs)
-
-
-@app.route('/data-classification-dashboard')
-@login_required
-@require_classification('users.nric')
-def data_classification_dashboard():
-    """Data Classification Dashboard - Admin only"""
-    if session.get('user_type') != 'admin':
-        flash('Access denied. Admin privileges required.', 'error')
-        return redirect(url_for('index'))
-    
-    # Get classification statistics
-    stats = get_classification_stats()
-    
-    return render_template(
-        'data_classification_dashboard.html',
-        stats=stats,
-        all_classifications=DATA_CLASSIFICATION,
-        table_classifications=TABLE_CLASSIFICATIONS,
-        classification_metadata=CLASSIFICATION_METADATA
-    )
 
 
 # ============================================
@@ -3281,24 +2916,6 @@ def report():
                 flash("Failed to save incident report: No ID returned from database.", "error")
                 return render_template("incident_report.html", cart_count=cart_count)
             
-            # --- Audit log for incident report --- 
-            add_audit_log(
-                user_id=session.get('user_id', 0),
-                action='Submit Incident Report',
-                entity_type='INCIDENT_REPORT',
-                entity_id=report_id,
-                new_values=json.dumps({  # ← Fixed with json.dumps()
-                    'report_id': report_id,
-                    'incident_type': request.form.get('incident_type'),
-                    'severity_level': request.form.get('severity_level'),
-                    'booking_id': request.form.get('booking_id')
-                }),
-                result='Success',
-                severity=normalize_severity(request.form.get('severity_level', 'Low')),  # ← Fixed with normalize
-                ip_address=request.remote_addr,
-                device_info=request.headers.get("User-Agent")
-            )
-                    
             # Store email in session so we can retrieve reports later (even if not logged in)
             if submitter_email:
                 session['incident_report_email'] = submitter_email
@@ -3405,18 +3022,6 @@ def update_case_status(report_id):
     try:
         ok = update_incident_status(report_id, new_status)
         if ok:
-            # --- Audit log for case status update ---
-            add_audit_log(
-                user_id=session.get('user_id', 0),
-                action='Update Case Status',
-                entity_type='INCIDENT_REPORT',
-                entity_id=report_id,
-                new_values=json.dumps({'status': new_status}),
-                result='Success',
-                ip_address=request.remote_addr,
-                device_info=request.headers.get("User-Agent")
-            )
-            
             flash(f"Case status updated to {new_status}", "success")
         else:
             flash("Case not found", "error")
@@ -3427,9 +3032,8 @@ def update_case_status(report_id):
 
 
 @app.route("/cases/<int:report_id>/file/<path:filename>")
-@require_classification('incident_report_files.file_path')
 def serve_incident_file(report_id, filename):
-    """Serve decrypted incident report file (with watermark if image) - RESTRICTED access"""
+    """Serve decrypted incident report file (with watermark if image)"""
     try:
         # URL decode filename
         from urllib.parse import unquote
@@ -3557,18 +3161,6 @@ def delete_case(report_id):
     try:
         ok = delete_incident_report(report_id)
         if ok:
-            # --- Audit log for case deletion ---
-            add_audit_log(
-                user_id=session.get('user_id', 0),
-                action='Delete Case',
-                entity_type='INCIDENT_REPORT',
-                entity_id=report_id,
-                result='Success',
-                severity='Medium',
-                ip_address=request.remote_addr,
-                device_info=request.headers.get("User-Agent")
-            )
-            
             flash("Case deleted", "success")
         else:
             flash("Case not found", "error")
@@ -3579,41 +3171,20 @@ def delete_case(report_id):
 
 
 @app.route('/security-logs')
-@require_classification('security_logs.user_id')
 def security_logs():
     """Page 1: Access Security Logs"""
-    # Check if user can access restricted security logs table
-    user_role = session.get('user_type', 'guest')
-    if not can_access_table('security_logs', user_role):
-        flash('Access denied. Administrator privileges required.', 'error')
-        return redirect(url_for('index'))
-    
     return render_template('security_logs.html')
 
 
 @app.route('/vehicle-fraud-logs')
-@require_classification('vehicle_fraud_logs.user_id')
 def vehicle_fraud_logs():
     """Page 2: Vehicle Fraud Logs"""
-    # Check if user can access restricted fraud logs table
-    user_role = session.get('user_type', 'guest')
-    if not can_access_table('vehicle_fraud_logs', user_role):
-        flash('Access denied. Administrator privileges required.', 'error')
-        return redirect(url_for('index'))
-    
     return render_template('vehicle_fraud_logs.html')
 
 
 @app.route('/booking-fraud-logs')
-@require_classification('booking_fraud_logs.user_id')
 def booking_fraud_logs():
     """Page 3: Booking Fraud Logs"""
-    # Check if user can access restricted fraud logs table
-    user_role = session.get('user_type', 'guest')
-    if not can_access_table('booking_fraud_logs', user_role):
-        flash('Access denied. Administrator privileges required.', 'error')
-        return redirect(url_for('index'))
-    
     return render_template('booking_fraud_logs.html')
 
 
@@ -3786,10 +3357,9 @@ def security_check():
 
 
 @app.route("/admin/encrypt-existing-users", methods=["POST"])
-@require_classification('users.password_hash')
 def encrypt_existing_users():
     """
-    One-time helper to encrypt existing plaintext PII in the users table - RESTRICTED to admins only.
+    One-time helper to encrypt existing plaintext PII in the users table.
     Call: POST /admin/encrypt-existing-users?confirm=yes
     """
     if request.args.get("confirm") != "yes":
@@ -3840,27 +3410,13 @@ def encrypt_existing_users():
         conn.commit()
         cursor.close()
 
-    # --- Audit log for bulk encryption ---
-    add_audit_log(
-        user_id=session.get('user_id', 0),
-        action='Encrypt Existing Users',
-        entity_type='SYSTEM',
-        entity_id='bulk_encryption',
-        new_values=json.dumps({'updated_rows': updated}),
-        result='Success',
-        severity='High',
-        ip_address=request.remote_addr,
-        device_info=request.headers.get("User-Agent")
-    )
-
     return jsonify({"updated_rows": updated})
 
 
 @app.route("/admin/decrypt-existing-users", methods=["POST"])
-@require_classification('users.password_hash')
 def decrypt_existing_users():
     """
-    One-time helper to decrypt encrypted PII back to plaintext - RESTRICTED to admins only.
+    One-time helper to decrypt encrypted PII back to plaintext.
     Call: POST /admin/decrypt-existing-users?confirm=yes
     """
     if request.args.get("confirm") != "yes":
@@ -3899,20 +3455,6 @@ def decrypt_existing_users():
 
         conn.commit()
         cursor.close()
-
-    # --- Audit log for bulk decryption ---
-    add_audit_log(
-        user_id=session.get('user_id', 0),
-        action='Decrypt Existing Users',
-        entity_type='SYSTEM',
-        entity_id='bulk_decryption',
-        new_values=json.dumps({'updated_rows': updated}),
-        result='Success',
-        severity='Critical',
-        reason='Bulk decryption operation performed',
-        ip_address=request.remote_addr,
-        device_info=request.headers.get("User-Agent")
-    )
 
     return jsonify({"updated_rows": updated})
 
@@ -4165,125 +3707,6 @@ def log_booking_fraud():
             'error': str(e)
         }), 500
 
-
-# ============================================
-# TEST ROUTES FOR DATA CLASSIFICATION
-# ============================================
-
-@app.route('/test-redaction')
-@login_required
-def test_redaction():
-    """Test data redaction with different roles - Admin only for testing"""
-    if session.get('user_type') != 'admin':
-        flash('Access denied. Admin privileges required for testing.', 'error')
-        return redirect(url_for('index'))
-    
-    # Sample user data
-    test_user = {
-        'user_id': 5,
-        'email': 'john@example.com',
-        'first_name': 'John',
-        'last_name': 'Doe',
-        'phone_number': '+65 1234 5678',
-        'nric': 'S1234567A',
-        'license_number': 'ABC123',
-        'verified': True,
-        'user_type': 'user'
-    }
-    
-    # Test redaction as different roles
-    from data_classification import redact_dict
-    
-    as_admin = redact_dict(test_user, 'users', 'admin', user_id=1, data_owner_id=5)
-    as_owner = redact_dict(test_user, 'users', 'user', user_id=5, data_owner_id=5)
-    as_other_user = redact_dict(test_user, 'users', 'user', user_id=10, data_owner_id=5)
-    as_guest = redact_dict(test_user, 'users', 'guest', user_id=None, data_owner_id=5)
-    
-    return jsonify({
-        'test_explanation': {
-            'admin': 'Admin sees EVERYTHING (all classifications)',
-            'owner': 'User 5 sees their OWN data (PUBLIC + INTERNAL + CONFIDENTIAL)',
-            'other_user': 'User 10 sees LIMITED data (PUBLIC + INTERNAL only)',
-            'guest': 'Guest sees only PUBLIC data (nothing in this case)'
-        },
-        'classification_levels': {
-            'user_id': 'INTERNAL',
-            'email': 'CONFIDENTIAL',
-            'first_name': 'CONFIDENTIAL',
-            'last_name': 'CONFIDENTIAL',
-            'phone_number': 'CONFIDENTIAL',
-            'nric': 'RESTRICTED',
-            'license_number': 'CONFIDENTIAL',
-            'verified': 'INTERNAL',
-            'user_type': 'INTERNAL'
-        },
-        'original_data': test_user,
-        'as_admin': as_admin,
-        'as_owner': as_owner,
-        'as_other_user': as_other_user,
-        'as_guest': as_guest
-    })
-
-
-# ============================================
-# ERROR HANDLERS
-# ============================================
-@app.errorhandler(AccessDeniedException)
-def handle_access_denied(e):
-    print("\n===== AccessDeniedException HANDLER HIT =====")
-
-    # Session + request context
-    user_id = session.get('user_id', 0)
-    user_email = session.get('user', 'Unknown')
-    ip_addr = request.remote_addr if request.remote_addr else 'Unknown'
-    user_agent = request.headers.get("User-Agent", "Unknown")
-
-    print("Session user_id:", user_id)
-    print("Session user_email:", user_email)
-    print("IP address:", ip_addr)
-    print("User-Agent:", user_agent)
-
-    # Inspect exception object
-    print("Exception object:", e)
-    print("Exception type:", type(e))
-    print("Exception attributes:", vars(e) if hasattr(e, "__dict__") else "No __dict__")
-
-    column = getattr(e, "column", None)
-    classification = getattr(e, "classification", None)
-    user_role = getattr(e, "user_role", None)
-
-    print("e.column:", column)
-    print("e.classification:", classification)
-    print("e.user_role:", user_role)
-
-    # Flash (optional, not security-critical)
-    flash('⚠️ Access Denied: You do not have permission to access this resource.', 'error')
-    session.modified = True
-
-    # === AUDIT LOG TEST ===
-    try:
-        print(">>> Attempting add_audit_log()")
-        add_audit_log(
-            user_id=user_id,
-            action='Data Access Denied',
-            entity_type='SECURITY',
-            entity_id=str(column),
-            reason=str(e),
-            result='Failure',
-            severity='Medium',
-            ip_address=ip_addr,
-            device_info=user_agent
-        )
-        print("✅ add_audit_log() SUCCESS")
-    except Exception as audit_error:
-        print("❌ add_audit_log() FAILED")
-        print("Error type:", type(audit_error))
-        print("Error message:", audit_error)
-
-    print("===== END AccessDeniedException HANDLER =====\n")
-
-    from flask import make_response
-    return make_response(redirect(url_for('index')))
 
 # ============================================
 # AUTOMATED BACKUP SCHEDULER
