@@ -11,6 +11,19 @@ import secrets
 # Import configuration
 from config import Config
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+# Create .env with generated SECRET_KEY and DATA_ENCRYPTION_KEY if missing
+try:
+    from utils.auto_setup import ensure_env_file
+    ensure_env_file()
+    load_dotenv()  # reload so new .env is picked up
+except Exception:
+    pass
+
 # Import database functions
 
 from database import (
@@ -2345,7 +2358,7 @@ def list_backups():
         backup_system = SecureBackup()
         file_backups = backup_system.list_backups()
         db_logs = get_backup_logs(limit=1000)
-        
+
         # Merge file backups with database logs
         backups_with_logs = []
         for file_backup in file_backups:
@@ -2355,7 +2368,7 @@ def list_backups():
                 if log['backup_filename'] == file_backup['filename']:
                     matching_log = log
                     break
-            
+
             # Parse tables_backed_up if it's a JSON string
             tables_backed_up = []
             if matching_log and matching_log.get('tables_backed_up'):
@@ -2366,7 +2379,7 @@ def list_backups():
                         tables_backed_up = []
                 else:
                     tables_backed_up = matching_log['tables_backed_up']
-            
+
             backup_entry = {
                 **file_backup,
                 'checksum_sha256': matching_log['checksum_sha256'] if matching_log else None,
@@ -2473,9 +2486,9 @@ def backup_logs():
     try:
         status_filter = request.args.get('status')
         limit = int(request.args.get('limit', 100))
-        
+
         logs = get_backup_logs(limit=limit, status=status_filter)
-        
+
         return jsonify({
             'success': True,
             'logs': logs,
@@ -2493,7 +2506,7 @@ def verify_backup(backup_filename):
     try:
         backup_system = SecureBackup()
         verification_result = backup_system.verify_backup(backup_filename)
-        
+
         # Update verification status in database
         if verification_result.get('verified'):
             logs = get_backup_logs(limit=1000)
@@ -2501,7 +2514,7 @@ def verify_backup(backup_filename):
                 if log['backup_filename'] == backup_filename:
                     update_backup_verification(log['backup_id'], 'Verified')
                     break
-        
+
         return jsonify({
             'success': verification_result.get('verified', False),
             'verification': verification_result
@@ -2891,7 +2904,6 @@ def file_security_test():
             'error': str(e),
             'message': 'File security test failed to run'
         }), 500
-
 
 # ============================================
 # BOOKING & CANCELLATION ROUTES

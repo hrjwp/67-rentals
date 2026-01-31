@@ -56,11 +56,15 @@ class SecureBackup:
             }
             
             # List of tables to backup (skip if they don't exist)
+            # Include incident_reports tables so submitted cases & their files
+            # are restorable from backups.
             tables_to_backup = [
                 'users',
-                'bookings', 
+                'bookings',
                 'password_reset_tokens',
-                'vehicles'
+                'vehicles',
+                'incident_reports',
+                'incident_report_files'
             ]
             
             # Backup in-memory data (listings, etc.)
