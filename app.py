@@ -651,7 +651,7 @@ def login():
     if not user or not check_password_hash(user.get('password_hash', ''), password):
         # --- Audit log for failed login ---
         add_audit_log(
-            user_id=user.get('user_id') if user else 0,
+            user_id=user.get('user_id') if user else None,
             action='Failed Login',
             entity_type='USER',
             entity_id=user.get('user_id') if user else 0,

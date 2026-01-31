@@ -1389,7 +1389,7 @@ from database import get_db_connection
 
 # ============= AUDIT LOGS =============
 
-def add_audit_log(user_id: int, action: str, entity_type: str, entity_id: str,
+def add_audit_log(user_id: Optional[int], action: str, entity_type: str, entity_id: str,
                   previous_values: Optional[dict] = None, new_values: Optional[dict] = None,
                   result: str = 'Success', reason: Optional[str] = None,
                   risk_score: float = 0.0, severity: str = 'Low',
