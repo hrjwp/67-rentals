@@ -255,6 +255,42 @@ def ensure_schema():
             )
             """
         )
+        # Data retention policies for all data types
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS data_retention_policies (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                data_type VARCHAR(50) UNIQUE NOT NULL,
+                display_name VARCHAR(100) NOT NULL,
+                table_name VARCHAR(100) NOT NULL,
+                date_column VARCHAR(50) NOT NULL,
+                retention_days INT DEFAULT 365,
+                auto_purge_enabled TINYINT(1) DEFAULT 1,
+                purge_schedule ENUM('daily', 'weekly', 'monthly') DEFAULT 'daily',
+                last_purge_at DATETIME NULL,
+                last_purge_count INT DEFAULT 0,
+                description TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+            """
+        )
+        # Seed default retention policies for all data types
+        default_policies = [
+            ('bookings', 'Bookings', 'bookings', 'booking_date', 730, 'Completed vehicle rental bookings'),
+            ('audit_logs', 'Audit Logs', 'audit_logs', 'timestamp', 365, 'System audit trail entries'),
+            ('security_logs', 'Security Logs', 'security_logs', 'timestamp', 730, 'Security event logs'),
+            ('incident_reports', 'Incident Reports', 'incident_reports', 'created_at', 1825, 'Reported incidents and accidents'),
+            ('password_reset_tokens', 'Password Reset Tokens', 'password_reset_tokens', 'created_at', 30, 'Password reset token records'),
+            ('password_reset_otps', 'Password Reset OTPs', 'password_reset_otps', 'created_at', 7, 'One-time password records'),
+            ('backup_logs', 'Backup Logs', 'backup_logs', 'timestamp', 365, 'Database backup history'),
+            ('cancellation_requests', 'Cancellation Requests', 'cancellation_requests', 'created_at', 730, 'Booking cancellation records'),
+        ]
+        for policy in default_policies:
+            cursor.execute("""
+                INSERT IGNORE INTO data_retention_policies 
+                (data_type, display_name, table_name, date_column, retention_days, description)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, policy)
         # Add foreign key separately if it doesn't exist (allows NULL user_id)
         try:
             cursor.execute("""
@@ -1979,3 +2015,185 @@ def run_retention_purge(reason: str = "auto") -> Dict[str, Any]:
 
     _record_retention_run(result["purged_count"], reason)
     return result
+
+
+# ============= DATA RETENTION POLICIES (Multi-Type) =============
+
+def get_all_retention_policies() -> List[Dict[str, Any]]:
+    """Fetch all data retention policies with record counts."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT * FROM data_retention_policies ORDER BY display_name
+        """)
+        policies = cursor.fetchall()
+        
+        # Get record counts for each table
+        for policy in policies:
+            table_name = policy.get("table_name")
+            try:
+                cursor.execute(f"SELECT COUNT(*) as cnt FROM {table_name}")
+                result = cursor.fetchone()
+                policy["record_count"] = result["cnt"] if result else 0
+            except:
+                policy["record_count"] = 0
+            
+            # Get count of records due for purge
+            date_col = policy.get("date_column")
+            retention_days = policy.get("retention_days", 365)
+            try:
+                cursor.execute(f"""
+                    SELECT COUNT(*) as cnt FROM {table_name}
+                    WHERE {date_col} < DATE_SUB(NOW(), INTERVAL %s DAY)
+                """, (retention_days,))
+                result = cursor.fetchone()
+                policy["due_for_purge"] = result["cnt"] if result else 0
+            except:
+                policy["due_for_purge"] = 0
+        
+        cursor.close()
+        return policies
+
+
+def get_retention_policy(data_type: str) -> Dict[str, Any]:
+    """Fetch a single retention policy by data_type."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT * FROM data_retention_policies WHERE data_type = %s
+        """, (data_type,))
+        policy = cursor.fetchone()
+        cursor.close()
+        return policy
+
+
+def update_retention_policy(data_type: str, settings: Dict[str, Any]) -> bool:
+    """Update a retention policy."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE data_retention_policies
+            SET retention_days = %s,
+                auto_purge_enabled = %s,
+                purge_schedule = %s
+            WHERE data_type = %s
+        """, (
+            int(settings.get("retention_days", 365)),
+            1 if settings.get("auto_purge_enabled") else 0,
+            settings.get("purge_schedule", "daily"),
+            data_type,
+        ))
+        cursor.close()
+        return cursor.rowcount > 0
+
+
+def get_retention_statistics() -> Dict[str, Any]:
+    """Get overall retention statistics across all data types."""
+    policies = get_all_retention_policies()
+    
+    total_records = sum(p.get("record_count", 0) for p in policies)
+    total_due = sum(p.get("due_for_purge", 0) for p in policies)
+    
+    # Get last global purge time
+    last_purge = None
+    for p in policies:
+        if p.get("last_purge_at"):
+            if not last_purge or p["last_purge_at"] > last_purge:
+                last_purge = p["last_purge_at"]
+    
+    return {
+        "total_records": total_records,
+        "total_due_for_purge": total_due,
+        "last_purge_at": last_purge,
+        "policy_count": len(policies),
+        "auto_purge_enabled_count": sum(1 for p in policies if p.get("auto_purge_enabled")),
+    }
+
+
+def purge_data_for_type(data_type: str, reason: str = "manual") -> Dict[str, Any]:
+    """Purge data for a specific data type based on its retention policy."""
+    policy = get_retention_policy(data_type)
+    if not policy:
+        return {"success": False, "error": "Policy not found", "purged_count": 0}
+    
+    table_name = policy.get("table_name")
+    date_col = policy.get("date_column")
+    retention_days = policy.get("retention_days", 365)
+    
+    result = {
+        "success": True,
+        "data_type": data_type,
+        "purged_count": 0,
+        "error": None,
+    }
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        try:
+            # Get count before delete
+            cursor.execute(f"""
+                SELECT COUNT(*) as cnt FROM {table_name}
+                WHERE {date_col} < DATE_SUB(NOW(), INTERVAL %s DAY)
+            """, (retention_days,))
+            count_row = cursor.fetchone()
+            count_to_delete = count_row[0] if count_row else 0
+            
+            # Perform deletion
+            cursor.execute(f"""
+                DELETE FROM {table_name}
+                WHERE {date_col} < DATE_SUB(NOW(), INTERVAL %s DAY)
+            """, (retention_days,))
+            
+            result["purged_count"] = cursor.rowcount
+            
+            # Update policy last purge info
+            cursor.execute("""
+                UPDATE data_retention_policies
+                SET last_purge_at = NOW(), last_purge_count = %s
+                WHERE data_type = %s
+            """, (result["purged_count"], data_type))
+            
+        except Exception as e:
+            result["success"] = False
+            result["error"] = str(e)
+        
+        cursor.close()
+    
+    return result
+
+
+def run_all_retention_purges(reason: str = "scheduled") -> Dict[str, Any]:
+    """Run retention purge for all enabled data types."""
+    policies = get_all_retention_policies()
+    
+    summary = {
+        "total_purged": 0,
+        "types_processed": 0,
+        "errors": [],
+        "details": [],
+    }
+    
+    for policy in policies:
+        if not policy.get("auto_purge_enabled"):
+            continue
+        
+        data_type = policy.get("data_type")
+        result = purge_data_for_type(data_type, reason)
+        
+        summary["types_processed"] += 1
+        summary["total_purged"] += result.get("purged_count", 0)
+        
+        if result.get("error"):
+            summary["errors"].append({
+                "data_type": data_type,
+                "error": result["error"],
+            })
+        
+        summary["details"].append({
+            "data_type": data_type,
+            "display_name": policy.get("display_name"),
+            "purged_count": result.get("purged_count", 0),
+            "success": result.get("success", False),
+        })
+    
+    return summary

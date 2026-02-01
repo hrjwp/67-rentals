@@ -8,15 +8,13 @@ import json
 import re
 import secrets
 
-# Import configuration
-from config import Config
-
+# Load .env file BEFORE importing Config
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
-# Create .env with generated SECRET_KEY and DATA_ENCRYPTION_KEY if missing
+
 try:
     from utils.auto_setup import ensure_env_file
     ensure_env_file()
@@ -24,7 +22,8 @@ try:
 except Exception:
     pass
 
-# Import database functions
+# Import configuration (AFTER loading .env)
+from config import Config
 
 from database import (
     get_user_by_email, create_user_with_documents, get_all_vehicles,
@@ -43,7 +42,10 @@ from database import (
     ensure_incident_report_files_table, update_user_last_login,
     get_retention_settings, update_retention_settings, run_retention_purge,
     get_retention_overview, set_retention_extension, purge_user_data,
-    update_user_profile
+    update_user_profile,
+    # Data retention policies (multi-type)
+    get_all_retention_policies, get_retention_policy, update_retention_policy,
+    get_retention_statistics, purge_data_for_type, run_all_retention_purges
 )
 
 # Import data models
@@ -55,7 +57,8 @@ from models import (
 # Import utilities
 from utils.validation import (
     validate_name, validate_email, validate_phone, validate_nric,
-    validate_license, validate_password, validate_file_size, allowed_file
+    validate_license, validate_password, validate_file_size, allowed_file,
+    extract_age_from_nric
 )
 from utils.auth import (
     login_required, generate_otp, hash_otp, send_password_reset_otp_email
@@ -661,30 +664,47 @@ def login():
         return redirect(request.referrer or url_for('index'))
 
     user = get_user_by_email(email)
-    if not user or not check_password_hash(user.get('password_hash', ''), password):
-        # --- Audit log for failed login ---
+    
+    # Case 1: Email not found in database - user never signed up
+    if not user:
         add_audit_log(
-            user_id=user.get('user_id') if user else None,
-            action='Failed Login',
+            user_id=None,
+            action='Failed Login - Email Not Found',
             entity_type='USER',
-            entity_id=user.get('user_id') if user else 0,
-            reason='Invalid email or password',
+            entity_id=0,
+            reason=f'Login attempt with unregistered email: {email}',
+            result='Failure',
+            severity='Low',
+            ip_address=request.remote_addr,
+            device_info=request.headers.get("User-Agent")
+        )
+        flash('No account found with this email address. Please sign up first.', 'error')
+        return redirect(request.referrer or url_for('index'))
+    
+    # Case 2: Wrong password
+    if not check_password_hash(user.get('password_hash', ''), password):
+        add_audit_log(
+            user_id=user.get('user_id'),
+            action='Failed Login - Wrong Password',
+            entity_type='USER',
+            entity_id=user.get('user_id'),
+            reason='Invalid password entered',
             result='Failure',
             severity='Medium',
             ip_address=request.remote_addr,
             device_info=request.headers.get("User-Agent")
         )
-        flash('Invalid email or password', 'error')
+        flash('Incorrect password. Please try again.', 'error')
         return redirect(request.referrer or url_for('index'))
 
     latest_status = _get_latest_signup_status(email)
 
-    # Explicitly block rejected accounts with a clear message
+    # Case 3: Account rejected by admin
     if latest_status == 'rejected':
         session.pop('_flashes', None)
         return redirect(url_for('registration_rejected'))
 
-    # Check if user account is verified/approved
+    # Case 4: Account pending admin approval
     if not user.get('verified'):
         if latest_status == 'pending':
             flash('Your account is pending approval. Please wait for admin verification.', 'error')
@@ -701,10 +721,26 @@ def login():
         except Exception as exc:
             print(f"Warning: could not update last login: {exc}")
 
-    # Login successful
+    # Login successful - decrypt user name for display
+    decrypted_user = _decrypt_user_record(user)
+    first_name = decrypted_user.get('first_name', '')
+    last_name = decrypted_user.get('last_name', '')
+    
+    # Detect if names still look encrypted (base64-like strings) and use email prefix instead
+    def _looks_encrypted(val):
+        if not val or len(val) < 20:
+            return False
+        # Encrypted values are typically long base64 strings
+        return len(val) > 30 or re.fullmatch(r"[A-Za-z0-9_=-]+", val) is not None
+    
+    if _looks_encrypted(first_name) or _looks_encrypted(last_name):
+        display_name = email.split('@')[0].replace('.', ' ').replace('_', ' ').title()
+    else:
+        display_name = f"{first_name} {last_name}".strip() or email.split('@')[0]
+    
     session['user'] = email
     session['user_id'] = user.get('user_id')
-    session['user_name'] = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+    session['user_name'] = display_name
     session['user_type'] = user.get('user_type', 'user')  # Get user type from stored data
     session.modified = True
 
@@ -719,7 +755,7 @@ def login():
         device_info=request.headers.get("User-Agent")
     )
 
-    flash(f"Welcome back, {user['first_name']}!", 'success')
+    flash(f"Welcome back, {decrypted_user.get('first_name', email.split('@')[0])}!", 'success')
 
     # Redirect based on user type
     user_type = user.get('user_type', 'user')
@@ -833,6 +869,18 @@ def admin_panel():
             'vehicle_card_image': doc_url(docs.get('vehicle_card_image')),
             'insurance_image': doc_url(docs.get('insurance_image')),
         }
+        
+        # Extract age from NRIC for admin review
+        if nric:
+            age_info = extract_age_from_nric(nric)
+            ticket_data['age_info'] = age_info
+        else:
+            ticket_data['age_info'] = {
+                "age": None,
+                "is_minor": None,
+                "confidence": "unknown",
+                "message": "No NRIC provided"
+            }
         
         # Redact sensitive fields based on user permissions
         return redact_dict(ticket_data, 'users', user_role, user_id, ticket.get('user_id'))
@@ -3531,6 +3579,108 @@ def data_retention_purge_user(user_id):
     purge_user_data(user_id, user_row.get('email'))
     flash('User data purged.', 'success')
     return redirect(request.referrer or url_for('accounts'))
+
+
+# ============= DATA RETENTION POLICIES DASHBOARD =============
+
+@app.route('/admin/data-retention-dashboard')
+def data_retention_dashboard():
+    """Data retention dashboard with configurable policies for all data types."""
+    if 'user' not in session or session.get('user_type') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('index'))
+    
+    policies = get_all_retention_policies()
+    stats = get_retention_statistics()
+    user_settings = get_retention_settings()
+    
+    return render_template(
+        'data_retention_dashboard.html',
+        policies=policies,
+        stats=stats,
+        user_settings=user_settings
+    )
+
+
+@app.route('/api/retention-policies', methods=['GET'])
+def api_get_retention_policies():
+    """API: Get all retention policies."""
+    if 'user' not in session or session.get('user_type') != 'admin':
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    policies = get_all_retention_policies()
+    stats = get_retention_statistics()
+    
+    return jsonify({
+        "policies": policies,
+        "stats": stats
+    })
+
+
+@app.route('/api/retention-policies/<data_type>', methods=['PUT'])
+def api_update_retention_policy(data_type):
+    """API: Update a specific retention policy."""
+    if 'user' not in session or session.get('user_type') != 'admin':
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    success = update_retention_policy(data_type, data)
+    
+    if success:
+        # Audit log
+        add_audit_log(
+            action='RETENTION_POLICY_UPDATED',
+            user_id=session.get('user_id'),
+            ip_address=request.remote_addr,
+            details=f"Updated retention policy for {data_type}: {data}",
+            table_name='data_retention_policies'
+        )
+        return jsonify({"success": True, "message": f"Policy for {data_type} updated"})
+    
+    return jsonify({"error": "Policy not found"}), 404
+
+
+@app.route('/api/retention-policies/<data_type>/purge', methods=['POST'])
+def api_purge_retention_type(data_type):
+    """API: Manually purge data for a specific type."""
+    if 'user' not in session or session.get('user_type') != 'admin':
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    result = purge_data_for_type(data_type, reason="manual")
+    
+    # Audit log
+    add_audit_log(
+        action='DATA_TYPE_PURGED',
+        user_id=session.get('user_id'),
+        ip_address=request.remote_addr,
+        details=f"Purged {result.get('purged_count', 0)} records from {data_type}",
+        table_name=data_type
+    )
+    
+    return jsonify(result)
+
+
+@app.route('/api/retention-policies/purge-all', methods=['POST'])
+def api_purge_all_retention():
+    """API: Purge all data types based on their policies."""
+    if 'user' not in session or session.get('user_type') != 'admin':
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    result = run_all_retention_purges(reason="manual_all")
+    
+    # Audit log
+    add_audit_log(
+        action='ALL_DATA_RETENTION_PURGED',
+        user_id=session.get('user_id'),
+        ip_address=request.remote_addr,
+        details=f"Purged {result.get('total_purged', 0)} total records across {result.get('types_processed', 0)} data types",
+        table_name='data_retention_policies'
+    )
+    
+    return jsonify(result)
 
 
 @app.route('/data-classification')

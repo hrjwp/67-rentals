@@ -6,6 +6,31 @@ https://templatemo.com/tm-602-graph-page
 
 */
 
+// ============================================
+// SECURITY: Block print functionality on admin pages with sensitive data
+// ============================================
+(function () {
+   // Block Ctrl+P / Cmd+P keyboard shortcut
+   document.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+         e.preventDefault();
+         e.stopPropagation();
+         alert('Printing is disabled on this page to protect sensitive user data.');
+         return false;
+      }
+   });
+
+   // Also disable via window.print override
+   window.print = function () {
+      alert('Printing is disabled on this page to protect sensitive user data.');
+      return false;
+   };
+
+   // Disable right-click context menu print option by blocking the menu
+   // (optional - uncomment if needed)
+   // document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+})();
+
 // Hamburger menu toggle
 const hamburger = document.getElementById('hamburger');
 const navLinksMobile = document.getElementById('navLinksMobile');

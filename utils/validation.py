@@ -85,6 +85,101 @@ def validate_nric(nric):
     return checksum == expected_checksum
 
 
+def extract_age_from_nric(nric: str) -> dict:
+    """
+    Extract approximate age from Singapore NRIC/FIN.
+    
+    For persons born on or after 1 Jan 1968:
+    - S/T/F/G prefix: first 2 digits after prefix = birth year
+    - S: born 1900-1999 (e.g., S71 = 1971)
+    - T: born 2000-2099 (e.g., T02 = 2002)
+    - F: foreigner born 1900-1999
+    - G: foreigner born 2000-2099
+    
+    For persons born before 1968: digits are sequential, not birth year.
+    
+    Returns dict with:
+    - age: int or None
+    - birth_year: int or None  
+    - is_minor: bool (True if age < 18)
+    - confidence: 'high' | 'low' | 'unknown'
+    - message: str
+    """
+    from datetime import datetime
+    
+    result = {
+        "age": None,
+        "birth_year": None,
+        "is_minor": None,
+        "confidence": "unknown",
+        "message": "Unable to determine age"
+    }
+    
+    if not nric or len(nric) < 3:
+        return result
+    
+    nric = nric.upper().strip()
+    prefix = nric[0]
+    
+    # Check if NRIC format is valid
+    if prefix not in ['S', 'T', 'F', 'G', 'M']:
+        result["message"] = "Invalid NRIC prefix"
+        return result
+    
+    try:
+        year_digits = int(nric[1:3])
+    except (ValueError, IndexError):
+        result["message"] = "Cannot parse birth year digits"
+        return result
+    
+    current_year = datetime.now().year
+    
+    # Determine birth year based on prefix
+    if prefix in ['S', 'F']:
+        # Born 1900-1999
+        birth_year = 1900 + year_digits
+        # If birth year > current year - 18, could be misparse
+        if birth_year < 1968:
+            # Before 1968, digits were sequential, not birth year
+            result["confidence"] = "low"
+            result["message"] = f"NRIC issued before 1968 system - age detection unreliable"
+            return result
+    elif prefix in ['T', 'G']:
+        # Born 2000-2099
+        birth_year = 2000 + year_digits
+    elif prefix == 'M':
+        # M prefix (newer format) - similar to T
+        birth_year = 2000 + year_digits
+    else:
+        return result
+    
+    # Sanity check: birth year shouldn't be in the future
+    if birth_year > current_year:
+        result["confidence"] = "low"
+        result["message"] = "Birth year appears invalid"
+        return result
+    
+    age = current_year - birth_year
+    
+    # Sanity check: age should be reasonable (0-120)
+    if age < 0 or age > 120:
+        result["confidence"] = "low"
+        result["message"] = f"Calculated age ({age}) seems unreasonable"
+        return result
+    
+    result["age"] = age
+    result["birth_year"] = birth_year
+    result["is_minor"] = age < 18
+    result["confidence"] = "high"
+    
+    if result["is_minor"]:
+        result["message"] = f"⚠️ MINOR: Approximately {age} years old (born ~{birth_year})"
+    else:
+        result["message"] = f"Adult: Approximately {age} years old (born ~{birth_year})"
+    
+    return result
+
+
 def validate_license(license_number):
     """
     Validate Singapore driver's license number
