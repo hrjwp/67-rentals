@@ -80,46 +80,59 @@
         .cta-button.secondary:hover {
             background: var(--custom-btn-bg-hover-color);
         }
+        .retention-highlight {
+            margin: 18px 0 6px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            color: #9a3412;
+            padding: 14px 18px;
+            border-radius: 14px;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+        .retention-highlight i {
+            color: #ea580c;
+            margin-top: 2px;
+        }
+        .coverage-list {
+            list-style: none;
+            padding: 0;
+            margin: 16px 0 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .coverage-item {
+            background: var(--white-color);
+            border: 1px solid rgba(61, 64, 91, 0.15);
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 13px;
+            color: var(--secondary-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .coverage-item i {
+            color: #0e9f6e;
+        }
     </style>
 </head>
 <body>
     <!-- Navigation -->
-    <nav id="navbar">
-        <div class="nav-container">
-            <a href="{{ url_for('index') }}" class="logo">
-                <div class="logo-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M3 13h2v8H3zm4-8h2v13H7zm4-2h2v15h-2zm4 4h2v11h-2zm4-2h2v13h-2z"/>
-                    </svg>
-                </div>
-                <span class="logo-text">67 Rentals</span>
-            </a>
-            <ul class="nav-links">
-                <li><a href="{{ url_for('index') }}">Home</a></li>
-                <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
-                <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
-                <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
-                <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
-            </ul>
-            <div class="hamburger" id="hamburger">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
-        </div>
-        <ul class="nav-links-mobile" id="navLinksMobile">
-            <li><a href="{{ url_for('index') }}">Home</a></li>
-            <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
-            <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
-            <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
-            <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
-        </ul>
-    </nav>
+    {% include 'partials/navbar_graph.html' %}
 
     <section class="dashboard-section" style="padding-top: 120px; min-height: 100vh;">
         <div class="dashboard-container">
             <h2 class="section-title">Data Retention & Purge</h2>
             <p class="section-subtitle">Configure purge windows and role coverage while keeping the current theme.</p>
+            <div class="retention-highlight">
+                <i class="bi bi-info-circle-fill"></i>
+                <div>Retention policies define what this configuration purges across all related data sets for the selected roles.</div>
+            </div>
 
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
@@ -193,6 +206,24 @@
                           style="margin-top: 20px;">
                         <button type="submit" class="cta-button secondary">Run Purge Now</button>
                     </form>
+                </div>
+
+                <div class="retention-card">
+                    <h3>Purge Coverage</h3>
+                    <p class="section-subtitle">These data sets are removed when an account is purged.</p>
+                    <ul class="coverage-list">
+                        <li class="coverage-item"><i class="bi bi-check-circle-fill"></i>User profile record</li>
+                        <li class="coverage-item"><i class="bi bi-check-circle-fill"></i>Bookings</li>
+                        <li class="coverage-item"><i class="bi bi-check-circle-fill"></i>Incident reports + files</li>
+                        <li class="coverage-item"><i class="bi bi-check-circle-fill"></i>User documents</li>
+                        <li class="coverage-item"><i class="bi bi-check-circle-fill"></i>Signup tickets</li>
+                        <li class="coverage-item"><i class="bi bi-check-circle-fill"></i>Password reset tokens</li>
+                        <li class="coverage-item"><i class="bi bi-check-circle-fill"></i>Audit logs</li>
+                        <li class="coverage-item"><i class="bi bi-check-circle-fill"></i>Security logs</li>
+                        <li class="coverage-item"><i class="bi bi-check-circle-fill"></i>Booking fraud logs</li>
+                        <li class="coverage-item"><i class="bi bi-check-circle-fill"></i>Vehicle fraud logs</li>
+                        <li class="coverage-item"><i class="bi bi-check-circle-fill"></i>Backup logs</li>
+                    </ul>
                 </div>
             </div>
         </div>

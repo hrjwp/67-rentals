@@ -531,43 +531,7 @@
         <h4>🔍 Security Activity</h4>
         <div id="logEntries"></div>
     </div>
-    <nav class="navbar navbar-expand-lg">
-        <div class="container">
-            <a class="navbar-brand d-flex align-items-center" href="/">
-                <span class="navbar-brand-text">
-                    67
-                    <small>Rentals</small>
-                </span>
-            </a>
-
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-lg-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/dashboard">Dashboard</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/security-logs">Security Logs</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/vehicle-fraud-logs">Vehicle Fraud</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/booking-fraud-logs">Booking Fraud</a>
-                    </li>
-                </ul>
-                <div class="d-none d-lg-block ms-lg-3">
-                    <a class="btn custom-btn d-flex align-items-center gap-2" href="#" role="button">
-                        <i class="bi bi-person"></i>
-                        Admin
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
+    {% include 'partials/navbar_tiya.html' %}
 
     <main>
         <div class="container">

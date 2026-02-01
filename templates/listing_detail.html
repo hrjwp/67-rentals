@@ -61,17 +61,7 @@
     </head>
     <body>
         <main>
-            <nav class="navbar navbar-expand-lg">
-                <div class="container">
-                    <a class="navbar-brand" href="{{ url_for('index') }}">
-                        <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="">
-                        <span class="navbar-brand-text">67 <small>Rentals</small></span>
-                    </a>
-                    <div class="d-lg-block ms-auto">
-                        <a href="{{ url_for('vehicle_listing') }}" class="custom-btn btn">Back to Vehicles</a>
-                    </div>
-                </div>
-            </nav>
+            {% include 'partials/navbar_tiya.html' %}
 
             <section class="hero-section" id="section_1">
                 <div class="section-overlay"></div>

@@ -16,6 +16,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css"
         rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/templatemo-tiya-golf-club.css') }}" rel="stylesheet">
 
     <style>
         :root {
@@ -46,42 +47,6 @@
             font-family: var(--body-font-family);
             margin: 0;
             padding: 0;
-            padding-top: 90px;
-        }
-
-        .navbar {
-            background: #3D405B;
-            z-index: 99;
-            padding-top: 15px;
-            padding-bottom: 15px;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-
-        .navbar-brand-text {
-            color: var(--white-color);
-            font-size: 28px;
-            font-weight: 700;
-            margin-left: 10px;
-        }
-
-        .navbar-brand-text small {
-            display: block;
-            font-size: 14px;
-            font-weight: 400;
-        }
-
-        .nav-link {
-            color: var(--white-color) !important;
-            font-weight: 500;
-            padding: 10px 20px !important;
-        }
-
-        .nav-link:hover {
-            color: #F2CC8F !important;
         }
 
         .profile-container {
@@ -262,39 +227,8 @@
 </head>
 
 <body>
-    <nav class="navbar navbar-expand-lg">
-        <div class="container">
-            {% set home_target = 'seller_index' if profile.user_type == 'seller' else 'index_logged' %}
-            <a class="navbar-brand d-flex align-items-center" href="{{ url_for(home_target) }}">
-                <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid"
-                    alt="67 Rentals" style="width: 50px;">
-                <span class="navbar-brand-text">
-                    67
-                    <small>Rentals</small>
-                </span>
-            </a>
-
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-lg-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for(home_target) }}">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="{{ url_for('profile') }}">Profile</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('logout') }}">
-                            <i class="bi bi-box-arrow-right me-1"></i>Logout
-                        </a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+    {% set nav_solid = true %}
+    {% include 'partials/navbar_tiya.html' %}
 
     <div class="profile-container">
         <div class="container">

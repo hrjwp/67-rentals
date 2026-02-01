@@ -118,6 +118,109 @@ app = Flask(__name__)
 app.config.from_object(Config)
 stripe.api_key = Config.STRIPE_API_KEY
 
+PRINT_BLOCK_STYLE = """
+<style id="print-block-style">
+@media print {
+  body {
+    margin: 0 !important;
+  }
+  body * {
+    display: none !important;
+  }
+  body::before {
+    content: "Printing is disabled for security reasons.";
+    display: block;
+    padding: 24px;
+    font-size: 16px;
+    font-family: Arial, sans-serif;
+    color: #000;
+  }
+}
+</style>
+"""
+
+PRINT_BLOCK_SCRIPT = """
+<script id="print-block-script">
+(function () {
+  function notifyPrintBlocked() {
+    var modal = document.getElementById('printBlockedModal');
+    if (!modal) return;
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    if (modal._hideTimer) clearTimeout(modal._hideTimer);
+    modal._hideTimer = setTimeout(function () {
+      modal.classList.remove('show');
+      modal.setAttribute('aria-hidden', 'true');
+    }, 2200);
+  }
+
+  function blockPrintEvent(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (e && e.stopPropagation) e.stopPropagation();
+    notifyPrintBlocked();
+    return false;
+  }
+
+  function isPrintShortcut(e) {
+    if (!e) return false;
+    var key = e.key || '';
+    var code = e.code || '';
+    var isP = (key && key.toLowerCase() === 'p') || code === 'KeyP' || e.keyCode === 80;
+    return (e.ctrlKey || e.metaKey) && isP;
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (isPrintShortcut(e)) {
+      blockPrintEvent(e);
+    }
+  }, true);
+
+  window.addEventListener('beforeprint', blockPrintEvent, true);
+
+  if (window.matchMedia) {
+    var mediaQuery = window.matchMedia('print');
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', function (e) {
+        if (e.matches) {
+          blockPrintEvent(e);
+        }
+      });
+    } else if (mediaQuery.addListener) {
+      mediaQuery.addListener(function (e) {
+        if (e.matches) {
+          blockPrintEvent(e);
+        }
+      });
+    }
+  }
+
+  if (typeof window.print === 'function') {
+    window.print = function () { return false; };
+  }
+})();
+</script>
+"""
+
+
+def _inject_print_block(response):
+    if response.mimetype != "text/html":
+        return response
+    if response.direct_passthrough or response.is_streamed:
+        return response
+    data = response.get_data(as_text=True)
+    if "print-block-style" in data or "print-block-script" in data:
+        return response
+    injection = PRINT_BLOCK_STYLE + PRINT_BLOCK_SCRIPT
+    if "</head>" in data:
+        data = data.replace("</head>", injection + "</head>", 1)
+    elif "</body>" in data:
+        data = data.replace("</body>", injection + "</body>", 1)
+    else:
+        return response
+    response.set_data(data)
+    response.headers.pop("Content-Length", None)
+    return response
+
 
 @app.before_request
 def configure_https_settings():
@@ -158,6 +261,7 @@ def configure_https_settings():
     if 'user' in session:
         session.permanent = True
         session.modified = True
+        _refresh_session_display_name()
 
 
 @app.after_request
@@ -191,7 +295,7 @@ def add_security_headers(response):
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-    return response
+    return _inject_print_block(response)
 
 
 def _encrypt_user_record(user_data: dict) -> dict:
@@ -210,6 +314,57 @@ def _decrypt_user_record(user_data: dict) -> dict:
         if field in decrypted:
             decrypted[field] = decrypt_value(decrypted[field], fallback_on_error=True)
     return decrypted
+
+
+def _looks_encrypted_token(token: str) -> bool:
+    if not token or len(token) < 20:
+        return False
+    for ch in token:
+        if not (ch.isalnum() or ch in "-_="):
+            return False
+    return True
+
+
+def _looks_encrypted_name(name: str) -> bool:
+    if not name:
+        return False
+    parts = [p for p in str(name).strip().split() if p]
+    if not parts:
+        return False
+    return all(_looks_encrypted_token(part) for part in parts)
+
+
+def _refresh_session_display_name():
+    if 'user' not in session:
+        return
+    raw_name = session.get('user_name') or ''
+    if raw_name and not _looks_encrypted_name(raw_name):
+        return
+    user = None
+    if session.get('user_id'):
+        try:
+            user = get_user_by_id(session.get('user_id'))
+        except Exception:
+            user = None
+    if not user and session.get('user'):
+        user = get_user_by_email(session.get('user'))
+    if not user:
+        return
+    first_name = decrypt_value(user.get('first_name') or '', fallback_on_error=True) if user.get('first_name') else ''
+    last_name = decrypt_value(user.get('last_name') or '', fallback_on_error=True) if user.get('last_name') else ''
+    display_name = _safe_display_name(first_name, last_name, session.get('user'))
+    if display_name:
+        session['user_name'] = display_name
+        session.modified = True
+
+
+def _safe_display_name(first_name: str, last_name: str, email: str | None) -> str:
+    display = f"{first_name} {last_name}".strip()
+    if display and not _looks_encrypted_name(display):
+        return display
+    if email:
+        return email.split('@')[0]
+    return display
 
 
 def _get_latest_signup_status(email: str):
@@ -721,26 +876,16 @@ def login():
         except Exception as exc:
             print(f"Warning: could not update last login: {exc}")
 
-    # Login successful - decrypt user name for display
-    decrypted_user = _decrypt_user_record(user)
-    first_name = decrypted_user.get('first_name', '')
-    last_name = decrypted_user.get('last_name', '')
-    
-    # Detect if names still look encrypted (base64-like strings) and use email prefix instead
-    def _looks_encrypted(val):
-        if not val or len(val) < 20:
-            return False
-        # Encrypted values are typically long base64 strings
-        return len(val) > 30 or re.fullmatch(r"[A-Za-z0-9_=-]+", val) is not None
-    
-    if _looks_encrypted(first_name) or _looks_encrypted(last_name):
-        display_name = email.split('@')[0].replace('.', ' ').replace('_', ' ').title()
-    else:
-        display_name = f"{first_name} {last_name}".strip() or email.split('@')[0]
-    
+    # Login successful
+    first_name_raw = user.get('first_name') or ''
+    last_name_raw = user.get('last_name') or ''
+    first_name = decrypt_value(first_name_raw, fallback_on_error=True) if first_name_raw else ''
+    last_name = decrypt_value(last_name_raw, fallback_on_error=True) if last_name_raw else ''
+    display_name = _safe_display_name(first_name, last_name, email)
+
     session['user'] = email
     session['user_id'] = user.get('user_id')
-    session['user_name'] = display_name
+    session['user_name'] = display_name or email
     session['user_type'] = user.get('user_type', 'user')  # Get user type from stored data
     session.modified = True
 
@@ -755,7 +900,7 @@ def login():
         device_info=request.headers.get("User-Agent")
     )
 
-    flash(f"Welcome back, {decrypted_user.get('first_name', email.split('@')[0])}!", 'success')
+    flash(f"Welcome back, {first_name or email.split('@')[0]}!", 'success')
 
     # Redirect based on user type
     user_type = user.get('user_type', 'user')
@@ -833,6 +978,22 @@ def admin_panel():
         decrypted = _safe_decrypt(value)
         return '' if _looks_encrypted(decrypted) else decrypted
 
+    def _estimate_age_from_nric(nric_value):
+        if not nric_value:
+            return None
+        nric_value = str(nric_value).strip().upper()
+        match = re.match(r'^([STFG])(\d{2})\d{5}[A-Z]$', nric_value)
+        if not match:
+            return None
+        prefix, yy = match.group(1), int(match.group(2))
+        century = 1900 if prefix in ('S', 'F') else 2000
+        year = century + yy
+        current_year = datetime.now().year
+        age = current_year - year
+        if age < 0 or age > 120:
+            return None
+        return age
+
     def adapt(ticket):
         docs = ticket.get('documents', {})
         first_name = _clean_value(ticket.get('first_name'))
@@ -840,6 +1001,7 @@ def admin_panel():
         phone = _clean_value(ticket.get('phone'))
         nric = _clean_value(ticket.get('nric'))
         license_number = _clean_value(ticket.get('license_number'))
+        estimated_age = _estimate_age_from_nric(nric)
 
         if not first_name and not last_name:
             email = ticket.get('email', '')
@@ -860,6 +1022,7 @@ def admin_panel():
             'email': ticket.get('email'),
             'phone': phone or None,
             'nric': nric or None,
+            'estimated_age': estimated_age,
             'license_number': license_number or None,
             'user_type': ticket.get('user_type'),
             'created_at': ticket.get('submitted_at'),
@@ -1263,6 +1426,18 @@ def seller_dashboard():
     if session.get('user_type') != 'seller':
         flash('Access denied. This page is for sellers only.', 'error')
         return redirect(url_for('index'))
+
+    user_email = session.get('user')
+    if user_email:
+        user = get_user_by_email(user_email)
+        if user:
+            first_name_raw = user.get('first_name') or ''
+            last_name_raw = user.get('last_name') or ''
+            first_name = decrypt_value(first_name_raw, fallback_on_error=True) if first_name_raw else ''
+            last_name = decrypt_value(last_name_raw, fallback_on_error=True) if last_name_raw else ''
+            display_name = _safe_display_name(first_name, last_name, user_email)
+            session['user_name'] = display_name or user_email
+            session.modified = True
 
     return render_template('seller_index.html')
 
@@ -3216,6 +3391,17 @@ def create_test_booking():
 
 @app.route('/seller')
 def seller_index():
+    user_email = session.get('user')
+    if user_email:
+        user = get_user_by_email(user_email)
+        if user:
+            first_name_raw = user.get('first_name') or ''
+            last_name_raw = user.get('last_name') or ''
+            first_name = decrypt_value(first_name_raw, fallback_on_error=True) if first_name_raw else ''
+            last_name = decrypt_value(last_name_raw, fallback_on_error=True) if last_name_raw else ''
+            display_name = _safe_display_name(first_name, last_name, user_email)
+            session['user_name'] = display_name or user_email
+            session.modified = True
     return render_template('seller_index.html')
 
 

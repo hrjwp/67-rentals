@@ -80,24 +80,87 @@
             gap: 0.5rem;
             flex-wrap: wrap;
         }
-
-        .cta-button.secondary {
-            background: #1f2937;
+        .approval-card {
+            background: #ffffff;
+            border: 1px solid rgba(148,163,184,0.2);
+            border-radius: 18px;
+            padding: 1.25rem 1.35rem;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+            margin-top: 1rem;
         }
-
-        .section-title {
-            margin-bottom: 1rem;
+        .approval-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
         }
-
-        .section-subtitle {
+        .approval-name {
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: #0f172a;
+        }
+        .approval-meta {
+            margin-top: 0.35rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            font-size: 0.78rem;
             color: #94a3b8;
-            margin-bottom: 1.5rem;
+            font-weight: 600;
         }
-
-        .stat-card .stat-description {
+        .meta-pill {
+            background: #f1f5f9;
+            color: #475569;
+            border-radius: 999px;
+            padding: 0.25rem 0.6rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 0.75rem;
+            margin: 1rem 0;
+        }
+        .detail-item {
+            background: #f8fafc;
+            border: 1px solid rgba(148,163,184,0.2);
+            border-radius: 12px;
+            padding: 0.75rem 0.9rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            min-height: 60px;
+        }
+        .detail-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
             color: #94a3b8;
+            font-weight: 700;
         }
-
+        .detail-value {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #0f172a;
+            word-break: break-word;
+        }
+        .approval-footer {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+        .doc-links {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .cta-button.secondary { background: #1f2937; }
+        .section-title { margin-bottom: 1rem; }
+        .section-subtitle { color: #94a3b8; margin-bottom: 1.5rem; }
+        .stat-card .stat-description { color: #94a3b8; }
         .retention-header {
             display: flex;
             align-items: center;
@@ -289,37 +352,7 @@
 
 <body>
     <!-- Navigation -->
-    <nav id="navbar">
-        <div class="nav-container">
-            <a href="{{ url_for('index') }}" class="logo">
-                <div class="logo-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M3 13h2v8H3zm4-8h2v13H7zm4-2h2v15h-2zm4 4h2v11h-2zm4-2h2v13h-2z" />
-                    </svg>
-                </div>
-                <span class="logo-text">67 Rentals</span>
-            </a>
-            <ul class="nav-links">
-                <li><a href="{{ url_for('dashboard') }}">Home</a></li>
-                <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
-                <li><a href="{{ url_for('accounts') }}" class="active">Accounts</a></li>
-                <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
-                <li><a href="{{ url_for('security_dashboard') }}">Security</a></li>
-            </ul>
-            <a href="{{ url_for('logout') }}" class="cta-button secondary" style="padding:10px 16px;">Logout</a>
-            <div class="hamburger" id="hamburger">
-                <span></span><span></span><span></span>
-            </div>
-        </div>
-        <ul class="nav-links-mobile" id="navLinksMobile">
-            <li><a href="{{ url_for('dashboard') }}">Home</a></li>
-            <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
-            <li><a href="{{ url_for('accounts') }}" class="active">Accounts</a></li>
-            <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
-            <li><a href="{{ url_for('security_dashboard') }}">Security</a></li>
-            <li><a href="{{ url_for('logout') }}">Logout</a></li>
-        </ul>
-    </nav>
+    {% include 'partials/navbar_graph.html' %}
 
     <!-- Overview -->
     <section class="dashboard-section" id="dashboard">
@@ -379,151 +412,123 @@
                     <div class="admin-card">
                         <h3 class="section-title" style="margin-top:0;">Users</h3>
                         {% if pending_users %}
-                        {% for user in pending_users %}
-                        <div class="admin-card">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h4 style="margin:0;">{{ user.first_name }} {{ user.last_name }}</h4>
-                                    <small style="color:#94a3b8;">Submitted: {{ user.created_at }}</small>
+                            {% for user in pending_users %}
+                                <div class="approval-card">
+                                    <div class="approval-header">
+                                        <div>
+                                            <div class="approval-name">{{ user.first_name }} {{ user.last_name }}</div>
+                                            <div class="approval-meta">
+                                                <span class="meta-pill">Submitted {{ user.created_at }}</span>
+                                                {% if user.email %}<span>{{ user.email }}</span>{% endif %}
+                                            </div>
+                                        </div>
+                                        <span class="admin-badge badge-user">User</span>
+                                    </div>
+                                    <div class="detail-grid">
+                                        <div class="detail-item">
+                                            <span class="detail-label">Email</span>
+                                            <span class="detail-value">{{ user.email or '—' }}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Phone</span>
+                                            <span class="detail-value">{{ user.phone or '—' }}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">NRIC</span>
+                                            <span class="detail-value">{{ user.nric or '—' }}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">License</span>
+                                            <span class="detail-value">{{ user.license_number or '—' }}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Estimated Age</span>
+                                            <span class="detail-value">{% if user.estimated_age is not none %}{{ user.estimated_age }} yrs{% else %}—{% endif %}</span>
+                                        </div>
+                                    </div>
+                                    <div class="approval-footer">
+                                        <div class="doc-links">
+                                            {% if user.nric_image %}
+                                            <a href="{{ user.nric_image }}" class="doc-link" target="_blank"><i class="bi bi-file-earmark-image"></i> NRIC</a>
+                                            {% endif %}
+                                            {% if user.license_image %}
+                                            <a href="{{ user.license_image }}" class="doc-link" target="_blank"><i class="bi bi-file-earmark-image"></i> License</a>
+                                            {% endif %}
+                                        </div>
+                                        <div class="action-buttons">
+                                            <form method="post" action="{{ url_for('admin_reject_user', ticket_id=user.ticket_id) }}">
+                                                <button type="submit" class="cta-button secondary" style="padding:10px 14px;">Reject</button>
+                                            </form>
+                                            <form method="post" action="{{ url_for('admin_approve_user', ticket_id=user.ticket_id) }}">
+                                                <button type="submit" class="cta-button" style="padding:10px 14px;">Approve</button>
+                                            </form>
+                                        </div>
+                                    </div>
                                 </div>
-                                <span class="admin-badge badge-user">User</span>
-                            </div>
-                            <div class="user-details"
-                                style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem;margin:1rem 0;">
-                                <div class="detail-item"><i class="bi bi-envelope"></i><span>{{ user.email }}</span>
-                                </div>
-                                <div class="detail-item"><i class="bi bi-telephone"></i><span>{{ user.phone }}</span>
-                                </div>
-                                <div class="detail-item"><i class="bi bi-person-badge"></i><span>NRIC: {{ user.nric or
-                                        'N/A' }}</span></div>
-                                <div class="detail-item"><i class="bi bi-card-checklist"></i><span>License: {{
-                                        user.license_number or 'N/A' }}</span></div>
-                            </div>
-                            <!-- Age Detection from NRIC -->
-                            {% if user.age_info %}
-                            <div style="margin-bottom: 1rem;">
-                                <span
-                                    class="admin-badge badge-age {% if user.age_info.is_minor %}minor{% elif user.age_info.confidence == 'unknown' %}unknown{% endif %}">
-                                    {% if user.age_info.is_minor %}
-                                    ⚠️ MINOR (Est. {{ user.age_info.age }} yrs)
-                                    {% elif user.age_info.age %}
-                                    ✓ Adult (Est. {{ user.age_info.age }} yrs)
-                                    {% else %}
-                                    ⓘ {{ user.age_info.message }}
-                                    {% endif %}
-                                </span>
-                                {% if user.age_info.birth_year %}
-                                <span style="font-size: 0.75rem; color: #94a3b8; margin-left: 8px;">Born ~{{
-                                    user.age_info.birth_year }}</span>
-                                {% endif %}
-                            </div>
-                            {% endif %}
-                            <div class="document-links"
-                                style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
-                                {% if user.nric_image %}
-                                <a href="{{ user.nric_image }}" class="doc-link" target="_blank"><i
-                                        class="bi bi-file-earmark-image"></i> NRIC</a>
-                                {% endif %}
-                                {% if user.license_image %}
-                                <a href="{{ user.license_image }}" class="doc-link" target="_blank"><i
-                                        class="bi bi-file-earmark-image"></i> License</a>
-                                {% endif %}
-                            </div>
-                            <div class="action-buttons">
-                                <form method="post"
-                                    action="{{ url_for('admin_reject_user', ticket_id=user.ticket_id) }}">
-                                    <button type="submit" class="cta-button secondary"
-                                        style="padding:10px 14px;">Reject</button>
-                                </form>
-                                <form method="post"
-                                    action="{{ url_for('admin_approve_user', ticket_id=user.ticket_id) }}">
-                                    <button type="submit" class="cta-button" style="padding:10px 14px;">Approve</button>
-                                </form>
-                            </div>
-                        </div>
-                        {% endfor %}
+                            {% endfor %}
                         {% else %}
                         <p class="section-subtitle" style="margin:0;">No pending user registrations.</p>
                         {% endif %}
-                    </div>
-                </div>
-
-                <div class="grid-item full-width">
+<div class="grid-item full-width">
                     <div class="admin-card">
                         <h3 class="section-title" style="margin-top:0;">Sellers</h3>
                         {% if pending_sellers %}
-                        {% for seller in pending_sellers %}
-                        <div class="admin-card">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h4 style="margin:0;">{{ seller.first_name }} {{ seller.last_name }}</h4>
-                                    <small style="color:#94a3b8;">Submitted: {{ seller.created_at }}</small>
+                            {% for seller in pending_sellers %}
+                                <div class="approval-card">
+                                    <div class="approval-header">
+                                        <div>
+                                            <div class="approval-name">{{ seller.first_name }} {{ seller.last_name }}</div>
+                                            <div class="approval-meta">
+                                                <span class="meta-pill">Submitted {{ seller.created_at }}</span>
+                                                {% if seller.email %}<span>{{ seller.email }}</span>{% endif %}
+                                            </div>
+                                        </div>
+                                        <span class="admin-badge badge-seller">Seller</span>
+                                    </div>
+                                    <div class="detail-grid">
+                                        <div class="detail-item">
+                                            <span class="detail-label">Email</span>
+                                            <span class="detail-value">{{ seller.email or '—' }}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Phone</span>
+                                            <span class="detail-value">{{ seller.phone or '—' }}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">NRIC</span>
+                                            <span class="detail-value">{{ seller.nric or '—' }}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">License</span>
+                                            <span class="detail-value">{{ seller.license_number or '—' }}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Estimated Age</span>
+                                            <span class="detail-value">{% if seller.estimated_age is not none %}{{ seller.estimated_age }} yrs{% else %}—{% endif %}</span>
+                                        </div>
+                                    </div>
+                                    <div class="approval-footer">
+                                        <div class="doc-links">
+                                            {% if seller.nric_image %}<a href="{{ seller.nric_image }}" class="doc-link" target="_blank"><i class="bi bi-file-earmark-image"></i> NRIC</a>{% endif %}
+                                            {% if seller.license_image %}<a href="{{ seller.license_image }}" class="doc-link" target="_blank"><i class="bi bi-file-earmark-image"></i> License</a>{% endif %}
+                                            {% if seller.vehicle_card_image %}<a href="{{ seller.vehicle_card_image }}" class="doc-link" target="_blank"><i class="bi bi-file-earmark-image"></i> Vehicle Card</a>{% endif %}
+                                            {% if seller.insurance_image %}<a href="{{ seller.insurance_image }}" class="doc-link" target="_blank"><i class="bi bi-file-earmark-image"></i> Insurance</a>{% endif %}
+                                        </div>
+                                        <div class="action-buttons">
+                                            <form method="post" action="{{ url_for('admin_reject_user', ticket_id=seller.ticket_id) }}">
+                                                <button type="submit" class="cta-button secondary" style="padding:10px 14px;">Reject</button>
+                                            </form>
+                                            <form method="post" action="{{ url_for('admin_approve_user', ticket_id=seller.ticket_id) }}">
+                                                <button type="submit" class="cta-button" style="padding:10px 14px;">Approve</button>
+                                            </form>
+                                        </div>
+                                    </div>
                                 </div>
-                                <span class="admin-badge badge-seller">Seller</span>
-                            </div>
-                            <div class="user-details"
-                                style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem;margin:1rem 0;">
-                                <div class="detail-item"><i class="bi bi-envelope"></i><span>{{ seller.email }}</span>
-                                </div>
-                                <div class="detail-item"><i class="bi bi-telephone"></i><span>{{ seller.phone }}</span>
-                                </div>
-                                <div class="detail-item"><i class="bi bi-person-badge"></i><span>NRIC: {{ seller.nric or
-                                        'N/A' }}</span></div>
-                            </div>
-                            <!-- Age Detection from NRIC for Sellers -->
-                            {% if seller.age_info %}
-                            <div style="margin-bottom: 1rem;">
-                                <span
-                                    class="admin-badge badge-age {% if seller.age_info.is_minor %}minor{% elif seller.age_info.confidence == 'unknown' %}unknown{% endif %}">
-                                    {% if seller.age_info.is_minor %}
-                                    ⚠️ MINOR (Est. {{ seller.age_info.age }} yrs)
-                                    {% elif seller.age_info.age %}
-                                    ✓ Adult (Est. {{ seller.age_info.age }} yrs)
-                                    {% else %}
-                                    ⓘ {{ seller.age_info.message }}
-                                    {% endif %}
-                                </span>
-                                {% if seller.age_info.birth_year %}
-                                <span style="font-size: 0.75rem; color: #94a3b8; margin-left: 8px;">Born ~{{
-                                    seller.age_info.birth_year }}</span>
-                                {% endif %}
-                            </div>
-                            {% endif %}
-                            <div class="document-links"
-                                style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
-                                {% if seller.nric_image %}<a href="{{ seller.nric_image }}" class="doc-link"
-                                    target="_blank"><i class="bi bi-file-earmark-image"></i> NRIC</a>{% endif %}
-                                {% if seller.license_image %}<a href="{{ seller.license_image }}" class="doc-link"
-                                    target="_blank"><i class="bi bi-file-earmark-image"></i> License</a>{% endif %}
-                                {% if seller.vehicle_card_image %}<a href="{{ seller.vehicle_card_image }}"
-                                    class="doc-link" target="_blank"><i class="bi bi-file-earmark-image"></i> Vehicle
-                                    Card</a>{% endif %}
-                                {% if seller.insurance_image %}<a href="{{ seller.insurance_image }}" class="doc-link"
-                                    target="_blank"><i class="bi bi-file-earmark-image"></i> Insurance</a>{% endif %}
-                            </div>
-                            <div class="action-buttons">
-                                <form method="post"
-                                    action="{{ url_for('admin_reject_user', ticket_id=seller.ticket_id) }}">
-                                    <button type="submit" class="cta-button secondary"
-                                        style="padding:10px 14px;">Reject</button>
-                                </form>
-                                <form method="post"
-                                    action="{{ url_for('admin_approve_user', ticket_id=seller.ticket_id) }}">
-                                    <button type="submit" class="cta-button" style="padding:10px 14px;">Approve</button>
-                                </form>
-                            </div>
-                        </div>
-                        {% endfor %}
+                            {% endfor %}
                         {% else %}
                         <p class="section-subtitle" style="margin:0;">No pending seller registrations.</p>
                         {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Data Retention Overview -->
+<!-- Data Retention Overview -->
     <section class="dashboard-section" id="retention-overview">
         <div class="dashboard-container">
             <div class="retention-header">
@@ -852,6 +857,20 @@
 
             updateView();
         }
+
+        document.addEventListener('keydown', (e) => {
+            const isPrintKey = e.key === 'p' || e.key === 'P' || e.code === 'KeyP' || e.keyCode === 80;
+            if ((e.ctrlKey || e.metaKey) && isPrintKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        });
+
+        window.addEventListener('beforeprint', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
     </script>
 </body>
 

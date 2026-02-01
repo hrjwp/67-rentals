@@ -236,28 +236,7 @@
     </head>
 
     <body>
-        <nav class="navbar navbar-expand-lg">
-            <div class="container">
-                <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index_logged') }}">
-                    <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="67 Rentals" style="width: 50px;">
-                    <span class="navbar-brand-text">
-                        67
-                        <small>Rentals</small>
-                    </span>
-                </a>
-
-                <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav ms-lg-auto">
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('index_logged') }}">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#">My Bookings</a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
+        {% include 'partials/navbar_tiya.html' %}
 
         <section class="refund-section">
             <div class="container">

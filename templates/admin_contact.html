@@ -248,44 +248,7 @@
     </head>
 
     <body>
-        <nav class="navbar navbar-expand-lg">
-            <div class="container">
-                <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
-                    <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="67 Rentals" style="width: 50px;">
-                    <span class="navbar-brand-text">
-                        67
-                        <small>Rentals</small>
-                    </span>
-                </a>
-
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-
-                <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav ms-lg-auto">
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('index') }}#section_1">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('index') }}#section_2">About</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('vehicle_listing') }}">Vehicles</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('index') }}#section_4">Contact</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('cases') }}">Cases</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="{{ url_for('contact_submissions') }}">Contacts</a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
+        {% include 'partials/navbar_tiya.html' %}
 
         <section class="submissions-section">
             <div class="container">

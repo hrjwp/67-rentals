@@ -10,6 +10,7 @@
 
 <body>
     <!-- Navigation -->
+<<<<<<< HEAD
     <nav id="navbar">
         <div class="nav-container">
             <a href="{{ url_for('index') }}" class="logo">
@@ -58,6 +59,9 @@
             <li><a href="{{ url_for('logout') }}">Logout</a></li>
         </ul>
     </nav>
+=======
+    {% include 'partials/navbar_graph.html' %}
+>>>>>>> e0007d3 (Standardize navbars and admin retention UI)
 
     <!-- Vehicles Section -->
     <section class="dashboard-section" style="padding-top: 120px; min-height: 100vh;">

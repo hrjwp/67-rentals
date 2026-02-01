@@ -434,6 +434,10 @@ strong {
   background-color: rgb(61 64 91);
 }
 
+.navbar-solid {
+  background-color: rgb(61 64 91);
+}
+
 .navbar {
   background: transparent;
   z-index: 99;
@@ -1279,4 +1283,3 @@ strong {
     padding: 4px 12px;
   }
 }
-
