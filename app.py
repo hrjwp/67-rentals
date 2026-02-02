@@ -582,7 +582,7 @@ def signup_seller():
                 'documents': documents
             }
 
-            user_id = create_user_with_documents(seller_data_plain)
+            user_id, ticket_id = create_user_with_documents(seller_data_plain)
 
             # --- Audit log for seller registration ---
             add_audit_log(
@@ -590,7 +590,7 @@ def signup_seller():
                 action='Seller Registration',
                 entity_type='USER',
                 entity_id=user_id if user_id else 0,
-                new_values=json.dumps({'email': email, 'user_type': 'seller', 'first_name': first_name, 'last_name': last_name}),
+                new_values={'email': email, 'user_type': 'seller', 'first_name': first_name, 'last_name': last_name},
                 result='Success',
                 ip_address=request.remote_addr,
                 device_info=request.headers.get("User-Agent")
@@ -770,7 +770,7 @@ def signup():
         }
 
         # Persist to DB with pending status for admin review
-        user_id = create_user_with_documents(user_data_plain)
+        user_id, ticket_id = create_user_with_documents(user_data_plain)
 
         # --- Audit log for user registration ---
         add_audit_log(
@@ -778,7 +778,7 @@ def signup():
             action='User Registration',
             entity_type='USER',
             entity_id=user_id if user_id else 0,
-            new_values=json.dumps({'email': email, 'user_type': 'user', 'first_name': first_name, 'last_name': last_name}),  # ← Convert to JSON string
+            new_values={'email': email, 'user_type': 'user', 'first_name': first_name, 'last_name': last_name},
             result='Success',
             ip_address=request.remote_addr,
             device_info=request.headers.get("User-Agent")
