@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Retention Dashboard - 67 Rentals</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/templatemo-graph-page.css') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .retention-section {
+            background: var(--section-bg-color);
+            padding: 120px 0 90px;
+            min-height: 100vh;
+        }
+        .retention-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+        .section-title {
+            margin-bottom: 8px;
+        }
+        .section-subtitle {
+            color: var(--p-color);
+            margin-bottom: 20px;
+        }
+        .retention-highlight {
+            margin: 12px 0 24px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            color: #9a3412;
+            padding: 14px 18px;
+            border-radius: 14px;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+        .retention-highlight i {
+            color: #ea580c;
+            margin-top: 2px;
+        }
+        .retention-message {
+            display: none;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .retention-message.success {
+            display: block;
+            background: #e8f8f5;
+            color: #0e9f6e;
+            border: 1px solid #a7f3d0;
+        }
+        .retention-message.error {
+            display: block;
+            background: #fde8e8;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+        }
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        .stat-card {
+            background: var(--white-color);
+            border-radius: 18px;
+            padding: 18px 20px;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(61, 64, 91, 0.12);
+        }
+        .stat-label {
+            font-size: 13px;
+            color: var(--p-color);
+            margin-bottom: 6px;
+            display: block;
+        }
+        .stat-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--secondary-color);
+        }
+        .policy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+        }
+        .policy-card {
+            background: var(--white-color);
+            border-radius: 20px;
+            padding: 22px;
+            border: 1px solid rgba(61, 64, 91, 0.12);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .policy-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .policy-title {
+            margin: 0;
+            font-size: 20px;
+            color: var(--secondary-color);
+        }
+        .policy-description {
+            font-size: 13px;
+            color: var(--p-color);
+            margin-top: 4px;
+        }
+        .policy-chip {
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .policy-chip.on {
+            background: rgba(14, 159, 110, 0.12);
+            color: #0e9f6e;
+        }
+        .policy-chip.off {
+            background: rgba(185, 28, 28, 0.12);
+            color: #b91c1c;
+        }
+        .policy-meta {
+            display: grid;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--secondary-color);
+        }
+        .policy-stats {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .policy-stat {
+            background: #f8f7f2;
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 12px;
+            color: var(--p-color);
+        }
+        .policy-stat span {
+            display: block;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--secondary-color);
+            margin-top: 4px;
+        }
+        .policy-stat .danger {
+            color: #b91c1c;
+        }
+        .policy-form {
+            display: grid;
+            gap: 12px;
+        }
+        .policy-form label {
+            font-size: 13px;
+            color: var(--secondary-color);
+            display: grid;
+            gap: 6px;
+        }
+        .policy-form input,
+        .policy-form select {
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(61, 64, 91, 0.2);
+            font-size: 14px;
+        }
+        .policy-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: var(--secondary-color);
+        }
+        .policy-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .cta-button {
+            background: var(--custom-btn-bg-color);
+            color: var(--secondary-color);
+            border: none;
+            padding: 10px 16px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .cta-button.secondary {
+            background: var(--secondary-color);
+            color: var(--white-color);
+        }
+        .cta-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .global-actions {
+            margin-top: 30px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+    {% include 'partials/navbar_graph.html' %}
+
+    <section class="retention-section">
+        <div class="retention-container">
+            <h2 class="section-title">Data Retention Dashboard</h2>
+            <p class="section-subtitle">Manage purge policies for every data set in one place.</p>
+            <div class="retention-highlight">
+                <i class="bi bi-info-circle-fill"></i>
+                <div>Retention policies define what this configuration purges across all related data sets for the selected roles.</div>
+            </div>
+
+            <div class="retention-message" id="retentionMessage" aria-live="polite"></div>
+
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <span class="stat-label">Policies configured</span>
+                    <span class="stat-value" data-stat="policy_count">{{ stats.policy_count or 0 }}</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Auto purge enabled</span>
+                    <span class="stat-value" data-stat="auto_purge_enabled_count">{{ stats.auto_purge_enabled_count or 0 }}</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Total records tracked</span>
+                    <span class="stat-value" data-stat="total_records">{{ stats.total_records or 0 }}</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Due for purge now</span>
+                    <span class="stat-value" data-stat="total_due_for_purge">{{ stats.total_due_for_purge or 0 }}</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Last purge activity</span>
+                    <span class="stat-value" data-stat="last_purge_at">{{ stats.last_purge_at or 'Never' }}</span>
+                </div>
+            </div>
+
+            <div class="policy-grid">
+                {% for policy in policies %}
+                <div class="policy-card" data-type="{{ policy.data_type }}">
+                    <div class="policy-header">
+                        <div>
+                            <h3 class="policy-title">{{ policy.display_name }}</h3>
+                            <p class="policy-description">{{ policy.description or 'Retention policy for this data type.' }}</p>
+                        </div>
+                        <span class="policy-chip {% if policy.auto_purge_enabled %}on{% else %}off{% endif %}" data-field="auto_purge_enabled">
+                            Auto purge {{ 'On' if policy.auto_purge_enabled else 'Off' }}
+                        </span>
+                    </div>
+
+                    <div class="policy-meta">
+                        <div><strong>Table:</strong> {{ policy.table_name }}</div>
+                        <div><strong>Date column:</strong> {{ policy.date_column }}</div>
+                    </div>
+
+                    <div class="policy-stats">
+                        <div class="policy-stat">
+                            Total records
+                            <span data-field="record_count">{{ policy.record_count or 0 }}</span>
+                        </div>
+                        <div class="policy-stat">
+                            Due for purge
+                            <span class="danger" data-field="due_for_purge">{{ policy.due_for_purge or 0 }}</span>
+                        </div>
+                        <div class="policy-stat">
+                            Last purge
+                            <span data-field="last_purge_at">{{ policy.last_purge_at or 'Never' }}</span>
+                        </div>
+                        <div class="policy-stat">
+                            Last purged count
+                            <span data-field="last_purge_count">{{ policy.last_purge_count or 0 }}</span>
+                        </div>
+                    </div>
+
+                    <form class="policy-form" onsubmit="return false;">
+                        <label>
+                            Retention days
+                            <input type="number" min="1" name="retention_days" value="{{ policy.retention_days or 365 }}">
+                        </label>
+                        <label>
+                            Purge schedule
+                            <select name="purge_schedule">
+                                <option value="daily" {% if policy.purge_schedule == 'daily' %}selected{% endif %}>Daily</option>
+                                <option value="weekly" {% if policy.purge_schedule == 'weekly' %}selected{% endif %}>Weekly</option>
+                                <option value="monthly" {% if policy.purge_schedule == 'monthly' %}selected{% endif %}>Monthly</option>
+                            </select>
+                        </label>
+                        <label class="policy-toggle">
+                            <input type="checkbox" name="auto_purge_enabled" {% if policy.auto_purge_enabled %}checked{% endif %}>
+                            Auto purge enabled
+                        </label>
+                        <div class="policy-actions">
+                            <button type="button" class="cta-button" data-action="save">Save</button>
+                            <button type="button" class="cta-button secondary" data-action="purge">Purge due</button>
+                        </div>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="global-actions">
+                <button type="button" class="cta-button secondary" id="purgeAllBtn">Run purge for all enabled</button>
+                <a class="cta-button" href="{{ url_for('data_retention') }}">Account retention rules</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-content">
+            <p class="copyright">© 2026 67 Rentals. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/templatemo-graph-script.js') }}"></script>
+    <script>
+        const messageEl = document.getElementById('retentionMessage');
+
+        function showMessage(text, type) {
+            messageEl.textContent = text;
+            messageEl.className = 'retention-message ' + (type || 'success');
+        }
+
+        function clearMessage() {
+            messageEl.textContent = '';
+            messageEl.className = 'retention-message';
+        }
+
+        async function fetchJson(url, options) {
+            const response = await fetch(url, options);
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const errorMessage = data.error || 'Request failed';
+                throw new Error(errorMessage);
+            }
+            return data;
+        }
+
+        function updateStats(stats) {
+            if (!stats) return;
+            Object.keys(stats).forEach((key) => {
+                const el = document.querySelector(`[data-stat="${key}"]`);
+                if (el) {
+                    el.textContent = stats[key] ?? '0';
+                }
+            });
+        }
+
+        function updatePolicyCard(policy) {
+            const card = document.querySelector(`.policy-card[data-type="${policy.data_type}"]`);
+            if (!card) return;
+            const fields = ['record_count', 'due_for_purge', 'last_purge_at', 'last_purge_count'];
+            fields.forEach((field) => {
+                const el = card.querySelector(`[data-field="${field}"]`);
+                if (el) {
+                    el.textContent = policy[field] ?? (field === 'last_purge_at' ? 'Never' : '0');
+                }
+            });
+            const chip = card.querySelector('[data-field="auto_purge_enabled"]');
+            if (chip) {
+                const enabled = Boolean(policy.auto_purge_enabled);
+                chip.textContent = 'Auto purge ' + (enabled ? 'On' : 'Off');
+                chip.classList.toggle('on', enabled);
+                chip.classList.toggle('off', !enabled);
+            }
+            const retentionInput = card.querySelector('input[name="retention_days"]');
+            if (retentionInput && policy.retention_days) {
+                retentionInput.value = policy.retention_days;
+            }
+            const scheduleSelect = card.querySelector('select[name="purge_schedule"]');
+            if (scheduleSelect && policy.purge_schedule) {
+                scheduleSelect.value = policy.purge_schedule;
+            }
+            const autoToggle = card.querySelector('input[name="auto_purge_enabled"]');
+            if (autoToggle) {
+                autoToggle.checked = Boolean(policy.auto_purge_enabled);
+            }
+        }
+
+        async function refreshDashboard() {
+            try {
+                const data = await fetchJson('/api/retention-policies');
+                updateStats(data.stats);
+                (data.policies || []).forEach(updatePolicyCard);
+            } catch (err) {
+                showMessage(err.message, 'error');
+            }
+        }
+
+        document.querySelectorAll('.policy-card').forEach((card) => {
+            const dataType = card.dataset.type;
+            const saveBtn = card.querySelector('[data-action="save"]');
+            const purgeBtn = card.querySelector('[data-action="purge"]');
+
+            saveBtn.addEventListener('click', async () => {
+                clearMessage();
+                const retentionDays = parseInt(card.querySelector('input[name="retention_days"]').value, 10);
+                const autoEnabled = card.querySelector('input[name="auto_purge_enabled"]').checked;
+                const schedule = card.querySelector('select[name="purge_schedule"]').value;
+                saveBtn.disabled = true;
+                try {
+                    await fetchJson(`/api/retention-policies/${dataType}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            retention_days: retentionDays,
+                            auto_purge_enabled: autoEnabled,
+                            purge_schedule: schedule
+                        })
+                    });
+                    showMessage('Policy updated successfully.', 'success');
+                    await refreshDashboard();
+                } catch (err) {
+                    showMessage(err.message, 'error');
+                } finally {
+                    saveBtn.disabled = false;
+                }
+            });
+
+            purgeBtn.addEventListener('click', async () => {
+                clearMessage();
+                if (!confirm('Purge records due for this data type now?')) {
+                    return;
+                }
+                purgeBtn.disabled = true;
+                try {
+                    const result = await fetchJson(`/api/retention-policies/${dataType}/purge`, {
+                        method: 'POST'
+                    });
+                    showMessage(`Purged ${result.purged_count || 0} records from ${dataType}.`, 'success');
+                    await refreshDashboard();
+                } catch (err) {
+                    showMessage(err.message, 'error');
+                } finally {
+                    purgeBtn.disabled = false;
+                }
+            });
+        });
+
+        const purgeAllBtn = document.getElementById('purgeAllBtn');
+        purgeAllBtn.addEventListener('click', async () => {
+            clearMessage();
+            if (!confirm('Run purge for all enabled data types now?')) {
+                return;
+            }
+            purgeAllBtn.disabled = true;
+            try {
+                const result = await fetchJson('/api/retention-policies/purge-all', { method: 'POST' });
+                showMessage(`Purged ${result.total_purged || 0} records across ${result.types_processed || 0} data types.`, 'success');
+                await refreshDashboard();
+            } catch (err) {
+                showMessage(err.message, 'error');
+            } finally {
+                purgeAllBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
