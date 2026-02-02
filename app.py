@@ -97,6 +97,9 @@ import threading
 import time
 from datetime import datetime, timedelta
 
+from random import uniform, randint
+from geopy.distance import geodesic
+
 # Import data classification functions
 from data_classification import (
     check_access, #testing
@@ -2600,32 +2603,6 @@ def payment_success():
 
                 fraud_score, is_fraud, fraud_reasons = fraud_detector.predict_fraud(user_behavior_data)
 
-                # --- Synthesis of Telemetry Metrics ---
-                from random import uniform, randint
-                suspicious = is_fraud or fraud_score > 0.7
-
-                if suspicious:
-                    distance_km = round(uniform(300.0, 1200.0), 2)
-                    speed_kmh = round(uniform(150.0, 320.0), 2)
-                    base_mileage = randint(20000, 120000)
-                    discrepancy_percent = round(uniform(30.0, 80.0), 2)
-                else:
-                    distance_km = round(uniform(5.0, 80.0), 2)
-                    speed_kmh = round(uniform(30.0, 110.0), 2)
-                    base_mileage = randint(5000, 100000)
-                    discrepancy_percent = round(uniform(0.0, 8.0), 2)
-
-                gps_calculated_mileage = base_mileage
-                mileage_delta = gps_calculated_mileage * (discrepancy_percent / 100.0)
-                reported_mileage = int(gps_calculated_mileage + mileage_delta)
-
-                gps_data = {'distance_km': distance_km, 'speed_kmh': speed_kmh}
-                mileage_data = {
-                    'reported': reported_mileage,
-                    'gps_calculated': int(gps_calculated_mileage),
-                    'discrepancy_percent': discrepancy_percent
-                }
-
                 ml_indicators_for_vehicle = []
                 if is_fraud or fraud_score > 0.5:
                     # Log to booking_fraud_logs
@@ -2642,20 +2619,6 @@ def payment_success():
                         ml_indicators=ml_indicators_for_vehicle,
                         ip_address=request.remote_addr
                     )
-
-                # Always log vehicle telemetry
-                add_vehicle_fraud_log(
-                    user_id=str(user_id),
-                    vehicle_id=str(vehicle_id),
-                    event_type='Booking Telemetry (Synthetic)',
-                    severity='HIGH' if suspicious else 'LOW',
-                    risk_score=float(fraud_score),
-                    description=f"Synthetic metrics: score={fraud_score:.3f}",
-                    gps_data=gps_data,
-                    mileage_data=mileage_data,
-                    ip_address=request.remote_addr,
-                    fraud_score=float(fraud_score)
-                )
 
                 add_security_log(
                     user_id=str(user_id),
@@ -3660,6 +3623,167 @@ def manage_listings():
     return render_template('manage_listings.html',
                            listings=listings,
                            pending_requests=pending_requests)
+
+
+@app.route('/seller/generate-vehicle-metrics/<int:vehicle_id>', methods=['POST'])
+def generate_vehicle_metrics(vehicle_id):
+    """Generate random vehicle trip metrics for a listing and store in vehicle_trips."""
+    if 'user' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    user_type = session.get('user_type')
+    if user_type not in {'seller', 'admin'}:
+        return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+    from database import add_vehicle_trip
+
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'success': False, 'error': 'Missing user_id in session'}), 400
+
+    now = datetime.now()
+    duration_minutes = randint(5, 180)
+    start_time = now - timedelta(minutes=duration_minutes)
+    end_time = now
+
+    unusual = randint(1, 4) == 1
+
+    base_mileage = randint(5000, 150000)
+    gps_calculated_mileage = base_mileage
+    if unusual:
+        reported_mileage = int(gps_calculated_mileage + randint(300, 5000))
+    else:
+        reported_mileage = int(gps_calculated_mileage + randint(-25, 80))
+
+    # Roughly around Singapore
+    prev_lat = round(uniform(1.20, 1.47), 6)
+    prev_lon = round(uniform(103.60, 104.05), 6)
+    if unusual:
+        current_lat = round(prev_lat + uniform(-0.35, 0.35), 6)
+        current_lon = round(prev_lon + uniform(-0.35, 0.35), 6)
+    else:
+        current_lat = round(prev_lat + uniform(-0.02, 0.02), 6)
+        current_lon = round(prev_lon + uniform(-0.02, 0.02), 6)
+
+    trip_id = add_vehicle_trip(
+        user_id=int(user_id),
+        vehicle_id=int(vehicle_id),
+        booking_id=None,
+        start_time=start_time,
+        end_time=end_time,
+        reported_mileage=reported_mileage,
+        gps_calculated_mileage=gps_calculated_mileage,
+        prev_lat=prev_lat,
+        prev_lon=prev_lon,
+        current_lat=current_lat,
+        current_lon=current_lon,
+    )
+
+    # Derive metrics from vehicle_trips telemetry and log into vehicle_fraud_logs
+    try:
+        duration_hours = max(1e-6, (end_time - start_time).total_seconds() / 3600.0)
+        distance_km = float(geodesic((prev_lat, prev_lon), (current_lat, current_lon)).kilometers)
+        speed_kmh = distance_km / duration_hours
+    except Exception:
+        distance_km = None
+        speed_kmh = None
+
+    try:
+        discrepancy_percent = None
+        if gps_calculated_mileage and gps_calculated_mileage > 0 and reported_mileage is not None:
+            discrepancy_percent = abs(reported_mileage - gps_calculated_mileage) / float(gps_calculated_mileage) * 100.0
+    except Exception:
+        discrepancy_percent = None
+
+    trip_features = {
+        'reported_mileage': reported_mileage,
+        'gps_mileage': gps_calculated_mileage,
+        'gps_jump_km': distance_km or 0,
+        'travel_speed_kmh': speed_kmh or 0,
+        'hour_of_day': start_time.hour,
+        'is_weekend': 1 if start_time.weekday() >= 5 else 0,
+    }
+
+    fraud_score, is_fraud, fraud_reasons = fraud_detector.predict_fraud(trip_features)
+
+    # Classify the *type* of suspicious telemetry (event_type) using simple, explainable heuristics.
+    # The ML model provides the risk score and reasons; event_type/action_taken are application-level labels.
+    event_type = 'Vehicle Trip Telemetry'
+    if discrepancy_percent is not None and discrepancy_percent >= 15:
+        event_type = 'Mileage Tampering'
+    if speed_kmh is not None and speed_kmh >= 160:
+        event_type = 'Suspicious Speed'
+    if distance_km is not None and distance_km >= 30:
+        event_type = 'GPS Spoofing'
+
+    if fraud_score is not None and fraud_score >= 0.9:
+        severity = 'Critical'
+    elif is_fraud:
+        severity = 'High'
+    elif fraud_score is not None and fraud_score > 0.5:
+        severity = 'Medium'
+    else:
+        severity = 'Low'
+
+    if severity == 'Critical':
+        action_taken = 'Auto-flagged: immediate review'
+    elif severity == 'High':
+        action_taken = 'Flagged for review'
+    elif severity == 'Medium':
+        action_taken = 'Monitor'
+    else:
+        action_taken = None
+
+    gps_data = {
+        'prev_location': f"{prev_lat},{prev_lon}",
+        'current_location': f"{current_lat},{current_lon}",
+        'distance_km': distance_km,
+        'speed_kmh': speed_kmh,
+    }
+    mileage_data = {
+        'reported': reported_mileage,
+        'gps_calculated': gps_calculated_mileage,
+        'discrepancy_percent': discrepancy_percent,
+    }
+
+    add_vehicle_fraud_log(
+        user_id=str(user_id),
+        vehicle_id=str(vehicle_id),
+        event_type=event_type,
+        severity=severity,
+        risk_score=float(fraud_score or 0),
+        description=(
+            f"Derived from vehicle_trips id={trip_id}. "
+            f"Score={float(fraud_score or 0):.3f}. Reasons: {', '.join(fraud_reasons) if fraud_reasons else 'N/A'}"
+        ),
+        action_taken=action_taken,
+        gps_data=gps_data,
+        mileage_data=mileage_data,
+    )
+
+    add_audit_log(
+        user_id=session.get('user_id', 0),
+        action='VEHICLE_TRIP_METRICS_GENERATED',
+        entity_type='VEHICLE',
+        entity_id=str(vehicle_id),
+        new_values={
+            'vehicle_trip_id': trip_id,
+            'unusual': unusual,
+            'start_time': start_time.isoformat(sep=' ', timespec='seconds'),
+            'end_time': end_time.isoformat(sep=' ', timespec='seconds'),
+            'reported_mileage': reported_mileage,
+            'gps_calculated_mileage': gps_calculated_mileage,
+            'prev_lat': prev_lat,
+            'prev_lon': prev_lon,
+            'current_lat': current_lat,
+            'current_lon': current_lon,
+        },
+        result='Success',
+        ip_address=request.remote_addr,
+        device_info=request.headers.get("User-Agent")
+    )
+
+    return jsonify({'success': True, 'trip_id': trip_id})
 
 
 @app.route('/seller/add-listing', methods=['POST'])

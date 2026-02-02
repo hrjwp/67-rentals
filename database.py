@@ -253,6 +253,29 @@ def ensure_schema():
             )
             """
         )
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS vehicle_trips (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                vehicle_id INT NOT NULL,
+                booking_id VARCHAR(20) NULL,
+                start_time DATETIME NOT NULL,
+                end_time DATETIME NULL,
+                reported_mileage INT NULL,
+                gps_calculated_mileage INT NULL,
+                prev_lat DECIMAL(10,6) NULL,
+                prev_lon DECIMAL(10,6) NULL,
+                current_lat DECIMAL(10,6) NULL,
+                current_lon DECIMAL(10,6) NULL,
+                INDEX idx_vehicle_id (vehicle_id),
+                INDEX idx_user_id (user_id),
+                INDEX idx_booking_id (booking_id),
+                FOREIGN KEY (user_id) REFERENCES users(user_id),
+                FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+            )
+            """
+        )
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS data_retention_settings (
                 id INT PRIMARY KEY,
@@ -353,6 +376,50 @@ def ensure_schema():
         _safe_alter(cursor, "ALTER TABLE incident_reports MODIFY incident_location VARCHAR(1000)")
 
         conn.commit()
+
+
+def add_vehicle_trip(
+    user_id: int,
+    vehicle_id: int,
+    booking_id: str = None,
+    start_time=None,
+    end_time=None,
+    reported_mileage: int = None,
+    gps_calculated_mileage: int = None,
+    prev_lat=None,
+    prev_lon=None,
+    current_lat=None,
+    current_lon=None,
+) -> int:
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        query = """
+            INSERT INTO vehicle_trips
+            (user_id, vehicle_id, booking_id, start_time, end_time,
+             reported_mileage, gps_calculated_mileage,
+             prev_lat, prev_lon, current_lat, current_lon)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(
+            query,
+            (
+                user_id,
+                vehicle_id,
+                booking_id,
+                start_time,
+                end_time,
+                reported_mileage,
+                gps_calculated_mileage,
+                prev_lat,
+                prev_lon,
+                current_lat,
+                current_lon,
+            ),
+        )
+        conn.commit()
+        trip_id = cursor.lastrowid
+        cursor.close()
+        return trip_id
 
 
 def _fetch_documents_for_users(cursor, user_ids):

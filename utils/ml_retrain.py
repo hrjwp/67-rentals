@@ -10,6 +10,7 @@ from database import get_db_connection
 from fraud_detection import FraudDetector
 import os
 import json
+from geopy.distance import geodesic
 
 
 def collect_historical_behavior_data(days_back=30):
@@ -29,22 +30,28 @@ def collect_historical_behavior_data(days_back=30):
                 b.pickup_date,
                 b.return_date,
                 b.total_amount,
-                vfl.reported_mileage,
-                vfl.gps_calculated_mileage,
-                vfl.discrepancy_percent,
-                vfl.speed_kmh as travel_speed_kmh,
-                vfl.distance_km as gps_jump_km,
+                vt.reported_mileage,
+                vt.gps_calculated_mileage,
+                vt.prev_lat,
+                vt.prev_lon,
+                vt.current_lat,
+                vt.current_lon,
+                vt.start_time as trip_start_time,
+                vt.end_time as trip_end_time,
                 bfl.event_type as fraud_type,
                 bfl.risk_score as fraud_score,
                 sl.event_type,
                 sl.timestamp as log_timestamp
             FROM bookings b
-            LEFT JOIN vehicle_fraud_logs vfl ON b.user_id = vfl.user_id AND b.vehicle_id = vfl.vehicle_id
+            LEFT JOIN vehicle_trips vt 
+                ON b.user_id = vt.user_id 
+                AND b.vehicle_id = vt.vehicle_id
+                AND vt.start_time >= DATE_SUB(NOW(), INTERVAL %s DAY)
             LEFT JOIN booking_fraud_logs bfl ON b.user_id = bfl.user_id AND b.booking_id = bfl.booking_id
             LEFT JOIN security_logs sl ON b.user_id = sl.user_id
             WHERE b.booking_date >= DATE_SUB(NOW(), INTERVAL %s DAY)
             ORDER BY b.booking_date DESC
-        """, (days_back,))
+        """, (days_back, days_back))
 
         bookings = cursor.fetchall()
         cursor.close()
@@ -91,12 +98,12 @@ def aggregate_user_features(user_id, bookings_data):
             if intervals:
                 avg_interval_minutes = sum(intervals) / len(intervals)
 
-    # Aggregate mileage patterns from vehicle_fraud_logs (uses separate columns, not JSON)
+    # Aggregate mileage patterns from vehicle_trips
     reported_mileage = 0
     gps_mileage = 0
     mileage_count = 0
 
-    # Get mileage data from the joined vehicle_fraud_logs data
+    # Get mileage data from the joined vehicle_trips data
     for booking in user_bookings:
         if booking.get('reported_mileage') is not None:
             try:
@@ -113,9 +120,37 @@ def aggregate_user_features(user_id, bookings_data):
         reported_mileage = reported_mileage / mileage_count
         gps_mileage = gps_mileage / mileage_count
 
-    # Aggregate travel speeds
-    travel_speeds = [b.get('travel_speed_kmh', 0) for b in user_bookings if b.get('travel_speed_kmh', 0) > 0]
+    # Aggregate travel speeds and GPS jump distance from trip coordinates
+    travel_speeds = []
+    gps_jumps = []
+    for b in user_bookings:
+        try:
+            prev_lat = b.get('prev_lat')
+            prev_lon = b.get('prev_lon')
+            cur_lat = b.get('current_lat')
+            cur_lon = b.get('current_lon')
+            st = b.get('trip_start_time')
+            et = b.get('trip_end_time')
+
+            if prev_lat is None or prev_lon is None or cur_lat is None or cur_lon is None:
+                continue
+
+            dist_km = float(geodesic((float(prev_lat), float(prev_lon)), (float(cur_lat), float(cur_lon))).kilometers)
+            gps_jumps.append(dist_km)
+
+            if st and et:
+                if isinstance(st, str):
+                    st = datetime.strptime(st, '%Y-%m-%d %H:%M:%S')
+                if isinstance(et, str):
+                    et = datetime.strptime(et, '%Y-%m-%d %H:%M:%S')
+                if isinstance(st, datetime) and isinstance(et, datetime):
+                    hours = max(1e-6, (et - st).total_seconds() / 3600.0)
+                    travel_speeds.append(dist_km / hours)
+        except Exception:
+            continue
+
     avg_travel_speed = sum(travel_speeds) / len(travel_speeds) if travel_speeds else 0
+    avg_gps_jump_km = sum(gps_jumps) / len(gps_jumps) if gps_jumps else 0
 
     # Check for fraud labels
     is_fraud = any(b.get('fraud_type') for b in user_bookings if b.get('fraud_type'))
@@ -134,7 +169,7 @@ def aggregate_user_features(user_id, bookings_data):
         'gps_mileage': gps_mileage,
         'mileage_discrepancy': abs(reported_mileage - gps_mileage),
         'travel_speed_kmh': avg_travel_speed,
-        'gps_jump_km': 0,  # Would aggregate
+        'gps_jump_km': avg_gps_jump_km,
         'location_changes_last_hour': 0,
         'ip_changes_last_day': 0,
         'ip_country_match': 1,
