@@ -236,5 +236,170 @@
     </footer>
 
     <script src="{{ url_for('static', filename='js/templatemo-graph-script.js') }}"></script>
+    <script>
+        // Security: copy/paste/screenshot logging for data retention page
+        const CURRENT_USER_ID = {{ session.get('user_id', 0) | tojson }};
+        let activityLogs = [];
+        let screenshotAttempts = 0;
+        const _lastReportedAt = {};
+        const sessionId = 'SID-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+
+        function logActivity(message, level = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            console.log(`[${level}] [${timestamp}] ${message}`);
+        }
+
+        async function reportSecurityEvent(eventType, severity, description, actionTaken) {
+            const key = `${eventType}:${severity}`;
+            const now = Date.now();
+            if (_lastReportedAt[key] && now - _lastReportedAt[key] < 3000) return;
+            _lastReportedAt[key] = now;
+
+            try {
+                await fetch('/api/log-security-event', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    keepalive: true,
+                    body: JSON.stringify({
+                        user_id: CURRENT_USER_ID,
+                        event_type: eventType,
+                        severity,
+                        description: `${description} | Page: ${window.location.pathname}`,
+                        action_taken: actionTaken
+                    })
+                });
+            } catch (e) {}
+        }
+
+        function showBlockedAlert(message) {
+            alert(message);
+        }
+
+        function handlePrintScreen(e) {
+            const isPrintScreen =
+                e.key === 'PrintScreen' ||
+                e.key === 'Print Screen' ||
+                e.keyCode === 44 ||
+                e.which === 44;
+
+            if (!isPrintScreen) return false;
+
+            screenshotAttempts++;
+            showBlockedAlert(`Screenshot attempt detected. Session: ${sessionId}`);
+            logActivity(`Screenshot attempt #${screenshotAttempts}`, 'warning');
+            reportSecurityEvent(
+                'Screenshot Prevented',
+                'High',
+                `PrintScreen detected (attempt #${screenshotAttempts}) (SID=${sessionId})`,
+                e.metaKey ? 'Detected Win+PrintScreen' : 'Detected PrintScreen'
+            );
+
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText('').catch(() => {});
+                }
+            } catch (err) {}
+
+            document.body.style.filter = 'invert(1)';
+            setTimeout(() => { document.body.style.filter = 'none'; }, 100);
+            return true;
+        }
+
+        document.addEventListener('copy', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Copying data is not allowed for security reasons.');
+            logActivity('Copy attempt blocked', 'warning');
+            reportSecurityEvent('Copy/Paste Attempt', 'Medium', `Copy blocked (SID=${sessionId})`, 'Blocked copy');
+        });
+
+        document.addEventListener('cut', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Cutting data is not allowed for security reasons.');
+            logActivity('Cut attempt blocked', 'warning');
+            reportSecurityEvent('Copy/Paste Attempt', 'Medium', `Cut blocked (SID=${sessionId})`, 'Blocked cut');
+        });
+
+        document.addEventListener('paste', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Pasting is not allowed in this secure area.');
+            logActivity('Paste attempt blocked', 'warning');
+            reportSecurityEvent('Copy/Paste Attempt', 'Medium', `Paste blocked (SID=${sessionId})`, 'Blocked paste');
+        });
+
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Right-click menu is disabled in secure areas.');
+            logActivity('Context menu blocked', 'warning');
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.keyCode === 123) {
+                e.preventDefault();
+                showBlockedAlert('Developer tools are disabled.');
+                logActivity('DevTools access blocked', 'warning');
+                reportSecurityEvent('Security Alert', 'High', `DevTools blocked (F12) (SID=${sessionId})`, 'Blocked DevTools');
+                return false;
+            }
+
+            if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) {
+                e.preventDefault();
+                showBlockedAlert('Developer tools are disabled.');
+                logActivity('DevTools shortcut blocked', 'warning');
+                reportSecurityEvent('Security Alert', 'High', `DevTools shortcut blocked (SID=${sessionId})`, 'Blocked DevTools shortcut');
+                return false;
+            }
+
+            if (e.ctrlKey && e.key === 'u') {
+                e.preventDefault();
+                showBlockedAlert('Viewing source code is disabled.');
+                logActivity('View source blocked', 'warning');
+                return false;
+            }
+
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                showBlockedAlert('Saving pages is disabled.');
+                logActivity('Save page blocked', 'warning');
+                reportSecurityEvent('Export Blocked', 'High', `Save page blocked (SID=${sessionId})`, 'Blocked Ctrl+S');
+                return false;
+            }
+
+            if (e.ctrlKey && e.key === 'p') {
+                e.preventDefault();
+                showBlockedAlert('Printing is disabled for security reasons.');
+                logActivity('Print attempt blocked', 'warning');
+                reportSecurityEvent('Export Blocked', 'High', `Print blocked (SID=${sessionId})`, 'Blocked Ctrl+P');
+                return false;
+            }
+
+            if (handlePrintScreen(e)) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 's' && e.shiftKey && e.metaKey) {
+                screenshotAttempts++;
+                showBlockedAlert(`Snipping tool detected! Attempt #${screenshotAttempts} logged.`);
+                logActivity(`Snipping tool attempt #${screenshotAttempts}`, 'warning');
+                reportSecurityEvent(
+                    'Screenshot Prevented',
+                    'High',
+                    `Snipping tool shortcut suspected (attempt #${screenshotAttempts}) (SID=${sessionId})`,
+                    'Detected Win+Shift+S'
+                );
+            }
+        }, true);
+
+        window.addEventListener('blur', () => {
+            logActivity('Window lost focus - possible screenshot tool active', 'warning');
+        });
+
+        window.addEventListener('beforeunload', () => {
+            logActivity(`Session ended - ${screenshotAttempts} screenshot attempts detected`, 'info');
+        });
+    </script>
 </body>
 </html>

@@ -129,63 +129,201 @@
             font-weight: var(--font-weight-medium);
             color: var(--secondary-color);
         }
+         * {
+            /* Security: Prevent text selection */
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+        /* --- Security Overlays Start --- */
+        .security-banner {
+            background: #ff6b6b;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            font-weight: 600;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10000;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            font-size: 14px;
+        }
+        .session-timer {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            z-index: 9999;
+            font-weight: 600;
+            color: var(--secondary-color);
+            border: 2px solid var(--primary-color);
+        }
+        .timer-warning {
+            background: #ff6b6b !important;
+            color: white !important;
+            animation: pulse 1s infinite;
+            border-color: #ff6b6b;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+        .watermark-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9997;
+            overflow: hidden;
+        }
+        .watermark-text {
+            position: absolute;
+            font-size: 80px;
+            font-weight: bold;
+            color: rgba(61, 64, 91, 0.05);
+            white-space: nowrap;
+            transform: rotate(-20deg);
+        }
+        .watermark-text:nth-child(1) {
+            top: 10%;
+            left: 5%;
+        }
+        .watermark-text:nth-child(2) {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-20deg);
+        }
+        .watermark-text:nth-child(3) {
+            bottom: 10%;
+            right: 5%;
+        }
+        .blocked-action {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #ff6b6b;
+            color: white;
+            padding: 30px 50px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+            z-index: 10001;
+            text-align: center;
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translate(-50%, -60%);
+                opacity: 0;
+            }
+            to {
+                transform: translate(-50%, -50%);
+                opacity: 1;
+            }
+        }
+        .session-expired {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(61, 64, 91, 0.95);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10002;
+        }
+        .expired-content {
+            background: white;
+            padding: 50px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 500px;
+        }
+        .expired-content h1 {
+            color: #ff6b6b;
+            margin-bottom: 20px;
+        }
+        .expired-content .btn {
+            background: var(--custom-btn-bg-color);
+            color: var(--secondary-color);
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-weight: 600;
+        }
+        .activity-log {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            max-width: 300px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            z-index: 9998;
+            border-left: 4px solid var(--secondary-color);
+        }
+        .activity-log h4 {
+            margin-bottom: 10px;
+            color: var(--secondary-color);
+            font-weight: 700;
+        }
+        .activity-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+            color: #666;
+        }
+        /* --- Security Overlays End --- */
     </style>
 </head>
 
 <body>
-    <!-- Navigation -->
-<<<<<<< HEAD
-    <nav id="navbar">
-        <div class="nav-container">
-            <a href="{{ url_for('index') }}" class="logo">
-                <div class="logo-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M3 13h2v8H3zm4-8h2v13H7zm4-2h2v15h-2zm4 4h2v11h-2zm4-2h2v13h-2z" />
-                    </svg>
-                </div>
-                <span class="logo-text">67 Rentals</span>
-            </a>
-            <ul class="nav-links">
-                <li><a href="{{ url_for('index') }}">Home</a></li>
-                <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
-                <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
-                <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
-                <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
-            </ul>
-            <div class="d-flex align-items-center gap-2">
-                {% set admin_name = session.get('user_name') or session.get('user', 'Admin') %}
-                {% if '@' in admin_name %}
-                {% set admin_name = admin_name.split('@')[0] %}
-                {% endif %}
-                <a href="{{ url_for('profile') }}" class="cta-button secondary" style="padding:10px 16px;">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"
-                        style="margin-right:6px;vertical-align:middle;">
-                        <path
-                            d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                    </svg>
-                    {{ admin_name }}
-                </a>
-                <a href="{{ url_for('logout') }}" class="cta-button secondary" style="padding:10px 16px;">Logout</a>
-            </div>
-            <div class="hamburger" id="hamburger">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
+    <!-- Security Overlays -->
+    <div class="security-banner">
+        Data Copying Disabled - Session: <span id="sessionId"></span>
+    </div>
+    <div class="session-timer" id="sessionTimer">
+        ⏱️ Session: <span id="timeLeft">15:00</span>
+    </div>
+    <div class="watermark-overlay">
+        <div class="watermark-text">CONFIDENTIAL</div>
+        <div class="watermark-text">CONFIDENTIAL</div>
+        <div class="watermark-text">CONFIDENTIAL</div>
+    </div>
+    <div class="blocked-action" id="blockedAlert">
+        <h2>🚫 Action Blocked</h2>
+        <p id="blockedMessage">This action has been blocked for security reasons.</p>
+    </div>
+    <div class="session-expired" id="sessionExpired">
+        <div class="expired-content">
+            <h1>⏰ Session Expired</h1>
+            <p>Your session has timed out for security reasons.</p>
+            <p style="margin-top: 15px; color: #666;">All attempted actions have been logged.</p>
+            <button class="btn" onclick="location.reload()">Login Again</button>
         </div>
-        <ul class="nav-links-mobile" id="navLinksMobile">
-            <li><a href="{{ url_for('index') }}">Home</a></li>
-            <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
-            <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
-            <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
-            <li><a href="{{ url_for('security_dashboard') }}" class="active">Security</a></li>
-            <li><a href="{{ url_for('profile') }}">Profile</a></li>
-            <li><a href="{{ url_for('logout') }}">Logout</a></li>
-        </ul>
-    </nav>
-=======
+    </div>
     {% include 'partials/navbar_graph.html' %}
->>>>>>> e0007d3 (Standardize navbars and admin retention UI)
+
 
     <!-- Audit Logs Section -->
     <section class="dashboard-section" style="padding-top: 120px; min-height: 100vh;">
@@ -273,7 +411,6 @@
     <script>
         // Search functionality
         document.getElementById('searchInput').addEventListener('input', function (e) {
-            const searchTerm = e.target.value.toLowerCase();
             filterTable();
         });
 
@@ -296,6 +433,259 @@
                 row.style.display = (matchesSearch && matchesLevel) ? '' : 'none';
             });
         }
+    </script>
+
+    <script>
+ // Define user ID first for security scripts
+        const CURRENT_USER_ID = {{ session.get('user_id', 0) | tojson }};
+        // --- Security Scripts Start ---
+        const SESSION_DURATION = 900;
+        let sessionTimeRemaining = SESSION_DURATION;
+        let sessionInterval;
+        let activityLogs = [];
+        let screenshotAttempts = 0;
+        const _lastReportedAt = {};
+        // Simple in-page activity monitor so we can safely call logActivity(...)
+        function logActivity(message, level = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            activityLogs.unshift({ timestamp, message, level });
+            if (activityLogs.length > 50) {
+                activityLogs.pop();
+            }
+            let container = document.getElementById('activityLog');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'activityLog';
+                container.className = 'activity-log';
+                container.innerHTML = '<h4>Activity Monitor</h4><div id="activityItems"></div>';
+                document.body.appendChild(container);
+            }
+            const itemsEl = document.getElementById('activityItems');
+            if (itemsEl) {
+                itemsEl.innerHTML = activityLogs
+                    .map(log => `<div class="activity-item">[${log.timestamp}] ${log.message}</div>`)
+                    .join('');
+            }
+        }
+        // Generate unique session ID
+        const sessionId = 'SID-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+        document.getElementById('sessionId').textContent = sessionId;
+        async function reportSecurityEvent(eventType, severity, description, actionTaken) {
+            // Simple client-side throttle to avoid flooding logs
+            const key = `${eventType}:${severity}`;
+            const now = Date.now();
+            if (_lastReportedAt[key] && now - _lastReportedAt[key] < 3000) return;
+            _lastReportedAt[key] = now;
+            try {
+                await fetch('/api/log-security-event', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    keepalive: true,
+                    body: JSON.stringify({
+                        user_id: CURRENT_USER_ID,
+                        event_type: eventType,
+                        severity,
+                        // Include page context so admins can see where it happened
+                        description: `${description} | Page: ${window.location.pathname}`,
+                        action_taken: actionTaken
+                    })
+                });
+            } catch (e) {
+                // Best-effort logging; ignore failures
+            }
+        }
+        function showBlockedAlert(message) {
+            const alert = document.getElementById('blockedAlert');
+            document.getElementById('blockedMessage').textContent = message;
+            alert.style.display = 'block';
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 2000);
+        }
+        function startSessionTimer() {
+            sessionInterval = setInterval(() => {
+                sessionTimeRemaining--;
+                const minutes = Math.floor(sessionTimeRemaining / 60);
+                const seconds = sessionTimeRemaining % 60;
+                const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                document.getElementById('timeLeft').textContent = timeDisplay;
+                const timerEl = document.getElementById('sessionTimer');
+                if (sessionTimeRemaining <= 60) {
+                    timerEl.classList.add('timer-warning');
+                }
+                if (sessionTimeRemaining <= 0) {
+                    clearInterval(sessionInterval);
+                    document.getElementById('sessionExpired').style.display = 'flex';
+                    logActivity('Session expired - Auto logout', 'warning');
+                    reportSecurityEvent(
+                        'Session Timeout',
+                        'Medium',
+                        `Client session timer expired (SID=${sessionId})`,
+                        'Displayed session expired overlay'
+                    );
+                }
+            }, 1000);
+        }
+        function resetSessionTimer() {
+            sessionTimeRemaining = SESSION_DURATION;
+            document.getElementById('sessionTimer').classList.remove('timer-warning');
+        }
+        // Security event handlers
+        document.addEventListener('copy', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Copying data is not allowed for security reasons.');
+            logActivity('Copy attempt blocked', 'warning');
+            reportSecurityEvent('Copy/Paste Attempt', 'Medium', `Copy blocked (SID=${sessionId})`, 'Blocked copy');
+        });
+        document.addEventListener('cut', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Cutting data is not allowed for security reasons.');
+            logActivity('Cut attempt blocked', 'warning');
+            reportSecurityEvent('Copy/Paste Attempt', 'Medium', `Cut blocked (SID=${sessionId})`, 'Blocked cut');
+        });
+        document.addEventListener('paste', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Pasting is not allowed in this secure area.');
+            logActivity('Paste attempt blocked', 'warning');
+            reportSecurityEvent('Copy/Paste Attempt', 'Medium', `Paste blocked (SID=${sessionId})`, 'Blocked paste');
+        });
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Right-click menu is disabled in secure areas.');
+            logActivity('Context menu blocked', 'warning');
+        });
+        function handlePrintScreen(e) {
+            const isPrintScreen =
+                e.key === 'PrintScreen' ||
+                e.key === 'Print Screen' ||
+                e.keyCode === 44 ||
+                e.which === 44;
+            if (!isPrintScreen) return false;
+            screenshotAttempts++;
+            showBlockedAlert(`Screenshot attempt detected. Session: ${sessionId}`);
+            logActivity(`Screenshot attempt #${screenshotAttempts}`, 'warning');
+            reportSecurityEvent(
+                'Screenshot Prevented',
+                'High',
+                `PrintScreen detected (attempt #${screenshotAttempts}) (SID=${sessionId})`,
+                e.metaKey ? 'Detected Win+PrintScreen' : 'Detected PrintScreen'
+            );
+            // Best-effort clipboard clear (may be unavailable on HTTP)
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText('').catch(() => {});
+                }
+            } catch (err) {
+                // ignore
+            }
+            document.body.style.filter = 'invert(1)';
+            setTimeout(() => { document.body.style.filter = 'none'; }, 100);
+            return true;
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.keyCode === 123) {
+                e.preventDefault();
+                showBlockedAlert('Developer tools are disabled.');
+                logActivity('DevTools access blocked', 'warning');
+                reportSecurityEvent('Security Alert', 'High', `DevTools blocked (F12) (SID=${sessionId})`, 'Blocked DevTools');
+                return false;
+            }
+            if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) {
+                e.preventDefault();
+                showBlockedAlert('Developer tools are disabled.');
+                logActivity('DevTools shortcut blocked', 'warning');
+                reportSecurityEvent('Security Alert', 'High', `DevTools shortcut blocked (SID=${sessionId})`, 'Blocked DevTools shortcut');
+                return false;
+            }
+            if (e.ctrlKey && e.key === 'u') {
+                e.preventDefault();
+                showBlockedAlert('Viewing source code is disabled.');
+                logActivity('View source blocked', 'warning');
+                return false;
+            }
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                showBlockedAlert('Saving pages is disabled.');
+                logActivity('Save page blocked', 'warning');
+                reportSecurityEvent('Export Blocked', 'High', `Save page blocked (SID=${sessionId})`, 'Blocked Ctrl+S');
+                return false;
+            }
+            if (e.ctrlKey && e.key === 'p') {
+                e.preventDefault();
+                showBlockedAlert('Printing is disabled for security reasons.');
+                logActivity('Print attempt blocked', 'warning');
+                reportSecurityEvent('Export Blocked', 'High', `Print blocked (SID=${sessionId})`, 'Blocked Ctrl+P');
+                return false;
+            }
+            // Try to detect PrintScreen on keydown (may be swallowed by OS in some cases)
+            if (handlePrintScreen(e)) {
+                // preventDefault won't always stop OS screenshot, but can stop page behaviors
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+            resetSessionTimer();
+        });
+        // Also listen on keyup in CAPTURE phase (some browsers only expose PrintScreen here)
+        window.addEventListener('keyup', (e) => {
+            if (handlePrintScreen(e)) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, true);
+        // Detect Snipping Tool (Windows Key + Shift + S) and other combinations
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 's' && e.shiftKey && e.metaKey) {
+                screenshotAttempts++;
+                showBlockedAlert(`Snipping tool detected! Attempt #${screenshotAttempts} logged.`);
+                logActivity(`Snipping tool attempt #${screenshotAttempts}`, 'warning');
+                reportSecurityEvent(
+                    'Screenshot Prevented',
+                    'High',
+                    `Snipping tool shortcut suspected (attempt #${screenshotAttempts}) (SID=${sessionId})`,
+                    'Detected Win+Shift+S'
+                );
+            }
+        });
+        // Detect visibility change (often triggered by screen capture tools overlaying the window)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // Don't log to DB on tab switches; this causes false positives.
+                // Keep only a visual deterrent.
+                document.body.style.filter = 'blur(10px)';
+            } else {
+                document.body.style.filter = 'none';
+            }
+        });
+        // Detect focus loss (often happens when clicking "New" on Snipping Tool)
+        window.addEventListener('blur', () => {
+            logActivity('Window lost focus - possible screenshot tool active', 'warning');
+        });
+        window.addEventListener('beforeprint', (e) => {
+            e.preventDefault();
+            showBlockedAlert('Printing is disabled for security reasons.');
+            logActivity('Print blocked', 'warning');
+            return false;
+        });
+        // Monitor for Screen Recording API usage
+        setInterval(() => {
+            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                const now = Date.now();
+                if (!window.lastCaptureWarning || now - window.lastCaptureWarning > 60000) {
+                    window.lastCaptureWarning = now;
+                    logActivity('Screen capture API detected - monitoring', 'warning');
+                }
+            }
+        }, 30000);
+        document.addEventListener('mousemove', resetSessionTimer);
+        document.addEventListener('click', resetSessionTimer);
+        document.addEventListener('scroll', resetSessionTimer);
+        window.addEventListener('beforeunload', (e) => {
+            logActivity(`Session ended - ${screenshotAttempts} screenshot attempts detected`, 'info');
+        });
+        // Start session timer on page load
+        startSessionTimer();
+        // --- Security Scripts End ---
     </script>
 </body>
 
