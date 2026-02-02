@@ -1,3 +1,4 @@
+
 {% set user_email = session.get('user') %}
 {% set user_type = session.get('user_type') %}
 {% set display_name = session.get('user_name') %}
@@ -37,6 +38,7 @@
         {'label': 'Cart', 'href': url_for('cart'), 'id': 'cart', 'icon': 'cart'}
     ] %}
 {% endif %}
+
 
 <nav class="navbar navbar-expand-lg{% if nav_solid %} navbar-solid{% endif %}">
     <div class="container">

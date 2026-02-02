@@ -1,3 +1,4 @@
+
 {% set user_email = session.get('user') %}
 {% set display_name = session.get('user_name') %}
 {% if not display_name and user_email %}
@@ -14,64 +15,45 @@
 ] %}
 
 <nav id="navbar">
-    <div class="nav-container">
-        <a href="{{ url_for('index') }}" class="logo">
-            <div class="logo-icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M3 13h2v8H3zm4-8h2v13H7zm4-2h2v15h-2zm4 4h2v11h-2zm4-2h2v13h-2z"/>
-                </svg>
-            </div>
+        <div class="nav-container" style="display: flex; align-items: center; justify-content: flex-start; gap: 40px;">
+        <a href="{{ url_for('dashboard') }}" class="logo">
             <span class="logo-text">67 Rentals</span>
         </a>
-        <ul class="nav-links">
-            {% for item in nav_items %}
-                {% set is_active = current_endpoint in item.endpoints %}
-                <li><a href="{{ item.href }}" class="{% if is_active %}active{% endif %}">{{ item.label }}</a></li>
-            {% endfor %}
-        </ul>
-        <div class="nav-actions">
-            {% if user_email %}
-                <a href="{{ url_for('accounts') }}" class="nav-pill">
-                    <span class="nav-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M12 12c2.761 0 5-2.239 5-5s-2.239-5-5-5-5 2.239-5 5 2.239 5 5 5zm0 2c-3.337 0-10 1.673-10 5v3h20v-3c0-3.327-6.663-5-10-5z"/>
-                        </svg>
-                    </span>
-                    {{ display_name or user_email }}
+            <ul class="nav-links">
+                <li><a href="{{ url_for('dashboard') }}">Home</a></li>
+                <li><a href="{{ url_for('dashboard') }}" class="active">Dashboard</a></li>
+                <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
+                <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
+                <li><a href="{{ url_for('security_dashboard') }}">Security</a></li>
+            </ul>
+            <div class="d-flex align-items-center gap-3">
+                {% set admin_name = session.get('user_name') or session.get('user', 'Admin') %}
+                {% if '@' in admin_name %}
+                {% set admin_name = admin_name.split('@')[0] %}
+                {% endif %}
+                <a href="{{ url_for('profile') }}" class="cta-button secondary" style="padding:10px 16px; background: #F2CC8F; color: #3D405B">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"
+                        style="margin-right:6px;vertical-align:middle;">
+                        <path
+                            d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                    </svg>
+                    {{ admin_name }}
                 </a>
-                <a href="{{ url_for('logout') }}" class="nav-pill nav-pill-ghost">
-                    <span class="nav-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M16 13v-2H7V8l-5 4 5 4v-3h9zm3-10H9a2 2 0 0 0-2 2v4h2V5h10v14H9v-4H7v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/>
-                        </svg>
-                    </span>
-                    Logout
-                </a>
-            {% endif %}
+                <a href="{{ url_for('logout') }}" class="cta-button secondary" style="padding:10px 16px; margin-left: 10px; background: #F2CC8F; color: #3D405B;">Logout</a>
+            </div>
+            <div class="hamburger" id="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
         </div>
-        <div class="hamburger" id="hamburger">
-            <span></span>
-            <span></span>
-            <span></span>
-        </div>
-    </div>
-    <ul class="nav-links-mobile" id="navLinksMobile">
-        {% for item in nav_items %}
-            {% set is_active = current_endpoint in item.endpoints %}
-            <li><a href="{{ item.href }}" class="{% if is_active %}active{% endif %}">{{ item.label }}</a></li>
-        {% endfor %}
-        {% if user_email %}
-            <li><a href="{{ url_for('accounts') }}">{{ display_name or user_email }}</a></li>
+        <ul class="nav-links-mobile" id="navLinksMobile">
+            <li><a href="{{ url_for('dashboard') }}">Home</a></li>
+            <li><a href="{{ url_for('dashboard') }}" class="active">Dashboard</a></li>
+            <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
+            <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
+            <li><a href="{{ url_for('security_dashboard') }}">Security</a></li>
+            <li><a href="{{ url_for('profile') }}">Profile</a></li>
             <li><a href="{{ url_for('logout') }}">Logout</a></li>
-        {% endif %}
-    </ul>
-</nav>
-<div class="print-blocked-modal" id="printBlockedModal" aria-hidden="true">
-    <div class="print-blocked-card" role="alert">
-        <div class="print-blocked-icon" aria-hidden="true">🚫</div>
-        <div class="print-blocked-text">
-            <strong>Printing is prohibited</strong>
-            <span>Admin data cannot be printed or exported.</span>
-        </div>
-    </div>
-</div>
+        </ul>
+    </nav>

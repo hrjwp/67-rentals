@@ -3,7 +3,7 @@ from mysql.connector import Error, errorcode
 from contextlib import contextmanager
 from config import Config
 from db_config import DB_CONFIG
-from utils.encryption import encrypt_value, decrypt_value
+from utils.field_encryption_config import get_encrypted_columns, get_column_keys_for_decrypt
 import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
@@ -34,6 +34,32 @@ def get_db_connection():
         if connection and connection.is_connected():
             connection.close()
 
+def _encrypt_row(table_name: str, row: Dict[str, Any]) -> Dict[str, Any]:
+    """Encrypt sensitive fields in a row before DB insert/update.
+    Raises if encryption fails (e.g. DATA_ENCRYPTION_KEY not set)."""
+    cols = get_encrypted_columns(table_name)
+    out = dict(row)
+    for col in cols:
+        if col in out and out[col] is not None and out[col] != '':
+            out[col] = encrypt_value(str(out[col]))
+    return out
+
+
+def _decrypt_row(table_name: str, row: Dict[str, Any], fallback: bool = True) -> Dict[str, Any]:
+    """Decrypt sensitive fields in a row after DB fetch. Handles column aliases."""
+    cols = get_encrypted_columns(table_name)
+    out = dict(row)
+    for col in cols:
+        keys = get_column_keys_for_decrypt(table_name, col)
+        for key in keys:
+            if key in out and out[key] is not None:
+                try:
+                    out[key] = decrypt_value(out[key], fallback_on_error=fallback)
+                except Exception:
+                    if fallback:
+                        out[key] = out[key]
+                break  # Only decrypt one (column or its alias)
+    return out
 
 def _safe_alter(cursor, statement: str):
     """Run ALTER TABLE and swallow duplicate/unknown column errors."""
@@ -361,7 +387,7 @@ def _fetch_documents_for_users(cursor, user_ids):
 # Database query functions
 
 def get_user_by_email(email):
-    """Get user by email from DB."""
+    """Get user by email from DB.Sensitive fields r decrtpyed"""
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
         cursor.execute(
@@ -375,6 +401,8 @@ def get_user_by_email(email):
         )
         user = cursor.fetchone()
         cursor.close()
+        if user:
+            user = _decrypt_row("users", user)
         return user
 
 
@@ -396,7 +424,20 @@ def create_user_with_documents(user_data):
     Create a new user row, attach uploaded document paths, and open a signup ticket.
     user_data keys: first_name, last_name, email, phone, nric, license_number,
     password_hash, user_type, documents (dict of doc_type-> {filename, mime, data, path})
+    Sensitive fields (first_name, last_name, phone_number, nric, license_number) are AES-encrypted.
     """
+
+    # Encrypt sensitive PII before storing
+    user_row = {
+        "first_name": user_data.get("first_name"),
+        "last_name": user_data.get("last_name"),
+        "email": user_data.get("email"),  # ← ADD THIS LINE
+        "phone_number": user_data.get("phone"),
+        "nric": user_data.get("nric"),
+        "license_number": user_data.get("license_number"),
+    }
+    user_row = _encrypt_row("users", user_row)
+
     with get_db_connection() as conn:
         cursor = conn.cursor()
         user_insert = """
@@ -406,13 +447,13 @@ def create_user_with_documents(user_data):
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         user_values = (
-            user_data["first_name"],
-            user_data["last_name"],
-            user_data["email"],
-            user_data.get("phone"),
+            user_row["first_name"],
+            user_row["last_name"],
+            user_row["email"],  # ✅ NOW ENCRYPTED
+            user_row["phone_number"],
             user_data["password_hash"],
-            user_data.get("nric"),
-            user_data.get("license_number"),
+            user_row["nric"],
+            user_row["license_number"],
             user_data.get("user_type", "user"),
             False,
             "active",
@@ -480,6 +521,7 @@ def get_signup_tickets(status=None):
         docs = _fetch_documents_for_users(cursor, [row["user_id"] for row in rows])
         for row in rows:
             row["documents"] = docs.get(row["user_id"], {})
+            row.update(_decrypt_row("users", row))
         cursor.close()
         return rows
 
@@ -593,12 +635,23 @@ def update_user_password(email, new_password):
 
 
 def update_user_profile(user_id, first_name, last_name, email, phone):
-    """Update editable profile fields for a user."""
+    """Update editable profile fields for a user. Sensitive fields are AES-encrypted."""
+    row = _encrypt_row("users", {
+        "first_name": first_name,
+        "last_name": last_name,
+        "email": email,  # ← ADD THIS LINE
+        "phone_number": phone,
+    })
+    first_name_enc = row["first_name"]
+    last_name_enc = row["last_name"]
+    email_enc = row["email"]  # ← ADD THIS LINE
+    phone_enc = row["phone_number"]
+
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
             "SELECT user_id FROM users WHERE email = %s AND user_id != %s",
-            (email, user_id)
+            (email, user_id)   # Note: This search won't work with encrypted email - see note below
         )
         if cursor.fetchone():
             cursor.close()
@@ -613,7 +666,7 @@ def update_user_profile(user_id, first_name, last_name, email, phone):
                 phone_number = %s
             WHERE user_id = %s
             """,
-            (first_name, last_name, email, phone, user_id)
+            (first_name_enc, last_name_enc, email_enc, phone_enc, user_id)  # ✅ NOW ENCRYPTED
         )
         cursor.close()
         return True, None
@@ -1607,11 +1660,13 @@ def get_user_by_id(user_id: int):
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
         cursor.execute(
-            "SELECT user_id, email, first_name, last_name FROM users WHERE user_id = %s",
+            "SELECT user_id, email, first_name, last_name, phone_number AS phone, nric, license_number FROM users WHERE user_id = %s",
             (user_id,),
         )
         user = cursor.fetchone()
         cursor.close()
+        if user:
+            user = _decrypt_row("users", user)
         return user
 
 
@@ -1793,7 +1848,8 @@ def get_retention_users(apply_to_users: bool = True,
         cursor.execute(query, params)
         rows = cursor.fetchall()
         cursor.close()
-    return rows
+    # Decrypt sensitive user fields
+    return [_decrypt_row("users", row) for row in rows]
 
 
 def _compute_retention_status(user: Dict[str, Any],

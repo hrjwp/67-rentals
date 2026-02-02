@@ -4887,6 +4887,99 @@ def security_check():
         }
     })
 
+ #Table config for encrypt-existing: (table_name, primary_key_col)
+_ENCRYPT_EXISTING_TABLES = [
+    ("users", "user_id"),
+    ("incident_reports", "id"),
+]
+
+
+@app.route("/admin/encrypt-existing-data", methods=["POST"])
+@require_classification('users.password_hash')
+def encrypt_existing_data():
+    """
+    One-time migration: encrypt existing plaintext PII in users and incident_reports.
+    Skips rows that are already encrypted. New data is encrypted on insert automatically.
+    Call: POST /admin/encrypt-existing-data?confirm=yes
+    """
+    if request.args.get("confirm") != "yes":
+        return jsonify({"error": "add confirm=yes to run"}), 400
+
+    from database import ensure_schema
+    from utils.field_encryption_config import SENSITIVE_FIELDS
+
+    ensure_schema()
+
+    results = {}
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        for table_name, pk_col in _ENCRYPT_EXISTING_TABLES:
+            cols = SENSITIVE_FIELDS.get(table_name, [])
+            if not cols:
+                continue
+            cols_str = ", ".join([pk_col] + cols)
+            try:
+                cursor.execute(f"SELECT {cols_str} FROM {table_name}")
+            except Exception as e:
+                results[table_name] = {"updated": 0, "error": str(e)}
+                continue
+
+            rows = cursor.fetchall()
+            updated = 0
+            for row in rows:
+                updates = {}
+                for col in cols:
+                    val = row.get(col)
+                    if not val:
+                        continue
+                    try:
+                        maybe_plain = decrypt_value(val, fallback_on_error=True)
+                    except Exception:
+                        maybe_plain = val
+                    if maybe_plain != val:
+                        continue  # already encrypted
+                    try:
+                        updates[col] = encrypt_value(val)
+                    except Exception as e:
+                        conn.rollback()
+                        return jsonify({
+                            "error": "Encryption failed. Ensure DATA_ENCRYPTION_KEY is set in .env",
+                            "detail": str(e),
+                            "table": table_name,
+                            "column": col,
+                            "pk": row[pk_col],
+                            "updated_so_far": results,
+                        }), 500
+
+                if updates:
+                    set_clause = ", ".join([f"{c} = %s" for c in updates.keys()])
+                    params = list(updates.values()) + [row[pk_col]]
+                    cursor.execute(
+                        f"UPDATE {table_name} SET {set_clause} WHERE {pk_col} = %s",
+                        params,
+                    )
+                    updated += 1
+
+            results[table_name] = {"updated": updated}
+
+        conn.commit()
+        cursor.close()
+
+    total = sum(r.get("updated", 0) for r in results.values() if isinstance(r.get("updated"), int))
+    add_audit_log(
+        user_id=session.get('user_id', 0),
+        action='Encrypt Existing Data',
+        entity_type='SYSTEM',
+        entity_id='bulk_encryption',
+        new_values=json.dumps(results),
+        result='Success',
+        severity='High',
+        ip_address=request.remote_addr,
+        device_info=request.headers.get("User-Agent")
+    )
+
+    return jsonify({"updated_by_table": results, "total_rows_updated": total})
+
 
 @app.route("/admin/encrypt-existing-users", methods=["POST"])
 @require_classification('users.password_hash')
@@ -4894,11 +4987,11 @@ def encrypt_existing_users():
     """
     One-time helper to encrypt existing plaintext PII in the users table - RESTRICTED to admins only.
     Call: POST /admin/encrypt-existing-users?confirm=yes
+    (Prefer /admin/encrypt-existing-data to encrypt all tables at once.)
     """
     if request.args.get("confirm") != "yes":
         return jsonify({"error": "add confirm=yes to run"}), 400
 
-    # Ensure schema is up to date (increases column sizes for encrypted data)
     from database import ensure_schema
     ensure_schema()
 
@@ -4922,7 +5015,6 @@ def encrypt_existing_users():
                 val = row.get(db_col)
                 if not val:
                     continue
-                # If decrypt succeeds and changes the value, it's already encrypted
                 maybe_plain = decrypt_value(val, fallback_on_error=True)
                 if maybe_plain != val:
                     continue
@@ -4943,7 +5035,6 @@ def encrypt_existing_users():
         conn.commit()
         cursor.close()
 
-    # --- Audit log for bulk encryption ---
     add_audit_log(
         user_id=session.get('user_id', 0),
         action='Encrypt Existing Users',

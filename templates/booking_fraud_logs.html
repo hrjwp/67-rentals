@@ -531,7 +531,53 @@
         <h4>🔍 Security Activity</h4>
         <div id="logEntries"></div>
     </div>
-    {% include 'partials/navbar_tiya.html' %}
+
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                <span style="color: white; font-weight: bold;">67 Rentals </span>
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-lg-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/accounts">Accounts</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/vehicles-page">Management</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/security-dashboard">Security</a>
+                    </li>
+                </ul>
+                <div class="d-none d-lg-flex align-items-center ms-lg-3">
+                    {% set admin_name = session.get('user_name') or session.get('user', 'Admin') %}
+                    {% if '@' in admin_name %}
+                        {% set admin_name = admin_name.split('@')[0] %}
+                    {% endif %}
+
+                    <a class="btn custom-btn" href="{{ url_for('profile') }}">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-right:6px;">
+                            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                        </svg>
+                        {{ admin_name }}
+                    </a>
+
+                    <a href="{{ url_for('logout') }}" class="btn custom-btn button-gap">Logout</a>
+                </div>
+            </div>
+        </div>
+    </nav>
 
     <main>
         <div class="container">
