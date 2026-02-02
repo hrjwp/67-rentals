@@ -13,6 +13,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
 
+
     <style>
         :root {
             --white-color: #ffffff;
@@ -220,16 +221,13 @@
             border-bottom: 1px solid #e0e0e0;
             color: #666;
         }
-
-        /* --- Security Overlays End --- */
-
-        .navbar {
+         .navbar {
             background: var(--secondary-color);
             z-index: 99;
             padding-top: 15px;
             padding-bottom: 15px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            margin-top: 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-top: 40px; /* Push down to fit security banner */
         }
 
         .navbar-brand-text {
@@ -256,6 +254,7 @@
         .nav-link.active {
             color: var(--custom-btn-bg-color) !important;
         }
+
 
         .custom-btn {
             background: var(--custom-btn-bg-color);
@@ -495,59 +494,8 @@
         <h4>🔍 Security Activity</h4>
         <div id="logEntries"></div>
     </div>
-<<<<<<< HEAD
-    <nav class="navbar navbar-expand-lg">
-        <div class="container">
-            <a class="navbar-brand d-flex align-items-center" href="/">
-                <span class="navbar-brand-text">
-                    67
-                    <small>Rentals</small>
-                </span>
-            </a>
-
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-lg-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/dashboard">Dashboard</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/security-logs">Security Logs</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/vehicle-fraud-logs">Vehicle Fraud</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/booking-fraud-logs">Booking Fraud</a>
-                    </li>
-                </ul>
-                <div class="d-none d-lg-block ms-lg-3">
-                    {% set admin_name = session.get('user_name') or session.get('user', 'Admin') %}
-                    {% if '@' in admin_name %}
-                    {% set admin_name = admin_name.split('@')[0] %}
-                    {% endif %}
-                    <div class="d-flex align-items-center gap-2">
-                        <a class="btn custom-btn d-flex align-items-center gap-2" href="{{ url_for('profile') }}"
-                            role="button">
-                            <i class="bi bi-person"></i>
-                            {{ admin_name }}
-                        </a>
-                        <a class="btn custom-btn d-flex align-items-center gap-2" href="{{ url_for('logout') }}"
-                            role="button">
-                            <i class="bi bi-box-arrow-right"></i>
-                            Logout
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </nav>
-=======
     {% include 'partials/navbar_tiya.html' %}
->>>>>>> e0007d3 (Standardize navbars and admin retention UI)
+
 
     <main>
         <div class="container">

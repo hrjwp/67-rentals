@@ -2358,7 +2358,6 @@ def create_payment_intent():
                 'customer_name_encrypted': encrypted_name or '',
                 'customer_email_encrypted': encrypted_email or '',
                 'customer_phone_encrypted': encrypted_phone or '',
-                # REMOVED: license_number_encrypted
                 'booking_type': 'vehicle_rental',
             },
             description='67 Rentals Vehicle Booking',
@@ -2435,6 +2434,77 @@ def create_payment_intent():
         print(f"Payment intent error: {str(e)}")
         return jsonify({'error': str(e)}), 403
 
+
+@app.route('/api/track-payment-failure', methods=['POST'])
+def track_payment_failure():
+    """Track payment failures from client-side (card declines, etc.)"""
+    try:
+        data = request.get_json()
+        user_id = session.get('user_id')
+
+        if not user_id:
+            return jsonify({'error': 'User not logged in'}), 401
+
+        error_type = data.get('error_type', 'card_declined')
+        error_message = data.get('error_message', 'Unknown error')
+        payment_intent_id = data.get('payment_intent_id')
+        vehicle_id = data.get('vehicle_id')
+
+        # Get vehicle_id from cart if not provided
+        if not vehicle_id:
+            cart_items = session.get('cart', {})
+            if cart_items:
+                vehicle_id = next(iter(cart_items.keys()))
+
+        print(f"🔴 Payment Failure Tracked: User {user_id}, Type: {error_type}, Message: {error_message}")
+
+        # Track the decline (with ML-based risk scoring)
+        should_log, decline_count, high_risk = track_payment_decline(
+            user_id=user_id,
+            booking_id=None,
+            vehicle_id=str(vehicle_id) if vehicle_id else None,
+            decline_reason=error_message,
+            ip_address=request.remote_addr
+        )
+
+        if should_log:
+            print(f"🚨 Payment Decline Alert: User {user_id} has {decline_count} declines (logged to database)")
+
+        if high_risk:
+            print(
+                f"🚫 High-risk payment behavior detected for user {user_id} (client-tracked failure). Blocking session.")
+
+            # Cancel any pending bookings for this user in the DB
+            try:
+                with get_db_connection() as conn:
+                    c = conn.cursor()
+                    c.execute(
+                        "UPDATE bookings SET status = 'Cancelled' WHERE user_id = %s AND status = 'Pending'",
+                        (user_id,),
+                    )
+                    conn.commit()
+                    c.close()
+            except Exception as cancel_err:
+                print(f"Warning: Could not cancel pending bookings for user {user_id}: {cancel_err}")
+
+            session.clear()
+
+            return jsonify({
+                'success': False,
+                'blocked': True,
+                'message': 'Your account has been temporarily blocked due to high fraud risk.'
+            }), 403
+
+        return jsonify({
+            'success': True,
+            'decline_count': decline_count,
+            'logged': should_log,
+            'blocked': False
+        }), 200
+
+    except Exception as e:
+        print(f"Error tracking payment failure: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/payment-tokenization-status')
 def payment_tokenization_status():
