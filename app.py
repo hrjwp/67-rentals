@@ -1,5 +1,6 @@
-from flask import Flask, render_template, request, session, redirect, url_for, jsonify, flash
-from datetime import datetime, timedelta
+from flask import Flask, render_template, request, session, redirect, url_for, jsonify, flash, send_file
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 import stripe
@@ -7,19 +8,31 @@ import os
 import json
 import re
 import secrets
+import threading
+import time
+from io import BytesIO
+from dotenv import load_dotenv
+from functools import wraps
+
+# --- Automated System Setup (Integrated from app1) ---
+from utils.auto_setup import ensure_env_file
+
+# Load environment variables
+load_dotenv()
+ensure_env_file() # Automatically create .env with encryption keys if missing
+load_dotenv(override=True)
 
 # Import configuration
 from config import Config
 
-# Import database functions
-
+# Import database functions (Combined from both files)
 from database import (
     get_user_by_email, create_user_with_documents, get_all_vehicles,
     get_vehicle_by_id, create_booking, get_booking_by_id,
     update_user_password, get_reset_token, mark_token_as_used,
     invalidate_password_reset_otps, create_password_reset_otp,
     get_latest_password_reset_otp, increment_password_reset_otp_attempts,
-    mark_password_reset_otp_used,
+    mark_password_reset_otp_used, save_reset_token,
     get_user_bookings, get_signup_tickets, set_signup_status, get_user_documents,
     get_db_connection, get_security_logs, get_vehicle_fraud_logs, get_booking_fraud_logs,
     get_security_stats, get_vehicle_fraud_stats, get_booking_fraud_stats,
@@ -30,13 +43,13 @@ from database import (
     ensure_incident_report_files_table, update_user_last_login,
     get_retention_settings, update_retention_settings, run_retention_purge,
     get_retention_overview, set_retention_extension, purge_user_data,
-    update_user_profile
+    update_user_profile, ensure_schema
 )
 
 # Import data models
 from models import (
     VEHICLES, BOOKINGS, CANCELLATION_REQUESTS, REFUNDS,
-    listings
+    listings, PASSWORD_RESET_TOKENS
 )
 
 # Import utilities
@@ -45,7 +58,8 @@ from utils.validation import (
     validate_license, validate_password, validate_file_size, allowed_file
 )
 from utils.auth import (
-    login_required, generate_otp, hash_otp, send_password_reset_otp_email
+    login_required, generate_otp, hash_otp, send_password_reset_otp_email,
+    generate_reset_token, send_password_reset_email
 )
 from utils.helpers import (
     calculate_refund_percentage, calculate_cart_totals,
@@ -56,12 +70,43 @@ from utils.encryption import encrypt_value, decrypt_value
 from utils.backup import SecureBackup
 from utils.file_security import validate_uploaded_file, sanitize_filename
 from utils.file_encryption import process_incident_file, decrypt_file, encrypt_file
-import threading
-import time
-from datetime import datetime, timedelta
-
-# Import audit log decorator
+from utils.ml_behavior_collector import collect_user_behavior_data
+from utils.ml_retrain import retrain_model_with_new_data, schedule_periodic_retraining
+from utils.payment_tracker import track_payment_decline, get_user_payment_decline_count
+from fraud_detection import FraudDetector
 from audit_helper import audit_log
+
+
+# Initialize ML Fraud Detector (load model if exists, otherwise will use rule-based only)
+fraud_detector = FraudDetector()
+MODEL_PATH = 'models/fraud_detector.pkl'
+if os.path.exists(MODEL_PATH):
+    try:
+        fraud_detector.load_models('models/')
+        print("✅ ML Fraud Detection Model Loaded Successfully")
+    except Exception as e:
+        print(f"⚠️ Could not load ML model: {e}. Using rule-based detection only.")
+else:
+    print("⚠️ ML model not found. Train the model first using train_with_realistic_data.py")
+    print("   Using rule-based fraud detection only until model is trained.")
+    # Try to retrain with existing data if available
+    try:
+        print("   Attempting to train model with existing booking data...")
+        if retrain_model_with_new_data(days_back=30, min_samples=10):
+            try:
+                fraud_detector.load_models('models/')
+                print("✅ ML Model trained and loaded from existing data!")
+            except:
+                pass
+    except Exception as e:
+        print(f"   Could not auto-train: {e}")
+
+# Schedule periodic retraining to learn new patterns automatically
+# This runs in background and retrains every 7 days
+try:
+    schedule_periodic_retraining(interval_days=7)
+except Exception as e:
+    print(f"⚠️ Could not start periodic retraining: {e}")
 
 app = Flask(__name__)
 
@@ -1810,6 +1855,56 @@ def create_payment_intent():
             'paymentIntentId': intent.id
         })
 
+    except stripe.error.CardError as e:
+        # Card was declined - track for fraud detection
+        user_id = session.get('user_id')
+        if user_id:
+            try:
+                vehicle_id = next(iter(cart_items.keys())) if cart_items else None
+                decline_reason = e.user_message or str(e.error.get('decline_code', 'Unknown'))
+
+                # Track the decline (with ML-based risk scoring)
+                should_log, decline_count, high_risk = track_payment_decline(
+                    user_id=user_id,
+                    booking_id=None,  # No booking created yet
+                    vehicle_id=vehicle_id,
+                    decline_reason=decline_reason,
+                    ip_address=request.remote_addr
+                )
+
+                if should_log:
+                    print(f"🚨 Payment Decline Alert: User {user_id} has {decline_count} declines")
+
+                # If ML flags this as high-risk, immediately block further attempts
+                if high_risk:
+                    print(f"🚫 High-risk payment behavior detected for user {user_id}. Blocking session.")
+
+                    # Cancel any pending bookings for this user in the DB
+                    try:
+                        with get_db_connection() as conn:
+                            c = conn.cursor()
+                            c.execute(
+                                "UPDATE bookings SET status = 'Cancelled' WHERE user_id = %s AND status = 'Pending'",
+                                (user_id,),
+                            )
+                            conn.commit()
+                            c.close()
+                    except Exception as cancel_err:
+                        print(f"Warning: Could not cancel pending bookings for user {user_id}: {cancel_err}")
+
+                    # Invalidate the session to prevent further carding attempts
+                    session.clear()
+
+                    return jsonify({
+                        'error': 'Your account has been temporarily blocked due to high fraud risk. '
+                                 'Please contact support if you believe this is a mistake.'
+                    }), 403
+            except Exception as track_error:
+                print(f"Warning: Could not track payment decline: {track_error}")
+
+        print(f"Payment intent error (Card declined): {str(e)}")
+        return jsonify(
+            {'error': e.user_message or 'Your card was declined. Please try a different payment method.'}), 403
     except Exception as e:
         print(f"Payment intent error: {str(e)}")
         return jsonify({'error': str(e)}), 403
@@ -1839,24 +1934,21 @@ def payment_tokenization_status():
     })
 
 
-# app.py (Focus on the /payment-success route)
 
+# app.py (Focus on the /payment-success route)
 @app.route('/payment-success')
-# ADDED: login_required decorator to ensure user is authenticated
 @login_required
 def payment_success():
     """Payment success page - should finalize the booking and save to DB"""
     payment_intent_id = request.args.get('payment_intent')
-
     db_booking_id = None
 
     if not payment_intent_id:
-        # Redirect to home if no payment intent is provided
         flash('Payment finalization failed: Missing payment intent ID.', 'error')
         return redirect(url_for('index'))
 
     try:
-        # 1. Retrieve payment intent from Stripe (contains tokenized payment method)
+        # 1. Retrieve payment intent from Stripe
         payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
 
         # 2. Get necessary data for booking finalization
@@ -1866,101 +1958,165 @@ def payment_success():
         cart_items = session.get('cart', {})
 
         if not cart_items:
-            # Handle case where cart was cleared or never existed
             flash('Booking data not found in session for finalization.', 'warning')
             return redirect(url_for('booking_history'))
 
-        # Assuming the cart has at least one item and we are processing all items.
-        # For simplicity, this example processes the whole cart into one booking.
         totals = calculate_cart_totals(cart_items, VEHICLES)
-
-        # We need the details for the first item to structure the booking entry
         vehicle_id, booking_details = next(iter(cart_items.items()))
         vehicle_id = int(vehicle_id)
-
-        # Retrieve vehicle details for display fields
         vehicle_data = VEHICLES.get(vehicle_id, {})
 
-        # 3. Assemble Booking Data for DB Insertion
+        # 3. Assemble Booking Data
         booking_data = {
-            # Note: create_booking in database.py uses DB-generated ID (lastrowid)
-            # if booking_id is not passed, but let's pass a generated ID for clarity
-            # and matching the theoretical table structure if a custom ID is desired.
             'booking_id': generate_booking_id(),
             'vehicle_id': vehicle_id,
             'user_id': user_id,
             'pickup_date': booking_details['pickup_date'],
             'return_date': booking_details['return_date'],
-            'pickup_location': 'Online Booking',  # Placeholder: Should come from request
+            'pickup_location': 'Online Booking',
             'days': totals['cart_data'][0]['days'],
             'total_amount': totals['total'],
-            'status': 'Confirmed',  # Set to Confirmed since payment succeeded
+            'status': 'Confirmed',
             'payment_intent_id': payment_intent_id
         }
 
         # 4. Save to MySQL Database
         try:
-            # The database function is called here to persist the data.
             db_booking_id = create_booking(booking_data)
-            flash(f'Booking #{db_booking_id} successfully confirmed and recorded. Payment ID: {payment_intent_id}',
-                  'success')
+            flash(f'Booking #{db_booking_id} successfully confirmed.', 'success')
+
+            # 4a. AUTOMATIC ML FRAUD DETECTION
+            # We wrap this in a nested try-except so ML failure doesn't crash the booking
+            try:
+                print(f"🔍 Starting ML Fraud Detection for User {user_id}")
+                decline_count = get_user_payment_decline_count(user_id, hours=24)
+
+                user_behavior_data = collect_user_behavior_data(
+                    user_id=user_id,
+                    vehicle_id=vehicle_id,
+                    current_location=None,
+                    prev_location=None,
+                    time_diff_minutes=1,
+                    current_ip=request.remote_addr,
+                    current_country=None
+                )
+                user_behavior_data['card_declines'] = decline_count
+
+                fraud_score, is_fraud, fraud_reasons = fraud_detector.predict_fraud(user_behavior_data)
+
+                # --- Synthesis of Telemetry Metrics ---
+                from random import uniform, randint
+                suspicious = is_fraud or fraud_score > 0.7
+
+                if suspicious:
+                    distance_km = round(uniform(300.0, 1200.0), 2)
+                    speed_kmh = round(uniform(150.0, 320.0), 2)
+                    base_mileage = randint(20000, 120000)
+                    discrepancy_percent = round(uniform(30.0, 80.0), 2)
+                else:
+                    distance_km = round(uniform(5.0, 80.0), 2)
+                    speed_kmh = round(uniform(30.0, 110.0), 2)
+                    base_mileage = randint(5000, 100000)
+                    discrepancy_percent = round(uniform(0.0, 8.0), 2)
+
+                gps_calculated_mileage = base_mileage
+                mileage_delta = gps_calculated_mileage * (discrepancy_percent / 100.0)
+                reported_mileage = int(gps_calculated_mileage + mileage_delta)
+
+                gps_data = {'distance_km': distance_km, 'speed_kmh': speed_kmh}
+                mileage_data = {
+                    'reported': reported_mileage,
+                    'gps_calculated': int(gps_calculated_mileage),
+                    'discrepancy_percent': discrepancy_percent
+                }
+
+                ml_indicators_for_vehicle = []
+                if is_fraud or fraud_score > 0.5:
+                    # Log to booking_fraud_logs
+                    add_booking_fraud_log(
+                        user_id=str(user_id),
+                        booking_id=booking_data['booking_id'],
+                        vehicle_id=str(vehicle_id),
+                        event_type='ML Anomaly Detection' if is_fraud else 'Suspicious Activity',
+                        severity='HIGH' if is_fraud else 'MEDIUM',
+                        risk_score=float(fraud_score),
+                        description=f"ML detected activity with score {fraud_score:.3f}",
+                        booking_data={'count_last_hour': user_behavior_data.get('bookings_last_hour', 0)},
+                        payment_data={'decline_count': decline_count} if decline_count > 0 else None,
+                        ml_indicators=ml_indicators_for_vehicle,
+                        ip_address=request.remote_addr
+                    )
+
+                # Always log vehicle telemetry
+                add_vehicle_fraud_log(
+                    user_id=str(user_id),
+                    vehicle_id=str(vehicle_id),
+                    event_type='Booking Telemetry (Synthetic)',
+                    severity='HIGH' if suspicious else 'LOW',
+                    risk_score=float(fraud_score),
+                    description=f"Synthetic metrics: score={fraud_score:.3f}",
+                    gps_data=gps_data,
+                    mileage_data=mileage_data,
+                    ip_address=request.remote_addr,
+                    fraud_score=float(fraud_score)
+                )
+
+                add_security_log(
+                    user_id=str(user_id),
+                    event_type="ML_FRAUD_DETECTED" if is_fraud else "ML_SUSPICIOUS_ACTIVITY",
+                    severity="HIGH" if is_fraud else "MEDIUM",
+                    description=f"Score {fraud_score:.3f}. Reasons: {', '.join(fraud_reasons)}",
+                    ip_address=request.remote_addr
+                )
+                print(f"🚨 ML Alert: User {user_id}, Score: {fraud_score:.3f}")
+
+            except Exception as ml_error:
+                print(f"⚠️ ML Fraud Detection Error (non-blocking): {ml_error}")
+                add_security_log(
+                    user_id=str(user_id),
+                    event_type="ML_DETECTION_ERROR",
+                    severity="LOW",
+                    description=f"ML failed: {str(ml_error)}",
+                    ip_address=request.remote_addr
+                )
 
         except Exception as e:
-            # Log critical failure to database
             add_security_log(
                 user_id=str(user_id),
                 event_type="BOOKING_DB_FAIL",
                 severity="CRITICAL",
-                description=f"Payment success, but DB insert failed for PI: {payment_intent_id}. Error: {e}",
+                description=f"DB insert failed: {e}",
                 ip_address=request.remote_addr
             )
-            print(f"CRITICAL ERROR: Failed to save booking to DB: {e}")
-            flash('Booking confirmed by Stripe but failed to save to our records. Please contact support.', 'error')
+            flash('Payment success, but failed to save record. Contact support.', 'error')
 
-        # 4b. Also store a display-friendly booking in the in-memory BOOKINGS dict
-        #     so booking_history can still show it even if DB lookups fail.
+        # 4b. In-memory backup
         try:
-            from models import BOOKINGS  # local import to avoid circulars at module load
+            from models import BOOKINGS
             display_booking_id = booking_data['booking_id']
             BOOKINGS[display_booking_id] = {
-                'booking_id': display_booking_id,
-                'vehicle_id': vehicle_id,
+                **booking_data,
                 'vehicle_name': vehicle_data.get('name'),
-                'vehicle_type': vehicle_data.get('type'),
-                'vehicle_image': vehicle_data.get('image'),
                 'customer_name': user_name,
-                'customer_email': user_email,
-                'pickup_date': booking_data['pickup_date'],
-                'return_date': booking_data['return_date'],
-                'pickup_location': booking_data['pickup_location'],
                 'booking_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'days': booking_data['days'],
-                'total_amount': booking_data['total_amount'],
-                'status': booking_data.get('status', 'Confirmed'),
-                'payment_intent_id': booking_data.get('payment_intent_id'),
             }
         except Exception as e:
-            print(f"Warning: failed to store booking in in-memory BOOKINGS dict: {e}")
+            print(f"Warning: in-memory store failed: {e}")
 
-        # 5. Clear Session Cart (ONLY after DB insertion attempt)
+        # 5. Finalize Session
         session['cart'] = {}
         session.modified = True
 
-        # 6. Render success page
         return render_template('payment_success.html',
                                payment_intent_id=payment_intent_id,
-                               payment_method_token=payment_intent.payment_method,
                                amount=payment_intent.amount / 100,
-                               # Pass the final booking ID for display
                                db_booking_id=db_booking_id)
 
     except stripe.error.StripeError as e:
-        flash(f'Error retrieving payment: {str(e)}', 'error')
+        flash(f'Stripe Error: {str(e)}', 'error')
         return redirect(url_for('index_logged'))
     except Exception as e:
-        print(f"CRITICAL ERROR: Failed to save booking to DB: {e}")
-        return f"DATABASE INSERTION FAILED. ERROR DETAILS: {e}", 500
-
+        return f"CRITICAL DATABASE ERROR: {e}", 500
 
 @app.route('/webhook/stripe', methods=['POST'])
 def stripe_webhook():
@@ -3871,35 +4027,26 @@ def decrypt_existing_users():
     return jsonify({"updated_rows": updated})
 
 
-# fraud detection stuff
-# Assuming the necessary imports (Flask, datetime, and all database functions) are at the top
+
+# ============================================
+# LOGGING & API (With Timezone Support)
+# ============================================
 
 @app.route('/api/security-logs')
 def get_security_logs_route():
-    # NOTE: The function name is changed to avoid conflict with the imported function
-    """Get security logs with filtering"""
-    severity = request.args.get('severity')
-    event_type = request.args.get('event_type')
-    user_id = request.args.get('user_id')
-    limit = request.args.get('limit', 100, type=int)
-
+    """Get security logs with Singapore Time (SGT) conversion."""
     try:
-        # CORRECTED: Calling the imported function directly
-        logs = get_security_logs(
-            severity=severity,
-            event_type=event_type,
-            user_id=user_id,
-            limit=limit
-        )
-
-        # Format timestamps for JSON
+        logs = get_security_logs(limit=request.args.get('limit', 100, type=int))
+        sgt = ZoneInfo("Asia/Singapore")
         formatted_logs = []
         for log in logs:
             log_copy = log.copy()
             if isinstance(log_copy['timestamp'], datetime):
-                log_copy['timestamp'] = log_copy['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+                dt = log_copy['timestamp']
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                log_copy['timestamp'] = dt.astimezone(sgt).strftime('%Y-%m-%d %H:%M:%S')
             formatted_logs.append(log_copy)
-
         return jsonify(formatted_logs)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -4213,6 +4360,30 @@ def start_retention_scheduler():
     retention_thread = threading.Thread(target=retention_worker, daemon=True)
     retention_thread.start()
 
+# ============================================
+# SCHEDULERS
+# ============================================
+
+def start_schedulers():
+    """Start automated backup and data retention tasks."""
+    def backup_worker():
+        backup_system = SecureBackup()
+        while True:
+            if Config.AUTO_BACKUP_ENABLED:
+                try:
+                    backup_system.create_backup(include_files=True, backup_type='Automated', log_to_db=True)
+                    backup_system.delete_old_backups(keep_days=int(Config.BACKUP_RETENTION_DAYS))
+                except Exception as e: print(f"Backup Error: {e}")
+            time.sleep(int(Config.AUTO_BACKUP_INTERVAL_HOURS) * 3600)
+
+    def retention_worker():
+        while True:
+            try: run_retention_purge(reason='auto')
+            except Exception as e: print(f"Retention Error: {e}")
+            time.sleep(int(Config.RETENTION_CHECK_INTERVAL_HOURS) * 3600)
+
+    threading.Thread(target=backup_worker, daemon=True).start()
+    threading.Thread(target=retention_worker, daemon=True).start()
 
 # Start data retention scheduler on app startup
 start_retention_scheduler()
