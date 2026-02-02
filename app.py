@@ -917,7 +917,7 @@ def login():
     # Case 1: Email not found in database - user never signed up
     if not user:
         add_audit_log(
-            user_id=None,
+            user_id=user.get('user_id') if user else None,
             action='Failed Login - Email Not Found',
             entity_type='USER',
             entity_id=0,
@@ -933,7 +933,7 @@ def login():
     # Case 2: Wrong password
     if not check_password_hash(user.get('password_hash', ''), password):
         add_audit_log(
-            user_id=user.get('user_id'),
+            user_id=user.get('user_id') if user else None,
             action='Failed Login - Wrong Password',
             entity_type='USER',
             entity_id=user.get('user_id'),
@@ -1017,15 +1017,20 @@ def logout():
     
     # --- Audit log for logout ---
     if user_id:
-        add_audit_log(
-            user_id=user_id,
-            action='User Logout',
-            entity_type='USER',
-            entity_id=user_id,
-            result='Success',
-            ip_address=request.remote_addr,
-            device_info=request.headers.get("User-Agent")
-        )
+        try:
+            add_audit_log(
+                user_id=user_id,
+                action='User Logout',
+                entity_type='USER',
+                entity_id=user_id,
+                result='Success',
+                ip_address=request.remote_addr,
+                device_info=request.headers.get("User-Agent")
+            )
+        except Exception as e:
+            # Log the error but don't prevent logout
+            print(f"Failed to log audit entry for user {user_id}: {e}")
+            # Optionally: app.logger.error(f"Audit log failed: {e}")
     
     session.pop('user', None)
     session.pop('user_id', None)
