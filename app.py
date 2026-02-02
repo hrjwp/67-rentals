@@ -1360,11 +1360,11 @@ def profile():
                     form_values['email'],  # Plaintext (not encrypted)
                     form_values['phone']  # Plaintext
                 )
-            if not ok:
-                flash(error or 'Unable to update profile.', 'error')
-            else:
+                if not ok:
+                    flash(error or 'Unable to update profile.', 'error')
+                else:
                 # AUDIT: Log profile updates with before/after values
-                new_values = {
+                    new_values = {
                     'first_name': form_values['first_name'],
                     'last_name': form_values['last_name'],
                     'email': form_values['email'],
