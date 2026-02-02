@@ -500,7 +500,7 @@
 </head>
 <body>
     <div class="security-banner">
-        🔒 SECURE DATABASE ACCESS - Data Copying Disabled - Session: <span id="sessionId"></span>
+        Data Copying Disabled - Session: <span id="sessionId"></span>
     </div>
 
     <div class="session-timer" id="sessionTimer">
@@ -527,10 +527,7 @@
         </div>
     </div>
 
-    <div class="activity-log" id="activityLog">
-        <h4>🔍 Security Activity</h4>
-        <div id="logEntries"></div>
-    </div>
+
 
     <nav class="navbar navbar-expand-lg">
         <div class="container">
@@ -651,7 +648,7 @@
                     </span>
                 </div>
                 <div class="col-lg-6 col-12 text-center text-lg-end">
-                    <p>Copyright © 2048 67 Rentals</p>
+                    <p>COPYRIGHT © 2048 67 RENTALS</p>
                 </div>
             </div>
         </div>
@@ -659,6 +656,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        const CURRENT_USER_ID = {{ session.get('user_id', 0) | tojson }};
+
         // --- Security Scripts Start ---
         const SESSION_DURATION = 900; // 15 minutes
         let sessionTimeRemaining = SESSION_DURATION;
@@ -666,6 +665,31 @@
         let activityLogs = [];
         let screenshotAttempts = 0;
         const _lastReportedAt = {};
+
+        // Simple in-page activity monitor
+        function logActivity(message, level = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            activityLogs.unshift({ timestamp, message, level });
+            if (activityLogs.length > 50) {
+                activityLogs.pop();
+            }
+
+            let container = document.getElementById('activityLog');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'activityLog';
+                container.className = 'activity-log';
+                container.innerHTML = '<h4>Activity Monitor</h4><div id="activityItems"></div>';
+                document.body.appendChild(container);
+            }
+
+            const itemsEl = document.getElementById('activityItems');
+            if (itemsEl) {
+                itemsEl.innerHTML = activityLogs
+                    .map(log => `<div class="activity-item">[${log.timestamp}] ${log.message}</div>`)
+                    .join('');
+            }
+        }
 
         // Generate unique session ID
         const sessionId = 'SID-' + Math.random().toString(36).substr(2, 9).toUpperCase();
@@ -683,28 +707,16 @@
                     headers: { 'Content-Type': 'application/json' },
                     keepalive: true,
                     body: JSON.stringify({
+                        user_id: CURRENT_USER_ID,
                         event_type: eventType,
                         severity,
-                        description,
+                        description: `${description} | Page: ${window.location.pathname}`,
                         action_taken: actionTaken
                     })
                 });
             } catch (e) {}
         }
 
-        function logActivity(action, severity = 'info') {
-            const timestamp = new Date().toLocaleTimeString();
-            activityLogs.unshift({action, timestamp, severity});
-
-            if (activityLogs.length > 10) activityLogs.pop();
-
-            const logContainer = document.getElementById('logEntries');
-            logContainer.innerHTML = activityLogs.map(log =>
-                `<div class="activity-item" style="color: ${log.severity === 'warning' ? '#E07A5F' : '#666'}">
-                    ${log.timestamp} - ${log.action}
-                </div>`
-            ).join('');
-        }
 
         function showBlockedAlert(message) {
             const alert = document.getElementById('blockedAlert');

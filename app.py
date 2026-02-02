@@ -5116,7 +5116,7 @@ def decrypt_existing_users():
 # LOGGING & API (With Timezone Support)
 # ============================================
 
-app.route('/api/security-logs')
+@app.route('/api/security-logs')
 def get_security_logs_route():
     # NOTE: The function name is changed to avoid conflict with the imported function
     """Get security logs with filtering"""
@@ -5273,17 +5273,30 @@ def get_booking_fraud_stats_route():
 def log_security_event():
     """API endpoint to log a new security event"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
+
+        # Safely determine user and request context
+        user_id = data.get('user_id') or session.get('user_id', 0)
+        event_type = data.get('event_type')
+        severity = data.get('severity')
+        description = data.get('description')
+        action_taken = data.get('action_taken')
+
+        if not event_type or not severity or not description:
+            return jsonify({
+                'success': False,
+                'error': 'event_type, severity and description are required'
+            }), 400
 
         # CORRECTED: Calling the imported function directly
         log_id = add_security_log(
-            user_id=data['user_id'],
-            event_type=data['event_type'],
-            severity=data['severity'],
-            description=data['description'],
-            ip_address=data.get('ip_address'),
-            device_info=data.get('device_info'),
-            action_taken=data.get('action_taken')
+            user_id=user_id,
+            event_type=event_type,
+            severity=severity,
+            description=description,
+            ip_address=data.get('ip_address') or request.remote_addr,
+            device_info=data.get('device_info') or request.headers.get("User-Agent"),
+            action_taken=action_taken
         )
 
         return jsonify({
@@ -5292,11 +5305,6 @@ def log_security_event():
             'message': 'Security event logged successfully'
         }), 201
 
-    except KeyError as e:
-        return jsonify({
-            'success': False,
-            'error': f'Missing required field: {str(e)}'
-        }), 400
     except Exception as e:
         return jsonify({
             'success': False,
