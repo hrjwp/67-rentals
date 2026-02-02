@@ -6,6 +6,31 @@ https://templatemo.com/tm-602-graph-page
 
 */
 
+// ============================================
+// SECURITY: Block print functionality on admin pages with sensitive data
+// ============================================
+(function () {
+   // Block Ctrl+P / Cmd+P keyboard shortcut
+   document.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+         e.preventDefault();
+         e.stopPropagation();
+         alert('Printing is prohibited.');
+         return false;
+      }
+   });
+
+   // Also disable via window.print override
+   window.print = function () {
+      alert('Printing is prohibited.');
+      return false;
+   };
+
+   // Disable right-click context menu print option by blocking the menu
+   // (optional - uncomment if needed)
+   // document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+})();
+
 // Hamburger menu toggle
 const hamburger = document.getElementById('hamburger');
 const navLinksMobile = document.getElementById('navLinksMobile');
@@ -193,32 +218,35 @@ document.querySelectorAll('.chart-options').forEach(optionGroup => {
 });
 
 // Form submission handler
-document.getElementById('contactForm').addEventListener('submit', function (e) {
-   e.preventDefault();
+const contactForm = document.getElementById('contactForm');
+if (contactForm) {
+   contactForm.addEventListener('submit', function (e) {
+      e.preventDefault();
 
-   // Get form data
-   const formData = {
-      name: document.getElementById('name').value,
-      email: document.getElementById('email').value,
-      subject: document.getElementById('subject').value,
-      message: document.getElementById('message').value
-   };
+      // Get form data
+      const formData = {
+         name: document.getElementById('name').value,
+         email: document.getElementById('email').value,
+         subject: document.getElementById('subject').value,
+         message: document.getElementById('message').value
+      };
 
-   // Show success message
-   const submitBtn = this.querySelector('button[type="submit"]');
-   const originalText = submitBtn.textContent;
-   submitBtn.textContent = 'Message Sent! ✓';
-   submitBtn.style.background = 'linear-gradient(135deg, #4ade80, #22c55e)';
+      // Show success message
+      const submitBtn = this.querySelector('button[type="submit"]');
+      const originalText = submitBtn.textContent;
+      submitBtn.textContent = 'Message Sent! ✓';
+      submitBtn.style.background = 'linear-gradient(135deg, #4ade80, #22c55e)';
 
-   // Reset form
-   this.reset();
+      // Reset form
+      this.reset();
 
-   // Reset button after 3 seconds
-   setTimeout(() => {
-      submitBtn.textContent = originalText;
-      submitBtn.style.background = 'linear-gradient(135deg, #ff6b6b, #ff8e53)';
-   }, 3000);
-});
+      // Reset button after 3 seconds
+      setTimeout(() => {
+         submitBtn.textContent = originalText;
+         submitBtn.style.background = 'linear-gradient(135deg, #ff6b6b, #ff8e53)';
+      }, 3000);
+   });
+}
 
 // Add hover effect to contact form inputs
 document.querySelectorAll('#contactForm input, #contactForm textarea').forEach(input => {
@@ -261,4 +289,35 @@ document.querySelectorAll('.metric-item').forEach(item => {
    item.style.transform = 'translateY(20px)';
    item.style.opacity = '0';
    item.style.transition = 'all 0.5s ease';
+});
+
+// Block print shortcuts (Ctrl/Cmd + P) on admin pages
+function showPrintBlockedModal() {
+   const modal = document.getElementById('printBlockedModal');
+   if (!modal) return;
+   modal.classList.add('show');
+   modal.setAttribute('aria-hidden', 'false');
+   if (modal._hideTimer) {
+      clearTimeout(modal._hideTimer);
+   }
+   modal._hideTimer = setTimeout(() => {
+      modal.classList.remove('show');
+      modal.setAttribute('aria-hidden', 'true');
+   }, 2200);
+}
+
+document.addEventListener('keydown', (e) => {
+   const isPrintKey = e.key === 'p' || e.key === 'P' || e.code === 'KeyP' || e.keyCode === 80;
+   if ((e.ctrlKey || e.metaKey) && isPrintKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      showPrintBlockedModal();
+      return false;
+   }
+});
+
+window.addEventListener('beforeprint', (e) => {
+   e.preventDefault();
+   e.stopPropagation();
+   showPrintBlockedModal();
 });

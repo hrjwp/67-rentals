@@ -1,44 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Accounts - 67 Rentals</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/templatemo-graph-page.css') }}">
 </head>
+
 <body>
     <!-- Navigation -->
-    <nav id="navbar">
-        <div class="nav-container">
-            <a href="{{ url_for('index') }}" class="logo">
-                <div class="logo-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M3 13h2v8H3zm4-8h2v13H7zm4-2h2v15h-2zm4 4h2v11h-2zm4-2h2v13h-2z"/>
-                    </svg>
-                </div>
-                <span class="logo-text">67 Rentals</span>
-            </a>
-            <ul class="nav-links">
-                <li><a href="{{ url_for('index') }}">Home</a></li>
-                <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
-                <li><a href="{{ url_for('accounts') }}" class="active">Accounts</a></li>
-                <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
-                <li><a href="{{ url_for('security_dashboard') }}">Security</a></li>
-            </ul>
-            <div class="hamburger" id="hamburger">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
-        </div>
-        <ul class="nav-links-mobile" id="navLinksMobile">
-            <li><a href="{{ url_for('index') }}">Home</a></li>
-            <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
-            <li><a href="{{ url_for('accounts') }}" class="active">Accounts</a></li>
-            <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
-            <li><a href="{{ url_for('security_dashboard') }}">Security</a></li>
-        </ul>
-    </nav>
+    {% include 'partials/navbar_graph.html' %}
 
     <!-- Accounts Section -->
     <section class="dashboard-section" style="padding-top: 120px; min-height: 100vh;">
@@ -59,4 +31,5 @@
 
     <script src="{{ url_for('static', filename='js/templatemo-graph-script.js') }}"></script>
 </body>
+
 </html>

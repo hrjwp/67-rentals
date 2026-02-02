@@ -22,10 +22,25 @@ load_dotenv()
 ensure_env_file() # Automatically create .env with encryption keys if missing
 load_dotenv(override=True)
 
-# Import configuration
-from config import Config
+# Load .env file BEFORE importing Config
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 
 # Import database functions (Combined from both files)
+try:
+    from utils.auto_setup import ensure_env_file
+    ensure_env_file()
+    load_dotenv()  # reload so new .env is picked up
+except Exception:
+    pass
+
+# Import configuration (AFTER loading .env)
+from config import Config
+
 from database import (
     get_user_by_email, create_user_with_documents, get_all_vehicles,
     get_vehicle_by_id, create_booking, get_booking_by_id,
@@ -43,7 +58,10 @@ from database import (
     ensure_incident_report_files_table, update_user_last_login,
     get_retention_settings, update_retention_settings, run_retention_purge,
     get_retention_overview, set_retention_extension, purge_user_data,
-    update_user_profile, ensure_schema
+    update_user_profile, ensure_schema,
+    # Data retention policies (multi-type)
+    get_all_retention_policies, get_retention_policy, update_retention_policy,
+    get_retention_statistics, purge_data_for_type, run_all_retention_purges
 )
 
 # Import data models
@@ -55,7 +73,8 @@ from models import (
 # Import utilities
 from utils.validation import (
     validate_name, validate_email, validate_phone, validate_nric,
-    validate_license, validate_password, validate_file_size, allowed_file
+    validate_license, validate_password, validate_file_size, allowed_file,
+    extract_age_from_nric
 )
 from utils.auth import (
     login_required, generate_otp, hash_otp, send_password_reset_otp_email,
@@ -74,6 +93,45 @@ from utils.ml_behavior_collector import collect_user_behavior_data
 from utils.ml_retrain import retrain_model_with_new_data, schedule_periodic_retraining
 from utils.payment_tracker import track_payment_decline, get_user_payment_decline_count
 from fraud_detection import FraudDetector
+import threading
+import time
+from datetime import datetime, timedelta
+
+# Import data classification functions
+from data_classification import (
+    check_access, #testing
+    enforce_classification,
+    redact_dict,
+    require_classification,
+    can_access_table,
+    get_classification_stats,
+    AccessDeniedException
+)
+from data_classification_config import (
+    UserRole,
+    DATA_CLASSIFICATION,
+    TABLE_CLASSIFICATIONS,
+    CLASSIFICATION_METADATA
+)
+
+
+def normalize_severity(severity_value):
+    """Normalize severity to: Low, Medium, High, or Critical"""
+    if not severity_value:
+        return 'Low'
+    
+    severity_lower = str(severity_value).lower().strip()
+    
+    severity_map = {
+        'low': 'Low', 'minor': 'Low',
+        'medium': 'Medium', 'moderate': 'Medium',
+        'high': 'High', 'major': 'High', 'severe': 'High',
+        'critical': 'Critical', 'emergency': 'Critical'
+    }
+    
+    return severity_map.get(severity_lower, 'Low')
+
+# Import audit log decorator
 from audit_helper import audit_log
 
 
@@ -112,6 +170,109 @@ app = Flask(__name__)
 
 app.config.from_object(Config)
 stripe.api_key = Config.STRIPE_API_KEY
+
+PRINT_BLOCK_STYLE = """
+<style id="print-block-style">
+@media print {
+  body {
+    margin: 0 !important;
+  }
+  body * {
+    display: none !important;
+  }
+  body::before {
+    content: "Printing is prohibited.";
+    display: block;
+    padding: 24px;
+    font-size: 16px;
+    font-family: Arial, sans-serif;
+    color: #000;
+  }
+}
+</style>
+"""
+
+PRINT_BLOCK_SCRIPT = """
+<script id="print-block-script">
+(function () {
+  function notifyPrintBlocked() {
+    var modal = document.getElementById('printBlockedModal');
+    if (!modal) return;
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    if (modal._hideTimer) clearTimeout(modal._hideTimer);
+    modal._hideTimer = setTimeout(function () {
+      modal.classList.remove('show');
+      modal.setAttribute('aria-hidden', 'true');
+    }, 2200);
+  }
+
+  function blockPrintEvent(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (e && e.stopPropagation) e.stopPropagation();
+    notifyPrintBlocked();
+    return false;
+  }
+
+  function isPrintShortcut(e) {
+    if (!e) return false;
+    var key = e.key || '';
+    var code = e.code || '';
+    var isP = (key && key.toLowerCase() === 'p') || code === 'KeyP' || e.keyCode === 80;
+    return (e.ctrlKey || e.metaKey) && isP;
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (isPrintShortcut(e)) {
+      blockPrintEvent(e);
+    }
+  }, true);
+
+  window.addEventListener('beforeprint', blockPrintEvent, true);
+
+  if (window.matchMedia) {
+    var mediaQuery = window.matchMedia('print');
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', function (e) {
+        if (e.matches) {
+          blockPrintEvent(e);
+        }
+      });
+    } else if (mediaQuery.addListener) {
+      mediaQuery.addListener(function (e) {
+        if (e.matches) {
+          blockPrintEvent(e);
+        }
+      });
+    }
+  }
+
+  if (typeof window.print === 'function') {
+    window.print = function () { return false; };
+  }
+})();
+</script>
+"""
+
+
+def _inject_print_block(response):
+    if response.mimetype != "text/html":
+        return response
+    if response.direct_passthrough or response.is_streamed:
+        return response
+    data = response.get_data(as_text=True)
+    if "print-block-style" in data or "print-block-script" in data:
+        return response
+    injection = PRINT_BLOCK_STYLE + PRINT_BLOCK_SCRIPT
+    if "</head>" in data:
+        data = data.replace("</head>", injection + "</head>", 1)
+    elif "</body>" in data:
+        data = data.replace("</body>", injection + "</body>", 1)
+    else:
+        return response
+    response.set_data(data)
+    response.headers.pop("Content-Length", None)
+    return response
 
 
 @app.before_request
@@ -153,6 +314,7 @@ def configure_https_settings():
     if 'user' in session:
         session.permanent = True
         session.modified = True
+        _refresh_session_display_name()
 
 
 @app.after_request
@@ -186,7 +348,7 @@ def add_security_headers(response):
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-    return response
+    return _inject_print_block(response)
 
 
 def _encrypt_user_record(user_data: dict) -> dict:
@@ -205,6 +367,57 @@ def _decrypt_user_record(user_data: dict) -> dict:
         if field in decrypted:
             decrypted[field] = decrypt_value(decrypted[field], fallback_on_error=True)
     return decrypted
+
+
+def _looks_encrypted_token(token: str) -> bool:
+    if not token or len(token) < 20:
+        return False
+    for ch in token:
+        if not (ch.isalnum() or ch in "-_="):
+            return False
+    return True
+
+
+def _looks_encrypted_name(name: str) -> bool:
+    if not name:
+        return False
+    parts = [p for p in str(name).strip().split() if p]
+    if not parts:
+        return False
+    return all(_looks_encrypted_token(part) for part in parts)
+
+
+def _refresh_session_display_name():
+    if 'user' not in session:
+        return
+    raw_name = session.get('user_name') or ''
+    if raw_name and not _looks_encrypted_name(raw_name):
+        return
+    user = None
+    if session.get('user_id'):
+        try:
+            user = get_user_by_id(session.get('user_id'))
+        except Exception:
+            user = None
+    if not user and session.get('user'):
+        user = get_user_by_email(session.get('user'))
+    if not user:
+        return
+    first_name = decrypt_value(user.get('first_name') or '', fallback_on_error=True) if user.get('first_name') else ''
+    last_name = decrypt_value(user.get('last_name') or '', fallback_on_error=True) if user.get('last_name') else ''
+    display_name = _safe_display_name(first_name, last_name, session.get('user'))
+    if display_name:
+        session['user_name'] = display_name
+        session.modified = True
+
+
+def _safe_display_name(first_name: str, last_name: str, email: str | None) -> str:
+    display = f"{first_name} {last_name}".strip()
+    if display and not _looks_encrypted_name(display):
+        return display
+    if email:
+        return email.split('@')[0]
+    return display
 
 
 def _get_latest_signup_status(email: str):
@@ -340,6 +553,18 @@ def signup_seller():
                         is_valid, error_msg, detected_type = validate_uploaded_file(file_field)
                         if not is_valid:
                             errors.append(f'{file_name}: {error_msg}')
+                            # --- Security audit log for malicious file upload ---
+                            add_audit_log(
+                                user_id=0,  # Not yet registered
+                                action='Malicious File Upload Attempt',
+                                entity_type='SECURITY',
+                                entity_id='file_upload',
+                                reason=f'File validation failed: {error_msg}',
+                                result='Blocked',
+                                severity='High',
+                                ip_address=request.remote_addr,
+                                device_info=request.headers.get("User-Agent")
+                            )
 
             # If there are validation errors, return them
             if errors:
@@ -410,7 +635,19 @@ def signup_seller():
                 'documents': documents
             }
 
-            create_user_with_documents(seller_data_plain)
+            user_id, ticket_id = create_user_with_documents(seller_data_plain)
+
+            # --- Audit log for seller registration ---
+            add_audit_log(
+                user_id=user_id if user_id else 0,
+                action='Seller Registration',
+                entity_type='USER',
+                entity_id=user_id if user_id else 0,
+                new_values={'email': email, 'user_type': 'seller', 'first_name': first_name, 'last_name': last_name},
+                result='Success',
+                ip_address=request.remote_addr,
+                device_info=request.headers.get("User-Agent")
+            )
 
             # Show pending approval page immediately after successful submission
             return render_template('pending_reg.html')
@@ -496,6 +733,18 @@ def signup():
             is_valid, error_msg, detected_type = validate_uploaded_file(nric_image)
             if not is_valid:
                 errors.append(f'NRIC image: {error_msg}')
+                # --- Security audit log for malicious file upload ---
+                add_audit_log(
+                    user_id=0,  # Not yet registered
+                    action='Malicious File Upload Attempt',
+                    entity_type='SECURITY',
+                    entity_id='file_upload',
+                    reason=f'NRIC image validation failed: {error_msg}',
+                    result='Blocked',
+                    severity='High',
+                    ip_address=request.remote_addr,
+                    device_info=request.headers.get("User-Agent")
+                )
 
         if not license_image or license_image.filename == '':
             errors.append('Driver\'s license image is required')
@@ -508,6 +757,18 @@ def signup():
             is_valid, error_msg, detected_type = validate_uploaded_file(license_image)
             if not is_valid:
                 errors.append(f'License image: {error_msg}')
+                # --- Security audit log for malicious file upload ---
+                add_audit_log(
+                    user_id=0,  # Not yet registered
+                    action='Malicious File Upload Attempt',
+                    entity_type='SECURITY',
+                    entity_id='file_upload',
+                    reason=f'License image validation failed: {error_msg}',
+                    result='Blocked',
+                    severity='High',
+                    ip_address=request.remote_addr,
+                    device_info=request.headers.get("User-Agent")
+                )
 
         existing = get_user_by_email(email)
         if existing:
@@ -562,7 +823,19 @@ def signup():
         }
 
         # Persist to DB with pending status for admin review
-        create_user_with_documents(user_data_plain)
+        user_id, ticket_id = create_user_with_documents(user_data_plain)
+
+        # --- Audit log for user registration ---
+        add_audit_log(
+            user_id=user_id if user_id else 0,
+            action='User Registration',
+            entity_type='USER',
+            entity_id=user_id if user_id else 0,
+            new_values={'email': email, 'user_type': 'user', 'first_name': first_name, 'last_name': last_name},
+            result='Success',
+            ip_address=request.remote_addr,
+            device_info=request.headers.get("User-Agent")
+        )
 
         # Show pending approval page immediately after successful submission
         return render_template('pending_reg.html')
@@ -599,18 +872,47 @@ def login():
         return redirect(request.referrer or url_for('index'))
 
     user = get_user_by_email(email)
-    if not user or not check_password_hash(user.get('password_hash', ''), password):
-        flash('Invalid email or password', 'error')
+    
+    # Case 1: Email not found in database - user never signed up
+    if not user:
+        add_audit_log(
+            user_id=None,
+            action='Failed Login - Email Not Found',
+            entity_type='USER',
+            entity_id=0,
+            reason=f'Login attempt with unregistered email: {email}',
+            result='Failure',
+            severity='Low',
+            ip_address=request.remote_addr,
+            device_info=request.headers.get("User-Agent")
+        )
+        flash('No account found with this email address. Please sign up first.', 'error')
+        return redirect(request.referrer or url_for('index'))
+    
+    # Case 2: Wrong password
+    if not check_password_hash(user.get('password_hash', ''), password):
+        add_audit_log(
+            user_id=user.get('user_id'),
+            action='Failed Login - Wrong Password',
+            entity_type='USER',
+            entity_id=user.get('user_id'),
+            reason='Invalid password entered',
+            result='Failure',
+            severity='Medium',
+            ip_address=request.remote_addr,
+            device_info=request.headers.get("User-Agent")
+        )
+        flash('Incorrect password. Please try again.', 'error')
         return redirect(request.referrer or url_for('index'))
 
     latest_status = _get_latest_signup_status(email)
 
-    # Explicitly block rejected accounts with a clear message
+    # Case 3: Account rejected by admin
     if latest_status == 'rejected':
         session.pop('_flashes', None)
         return redirect(url_for('registration_rejected'))
 
-    # Check if user account is verified/approved
+    # Case 4: Account pending admin approval
     if not user.get('verified'):
         if latest_status == 'pending':
             flash('Your account is pending approval. Please wait for admin verification.', 'error')
@@ -628,13 +930,30 @@ def login():
             print(f"Warning: could not update last login: {exc}")
 
     # Login successful
+    first_name_raw = user.get('first_name') or ''
+    last_name_raw = user.get('last_name') or ''
+    first_name = decrypt_value(first_name_raw, fallback_on_error=True) if first_name_raw else ''
+    last_name = decrypt_value(last_name_raw, fallback_on_error=True) if last_name_raw else ''
+    display_name = _safe_display_name(first_name, last_name, email)
+
     session['user'] = email
     session['user_id'] = user.get('user_id')
-    session['user_name'] = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+    session['user_name'] = display_name or email
     session['user_type'] = user.get('user_type', 'user')  # Get user type from stored data
     session.modified = True
 
-    flash(f"Welcome back, {user['first_name']}!", 'success')
+    # --- Audit log for successful login ---
+    add_audit_log(
+        user_id=user.get('user_id'),
+        action='User Login',
+        entity_type='USER',
+        entity_id=user.get('user_id'),
+        result='Success',
+        ip_address=request.remote_addr,
+        device_info=request.headers.get("User-Agent")
+    )
+
+    flash(f"Welcome back, {first_name or email.split('@')[0]}!", 'success')
 
     # Redirect based on user type
     user_type = user.get('user_type', 'user')
@@ -653,6 +972,20 @@ def login():
 @app.route('/logout')
 def logout():
     """Handle user logout"""
+    user_id = session.get('user_id', 0)
+    
+    # --- Audit log for logout ---
+    if user_id:
+        add_audit_log(
+            user_id=user_id,
+            action='User Logout',
+            entity_type='USER',
+            entity_id=user_id,
+            result='Success',
+            ip_address=request.remote_addr,
+            device_info=request.headers.get("User-Agent")
+        )
+    
     session.pop('user', None)
     session.pop('user_id', None)
     session.pop('user_name', None)
@@ -666,6 +999,7 @@ def logout():
 # ADMIN PANEL (RENAMED FROM admin_dashboard)
 # ============================================
 @app.route('/admin/panel')
+@require_classification('users.nric')
 def admin_panel():
     """Admin panel to view and approve pending registrations"""
     # Check if user is logged in and is admin
@@ -675,6 +1009,10 @@ def admin_panel():
 
     # Clear any lingering flashes from prior login attempts to keep the admin view clean
     session.pop('_flashes', None)
+    
+    # Get user context for data classification
+    user_role = session.get('user_type', 'guest')
+    user_id = session.get('user_id')
 
     def _safe_decrypt(value):
         if not value:
@@ -693,6 +1031,22 @@ def admin_panel():
         decrypted = _safe_decrypt(value)
         return '' if _looks_encrypted(decrypted) else decrypted
 
+    def _estimate_age_from_nric(nric_value):
+        if not nric_value:
+            return None
+        nric_value = str(nric_value).strip().upper()
+        match = re.match(r'^([STFG])(\d{2})\d{5}[A-Z]$', nric_value)
+        if not match:
+            return None
+        prefix, yy = match.group(1), int(match.group(2))
+        century = 1900 if prefix in ('S', 'F') else 2000
+        year = century + yy
+        current_year = datetime.now().year
+        age = current_year - year
+        if age < 0 or age > 120:
+            return None
+        return age
+
     def adapt(ticket):
         docs = ticket.get('documents', {})
         first_name = _clean_value(ticket.get('first_name'))
@@ -700,6 +1054,7 @@ def admin_panel():
         phone = _clean_value(ticket.get('phone'))
         nric = _clean_value(ticket.get('nric'))
         license_number = _clean_value(ticket.get('license_number'))
+        estimated_age = _estimate_age_from_nric(nric)
 
         if not first_name and not last_name:
             email = ticket.get('email', '')
@@ -713,13 +1068,14 @@ def admin_panel():
                 return None
             return url_for('admin_document', doc_id=doc['id'])
 
-        return {
+        ticket_data = {
             'ticket_id': ticket.get('ticket_id'),
             'first_name': first_name,
             'last_name': last_name,
             'email': ticket.get('email'),
             'phone': phone or None,
             'nric': nric or None,
+            'estimated_age': estimated_age,
             'license_number': license_number or None,
             'user_type': ticket.get('user_type'),
             'created_at': ticket.get('submitted_at'),
@@ -729,6 +1085,21 @@ def admin_panel():
             'vehicle_card_image': doc_url(docs.get('vehicle_card_image')),
             'insurance_image': doc_url(docs.get('insurance_image')),
         }
+        
+        # Extract age from NRIC for admin review
+        if nric:
+            age_info = extract_age_from_nric(nric)
+            ticket_data['age_info'] = age_info
+        else:
+            ticket_data['age_info'] = {
+                "age": None,
+                "is_minor": None,
+                "confidence": "unknown",
+                "message": "No NRIC provided"
+            }
+        
+        # Redact sensitive fields based on user permissions
+        return redact_dict(ticket_data, 'users', user_role, user_id, ticket.get('user_id'))
 
     pending_tickets = get_signup_tickets(status='pending')
     approved_tickets = get_signup_tickets(status='approved')
@@ -787,6 +1158,7 @@ def admin_panel():
 # ADMIN APPROVE USER
 # ============================================
 @app.route('/admin/approve/<int:ticket_id>', methods=['POST'])
+@require_classification('users.nric')
 def admin_approve_user(ticket_id):
     """Approve a pending user registration"""
     if 'user' not in session or session.get('user_type') != 'admin':
@@ -795,6 +1167,27 @@ def admin_approve_user(ticket_id):
 
     ok = set_signup_status(ticket_id, 'approved', reviewer=session.get('user'))
     if ok:
+        # --- Audit log for admin approval ---
+        # Get user_id from ticket to log properly
+        from database import get_db_connection
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT user_id FROM signup_tickets WHERE id = %s", (ticket_id,))
+            ticket_info = cursor.fetchone()
+            cursor.close()
+            
+        if ticket_info:
+            add_audit_log(
+                user_id=session.get('user_id', 0),
+                action='Admin Approve User',
+                entity_type='USER',
+                entity_id=ticket_info['user_id'],
+                new_values={'status': 'approved', 'ticket_id': ticket_id},
+                result='Success',
+                ip_address=request.remote_addr,
+                device_info=request.headers.get("User-Agent")
+            )
+        
         flash('Signup approved successfully!', 'success')
     else:
         flash('Signup ticket not found.', 'error')
@@ -805,6 +1198,7 @@ def admin_approve_user(ticket_id):
 # ADMIN REJECT USER
 # ============================================
 @app.route('/admin/reject/<int:ticket_id>', methods=['POST'])
+@require_classification('users.nric')
 def admin_reject_user(ticket_id):
     """Reject and delete a pending user registration"""
     if 'user' not in session or session.get('user_type') != 'admin':
@@ -813,6 +1207,28 @@ def admin_reject_user(ticket_id):
 
     ok = set_signup_status(ticket_id, 'rejected', reviewer=session.get('user'))
     if ok:
+        # --- Audit log for admin rejection ---
+        # Get user_id from ticket to log properly
+        from database import get_db_connection
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT user_id FROM signup_tickets WHERE id = %s", (ticket_id,))
+            ticket_info = cursor.fetchone()
+            cursor.close()
+            
+        if ticket_info:
+            add_audit_log(
+                user_id=session.get('user_id', 0),
+                action='Admin Reject User',
+                entity_type='USER',
+                entity_id=ticket_info['user_id'],
+                new_values={'status': 'rejected', 'ticket_id': ticket_id},
+                result='Success',
+                severity='Medium',
+                ip_address=request.remote_addr,
+                device_info=request.headers.get("User-Agent")
+            )
+        
         flash('Signup rejected.', 'success')
     else:
         flash('Signup ticket not found.', 'error')
@@ -827,6 +1243,7 @@ from io import BytesIO
 
 
 @app.route('/admin/document/<int:doc_id>')
+@require_classification('user_documents.file_data')
 def admin_document(doc_id):
     """Serve a stored document from DB to admin."""
     from mysql.connector import Error
@@ -926,6 +1343,14 @@ def profile():
             for error in errors:
                 flash(error, 'error')
         else:
+            # Store old values for audit logging
+            old_values = {
+                'first_name': user.get('first_name'),
+                'last_name': user.get('last_name'),
+                'email': user.get('email'),
+                'phone': user.get('phone')
+            }
+            
             ok, error = update_user_profile(
                 user['user_id'],
                 form_values['first_name'],
@@ -936,6 +1361,28 @@ def profile():
             if not ok:
                 flash(error or 'Unable to update profile.', 'error')
             else:
+                # AUDIT: Log profile updates with before/after values
+                new_values = {
+                    'first_name': form_values['first_name'],
+                    'last_name': form_values['last_name'],
+                    'email': form_values['email'],
+                    'phone': form_values['phone']
+                }
+                
+                # Only log if values actually changed
+                if old_values != new_values:
+                    add_audit_log(
+                        action='PROFILE_UPDATED',
+                        user_id=user['user_id'],
+                        entity_type='USER',
+                        entity_id=user['user_id'],
+                        previous_values=old_values,
+                        new_values=new_values,
+                        reason=f'Profile updated for {user_email}',
+                        ip_address=request.remote_addr,
+                        device_info=request.headers.get("User-Agent")
+                    )
+                
                 session['user'] = form_values['email']
                 session['user_name'] = f"{form_values['first_name']} {form_values['last_name']}".strip()
                 session.modified = True
@@ -1034,6 +1481,18 @@ def seller_dashboard():
         flash('Access denied. This page is for sellers only.', 'error')
         return redirect(url_for('index'))
 
+    user_email = session.get('user')
+    if user_email:
+        user = get_user_by_email(user_email)
+        if user:
+            first_name_raw = user.get('first_name') or ''
+            last_name_raw = user.get('last_name') or ''
+            first_name = decrypt_value(first_name_raw, fallback_on_error=True) if first_name_raw else ''
+            last_name = decrypt_value(last_name_raw, fallback_on_error=True) if last_name_raw else ''
+            display_name = _safe_display_name(first_name, last_name, user_email)
+            session['user_name'] = display_name or user_email
+            session.modified = True
+
     return render_template('seller_index.html')
 
 
@@ -1041,8 +1500,9 @@ def seller_dashboard():
 # CREATE INITIAL ADMIN ACCOUNT (HELPER)
 # ============================================
 @app.route('/create-admin-secret-route-12345', methods=['GET', 'POST'])
+@require_classification('users.password_hash')
 def create_admin():
-    """One-time route to create initial admin account - REMOVE after first admin is created"""
+    """One-time route to create initial admin account - RESTRICTED to admins only"""
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
@@ -1236,6 +1696,17 @@ def forgot_password():
                 session.pop('password_reset_bypass', None)
                 return _render('email', email)
 
+            # AUDIT: Log password reset request
+            add_audit_log(
+                action='PASSWORD_RESET_REQUESTED',
+                user_id=user['user_id'],
+                entity_type='USER',
+                entity_id=user['user_id'],
+                reason=f'Password reset requested for {email}',
+                ip_address=request.remote_addr,
+                device_info=request.headers.get("User-Agent")
+            )
+
             session['password_reset_email'] = email
             session['password_reset_step'] = 'new_password'
             session.pop('password_reset_bypass', None)
@@ -1279,6 +1750,18 @@ def forgot_password():
                 return _render('email', email)
 
             update_user_password(email, generate_password_hash(new_password))
+            
+            # AUDIT: Log successful password reset
+            add_audit_log(
+                action='PASSWORD_RESET_COMPLETED',
+                user_id=user['user_id'],
+                entity_type='USER',
+                entity_id=user['user_id'],
+                reason=f'Password reset completed for {email}',
+                ip_address=request.remote_addr,
+                device_info=request.headers.get("User-Agent")
+            )
+            
             session.pop('password_reset_step', None)
             session.pop('password_reset_email', None)
             session.pop('password_reset_otp_id', None)
@@ -1340,6 +1823,18 @@ def reset_password(token):
             update_user_password(email, generate_password_hash(new_password))
 
             mark_token_as_used(token)
+
+            # --- Audit log for password reset ---
+            add_audit_log(
+                user_id=user.get('user_id', 0),
+                action='Password Reset',
+                entity_type='USER',
+                entity_id=user.get('user_id', 0),
+                result='Success',
+                reason='User requested password reset',
+                ip_address=request.remote_addr,
+                device_info=request.headers.get("User-Agent")
+            )
 
             flash('Password has been reset successfully! You can now login.', 'success')
             return redirect(url_for('index'))
@@ -1639,6 +2134,9 @@ def cart():
 def booking_history():
     """Display user's booking history"""
     user_email = session.get('user')
+    user_role = session.get('user_type', 'user')
+    user_id = session.get('user_id')
+    
     if not user_email:
         flash('Please login to view your bookings', 'error')
         return redirect(url_for('login'))
@@ -1649,7 +2147,10 @@ def booking_history():
         user = get_user_by_email(user_email)
         if user and user.get('user_id'):
             # Get user bookings from database
-            bookings = get_user_bookings(user.get('user_id'))
+            raw_bookings = get_user_bookings(user.get('user_id'))
+            # Redact sensitive booking data based on user permissions
+            from data_classification import redact_list
+            bookings = redact_list(raw_bookings, 'bookings', user_role, user_id)
     except Exception as e:
         # If database fails, try session-based bookings
         print(f"Database error: {e}")
@@ -1665,7 +2166,9 @@ def booking_history():
         for booking_id, booking in BOOKINGS.items():
             if booking.get('customer_email') == user_email:
                 session_bookings.append(booking)
-        bookings = session_bookings
+        # Redact session bookings as well
+        from data_classification import redact_list
+        bookings = redact_list(session_bookings, 'bookings', user_role, user_id)
 
     # Get cart count for navbar
     cart_count = get_cart_count(session)
@@ -1800,12 +2303,22 @@ def api_cart_count():
 @login_required
 def checkout():
     """Checkout page"""
+    user_email = session.get('user')
+    user_role = session.get('user_type', 'user')
+    user_id = session.get('user_id')
+    
     cart_items = session.get('cart', {})
 
     if not cart_items:
         return redirect(url_for('cart'))
 
     totals = calculate_cart_totals(cart_items, VEHICLES)
+    
+    # Get user data and redact sensitive fields for display
+    user_data = get_user_by_email(user_email) if user_email else None
+    redacted_user = None
+    if user_data:
+        redacted_user = redact_dict(user_data, 'users', user_role, user_id, user_data.get('user_id'))
 
     return render_template('checkout.html',
                            cart_items=totals['cart_data'],
@@ -1813,7 +2326,8 @@ def checkout():
                            insurance_fee=totals['insurance_fee'],
                            service_fee=totals['service_fee'],
                            total=totals['total'],
-                           stripe_public_key=Config.STRIPE_PUBLIC_KEY)
+                           stripe_public_key=Config.STRIPE_PUBLIC_KEY,
+                           user=redacted_user)
 
 
 @app.route('/create-payment-intent', methods=['POST'])
@@ -1848,6 +2362,18 @@ def create_payment_intent():
                 'booking_type': 'vehicle_rental',
             },
             description='67 Rentals Vehicle Booking',
+        )
+
+        # --- Audit log for payment intent creation ---
+        add_audit_log(
+            user_id=session.get('user_id', 0),
+            action='Create Payment Intent',
+            entity_type='PAYMENT',
+            entity_id=intent.id,
+            new_values=json.dumps({'amount': totals['total'], 'currency': 'sgd', 'cart_items': len(cart_items)}),
+            result='Success',
+            ip_address=request.remote_addr,
+            device_info=request.headers.get("User-Agent")
         )
 
         return jsonify({
@@ -2079,6 +2605,27 @@ def payment_success():
                     description=f"ML failed: {str(ml_error)}",
                     ip_address=request.remote_addr
                 )
+            
+            # --- Audit log for booking creation ---
+            add_audit_log(
+                user_id=user_id,
+                action='Create Booking',
+                entity_type='BOOKING',
+                entity_id=db_booking_id,
+                new_values=json.dumps({
+                    'booking_id': db_booking_id,
+                    'vehicle_id': vehicle_id,
+                    'total_amount': totals['total'],
+                    'payment_intent_id': payment_intent_id,
+                    'status': 'Confirmed'
+                }),
+                result='Success',
+                ip_address=request.remote_addr,
+                device_info=request.headers.get("User-Agent")
+            )
+            
+            flash(f'Booking #{db_booking_id} successfully confirmed and recorded. Payment ID: {payment_intent_id}',
+                  'success')
 
         except Exception as e:
             add_security_log(
@@ -2203,7 +2750,7 @@ def list_backups():
         backup_system = SecureBackup()
         file_backups = backup_system.list_backups()
         db_logs = get_backup_logs(limit=1000)
-        
+
         # Merge file backups with database logs
         backups_with_logs = []
         for file_backup in file_backups:
@@ -2213,7 +2760,7 @@ def list_backups():
                 if log['backup_filename'] == file_backup['filename']:
                     matching_log = log
                     break
-            
+
             # Parse tables_backed_up if it's a JSON string
             tables_backed_up = []
             if matching_log and matching_log.get('tables_backed_up'):
@@ -2224,7 +2771,7 @@ def list_backups():
                         tables_backed_up = []
                 else:
                     tables_backed_up = matching_log['tables_backed_up']
-            
+
             backup_entry = {
                 **file_backup,
                 'checksum_sha256': matching_log['checksum_sha256'] if matching_log else None,
@@ -2331,9 +2878,9 @@ def backup_logs():
     try:
         status_filter = request.args.get('status')
         limit = int(request.args.get('limit', 100))
-        
+
         logs = get_backup_logs(limit=limit, status=status_filter)
-        
+
         return jsonify({
             'success': True,
             'logs': logs,
@@ -2351,7 +2898,7 @@ def verify_backup(backup_filename):
     try:
         backup_system = SecureBackup()
         verification_result = backup_system.verify_backup(backup_filename)
-        
+
         # Update verification status in database
         if verification_result.get('verified'):
             logs = get_backup_logs(limit=1000)
@@ -2359,7 +2906,7 @@ def verify_backup(backup_filename):
                 if log['backup_filename'] == backup_filename:
                     update_backup_verification(log['backup_id'], 'Verified')
                     break
-        
+
         return jsonify({
             'success': verification_result.get('verified', False),
             'verification': verification_result
@@ -2750,29 +3297,42 @@ def file_security_test():
             'message': 'File security test failed to run'
         }), 500
 
-
 # ============================================
 # BOOKING & CANCELLATION ROUTES
 # ============================================
 
 @app.route('/cancel-booking/<booking_id>')
+@login_required
 def cancel_booking(booking_id):
     """Display cancellation request page"""
+    user_role = session.get('user_type', 'user')
+    user_id = session.get('user_id')
+    user_email = session.get('user')
+    
     booking = BOOKINGS.get(booking_id)
 
     if not booking:
         return "Booking not found", 404
+    
+    # Check if user owns this booking
+    if booking.get('customer_email') != user_email and user_role != 'admin':
+        flash('You can only cancel your own bookings', 'error')
+        return redirect(url_for('booking_history'))
 
     if booking['status'] not in ['Confirmed', 'Pending']:
         return "This booking cannot be cancelled", 400
 
+    # Redact sensitive booking data based on user permissions
+    booking_owner_id = booking.get('user_id')
+    redacted_booking = redact_dict(booking, 'bookings', user_role, user_id, booking_owner_id)
+    
     refund_percentage = calculate_refund_percentage(booking)
     processing_fee = 10 if refund_percentage > 0 else 0
     estimated_refund = (booking['total_amount'] * refund_percentage / 100) - processing_fee
     estimated_refund = max(0, estimated_refund)
 
     return render_template('cancel_booking.html',
-                           booking=booking,
+                           booking=redacted_booking,
                            refund_percentage=refund_percentage,
                            processing_fee=processing_fee,
                            estimated_refund=round(estimated_refund, 2))
@@ -2807,19 +3367,56 @@ def submit_cancellation(booking_id):
 
     BOOKINGS[booking_id]['status'] = 'Pending Cancellation'
 
+    # --- Audit log for cancellation request ---
+    add_audit_log(
+        user_id=session.get('user_id', 0),
+        action='Submit Cancellation Request',
+        entity_type='CANCELLATION',
+        entity_id=request_id,
+        new_values=json.dumps({
+            'booking_id': booking_id,
+            'request_id': request_id,
+            'reason': cancellation_reason,
+            'refund_percentage': calculate_refund_percentage(booking)
+        }),
+        result='Success',
+        ip_address=request.remote_addr,
+        device_info=request.headers.get("User-Agent")
+    )
+
     return render_template('cancellation_submitted.html',
                            request_id=request_id,
                            booking=booking)
 
 
 @app.route('/seller/cancellation-requests')
+@login_required
 def seller_cancellation_requests():
     """Seller page to view all cancellation requests"""
+    user_role = session.get('user_type', 'guest')
+    user_id = session.get('user_id')
+    
+    # Check if user is seller or admin
+    if user_role not in ['seller', 'admin']:
+        flash('Access denied. Seller privileges required.', 'error')
+        return redirect(url_for('index'))
+    
     pending_requests = {
         rid: req for rid, req in CANCELLATION_REQUESTS.items()
         if req['status'] == 'Pending'
     }
-    return render_template('seller_cancellations.html', requests=pending_requests)
+    
+    # Redact sensitive customer data in cancellation requests
+    redacted_requests = {}
+    for rid, req in pending_requests.items():
+        booking = req.get('booking', {})
+        booking_owner_id = booking.get('user_id')
+        redacted_booking = redact_dict(booking, 'bookings', user_role, user_id, booking_owner_id)
+        redacted_req = dict(req)
+        redacted_req['booking'] = redacted_booking
+        redacted_requests[rid] = redacted_req
+    
+    return render_template('seller_cancellations.html', requests=redacted_requests)
 
 
 @app.route('/seller/approve-cancellation/<request_id>', methods=['POST'])
@@ -2857,6 +3454,23 @@ def seller_approve_cancellation(request_id):
     CANCELLATION_REQUESTS[request_id]['reviewed_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     BOOKINGS[booking['booking_id']]['status'] = 'Cancelled'
 
+    # --- Audit log for cancellation approval ---
+    add_audit_log(
+        user_id=session.get('user_id', 0),
+        action='Approve Cancellation',
+        entity_type='CANCELLATION',
+        entity_id=request_id,
+        new_values=json.dumps({
+            'status': 'Approved',
+            'refund_id': refund_id,
+            'refund_amount': refund_amount,
+            'booking_id': booking['booking_id']
+        }),
+        result='Success',
+        ip_address=request.remote_addr,
+        device_info=request.headers.get("User-Agent")
+    )
+
     return jsonify({'success': True, 'refund_id': refund_id, 'refund_amount': refund_amount})
 
 
@@ -2873,6 +3487,22 @@ def seller_reject_cancellation(request_id):
     CANCELLATION_REQUESTS[request_id]['status'] = 'Rejected'
     CANCELLATION_REQUESTS[request_id]['reviewed_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     BOOKINGS[booking['booking_id']]['status'] = 'Confirmed'
+
+    # --- Audit log for cancellation rejection ---
+    add_audit_log(
+        user_id=session.get('user_id', 0),
+        action='Reject Cancellation',
+        entity_type='CANCELLATION',
+        entity_id=request_id,
+        new_values=json.dumps({
+            'status': 'Rejected',
+            'booking_id': booking['booking_id']
+        }),
+        result='Success',
+        severity='Low',
+        ip_address=request.remote_addr,
+        device_info=request.headers.get("User-Agent")
+    )
 
     return jsonify({'success': True})
 
@@ -2930,6 +3560,17 @@ def create_test_booking():
 
 @app.route('/seller')
 def seller_index():
+    user_email = session.get('user')
+    if user_email:
+        user = get_user_by_email(user_email)
+        if user:
+            first_name_raw = user.get('first_name') or ''
+            last_name_raw = user.get('last_name') or ''
+            first_name = decrypt_value(first_name_raw, fallback_on_error=True) if first_name_raw else ''
+            last_name = decrypt_value(last_name_raw, fallback_on_error=True) if last_name_raw else ''
+            display_name = _safe_display_name(first_name, last_name, user_email)
+            session['user_name'] = display_name or user_email
+            session.modified = True
     return render_template('seller_index.html')
 
 
@@ -3021,6 +3662,17 @@ def delete_listing(listing_id):
     # Remove the listing from the list
     listing_to_delete = next((l for l in listings if l['id'] == listing_id), None)
     if listing_to_delete:
+        # AUDIT: Log listing deletion BEFORE removing
+        add_audit_log(
+            action='LISTING_DELETED',
+            user_id=session.get('user_id'),
+            entity_type='VEHICLE',
+            entity_id=listing_id,
+            reason=f"Listing deleted: {listing_to_delete.get('name', 'Unknown')} (ID: {listing_id})",
+            ip_address=request.remote_addr,
+            device_info=request.headers.get("User-Agent")
+        )
+        
         listings.remove(listing_to_delete)
         flash('Listing deleted successfully', 'success')
     else:
@@ -3039,6 +3691,7 @@ def dashboard():
 
 
 @app.route('/accounts')
+@require_classification('users.nric')
 def accounts():
     """
     Reuse the admin panel experience on the Accounts route
@@ -3118,6 +3771,7 @@ def vehicle_management():
     return render_template('vehicle_management.html', vehicles=VEHICLES)
 
 @app.route('/security-dashboard')
+@require_classification('security_logs.user_id')
 def security_dashboard():
     """Security management page"""
     # Check if user is logged in and is admin
@@ -3129,6 +3783,7 @@ def security_dashboard():
 
 @app.route('/admin/backup-management')
 @login_required
+@require_classification('backup_logs.backup_path')
 def backup_management():
     """Backup management page for admins"""
     # Check if user is logged in and is admin
@@ -3182,6 +3837,18 @@ def data_retention_purge():
         return redirect(url_for('index'))
 
     result = run_retention_purge(reason='manual')
+    
+    # AUDIT: Log data purge execution
+    add_audit_log(
+        action='DATA_PURGE_EXECUTED',
+        user_id=session.get('user_id'),
+        entity_type='RETENTION',
+        entity_id='manual',
+        reason=f"Data purge executed: {result.get('purged_count', 0)} accounts purged",
+        ip_address=request.remote_addr,
+        device_info=request.headers.get("User-Agent")
+    )
+    
     if result.get('skipped_reason'):
         flash(f"Purge skipped: {result['skipped_reason']}.", 'error')
     elif result.get('errors'):
@@ -3214,6 +3881,19 @@ def data_retention_extend_user(user_id):
         return redirect(request.referrer or url_for('accounts'))
 
     set_retention_extension(user_id, extension_days, updated_by=session.get('user'))
+    
+    # AUDIT: Log retention extension
+    target_user = get_user_by_id(user_id)
+    add_audit_log(
+        action='RETENTION_EXTENDED',
+        user_id=session.get('user_id'),
+        entity_type='USER',
+        entity_id=user_id,
+        reason=f"Retention extended for user_id {user_id} ({target_user.get('email') if target_user else 'unknown'}) by {extension_days} days",
+        ip_address=request.remote_addr,
+        device_info=request.headers.get("User-Agent")
+    )
+    
     if extension_days == 0:
         flash('Retention extension cleared.', 'success')
     else:
@@ -3245,9 +3925,129 @@ def data_retention_purge_user(user_id):
         flash('Admins cannot be purged.', 'error')
         return redirect(request.referrer or url_for('accounts'))
 
+    # AUDIT: Log before individual user purge (CRITICAL - must log before deletion)
+    add_audit_log(
+        user_id=session.get('user_id'),
+        action='USER_DATA_PURGED',
+        entity_type='USER',
+        entity_id=user_id,
+        reason=f"User data purged for user_id {user_id} ({user_row.get('email')})",
+        ip_address=request.remote_addr,
+        device_info=request.headers.get("User-Agent")
+    )
+    
     purge_user_data(user_id, user_row.get('email'))
     flash('User data purged.', 'success')
     return redirect(request.referrer or url_for('accounts'))
+
+
+# ============= DATA RETENTION POLICIES DASHBOARD =============
+
+@app.route('/admin/data-retention-dashboard')
+def data_retention_dashboard():
+    """Data retention dashboard with configurable policies for all data types."""
+    if 'user' not in session or session.get('user_type') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('index'))
+    
+    policies = get_all_retention_policies()
+    stats = get_retention_statistics()
+    user_settings = get_retention_settings()
+    
+    return render_template(
+        'data_retention_dashboard.html',
+        policies=policies,
+        stats=stats,
+        user_settings=user_settings
+    )
+
+
+@app.route('/api/retention-policies', methods=['GET'])
+def api_get_retention_policies():
+    """API: Get all retention policies."""
+    if 'user' not in session or session.get('user_type') != 'admin':
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    policies = get_all_retention_policies()
+    stats = get_retention_statistics()
+    
+    return jsonify({
+        "policies": policies,
+        "stats": stats
+    })
+
+
+@app.route('/api/retention-policies/<data_type>', methods=['PUT'])
+def api_update_retention_policy(data_type):
+    """API: Update a specific retention policy."""
+    if 'user' not in session or session.get('user_type') != 'admin':
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    success = update_retention_policy(data_type, data)
+    
+    if success:
+        # Audit log
+        add_audit_log(
+            action='RETENTION_POLICY_UPDATED',
+            user_id=session.get('user_id'),
+            entity_type='RETENTION_POLICY',
+            entity_id=data_type,
+            new_values=data,
+            reason=f"Updated retention policy for {data_type}",
+            ip_address=request.remote_addr,
+            device_info=request.headers.get("User-Agent")
+        )
+        return jsonify({"success": True, "message": f"Policy for {data_type} updated"})
+    
+    return jsonify({"error": "Policy not found"}), 404
+
+
+@app.route('/api/retention-policies/<data_type>/purge', methods=['POST'])
+def api_purge_retention_type(data_type):
+    """API: Manually purge data for a specific type."""
+    if 'user' not in session or session.get('user_type') != 'admin':
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    result = purge_data_for_type(data_type, reason="manual")
+    
+    # Audit log
+    add_audit_log(
+        action='DATA_TYPE_PURGED',
+        user_id=session.get('user_id'),
+        entity_type='RETENTION_DATA',
+        entity_id=data_type,
+        reason=f"Purged {result.get('purged_count', 0)} records from {data_type}",
+        ip_address=request.remote_addr,
+        device_info=request.headers.get("User-Agent")
+    )
+    
+    return jsonify(result)
+
+
+@app.route('/api/retention-policies/purge-all', methods=['POST'])
+def api_purge_all_retention():
+    """API: Purge all data types based on their policies."""
+    if 'user' not in session or session.get('user_type') != 'admin':
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    result = run_all_retention_purges(reason="manual_all")
+    
+    # Audit log
+    add_audit_log(
+        action='ALL_DATA_RETENTION_PURGED',
+        user_id=session.get('user_id'),
+        entity_type='RETENTION_DATA',
+        entity_id='ALL',
+        reason=f"Purged {result.get('total_purged', 0)} total records across {result.get('types_processed', 0)} data types",
+        ip_address=request.remote_addr,
+        device_info=request.headers.get("User-Agent")
+    )
+    
+    return jsonify(result)
 
 
 @app.route('/data-classification')
@@ -3257,12 +4057,21 @@ def data_classification():
 
 
 @app.route('/audit-logs')
+@require_classification('audit_logs.user_id')
 def audit_logs():
     """Audit logs page"""
+    # Check if user can access restricted audit logs table
+    user_role = session.get('user_type', 'guest')
+    user_id = session.get('user_id')
+    
+    if not can_access_table('audit_logs', user_role):
+        flash('Access denied. Administrator privileges required.', 'error')
+        return redirect(url_for('index'))
+    
     # Fetch latest 100 audit logs
     logs = get_audit_logs(limit=100)
 
-    # Attach user email for display
+    # Attach user email for display and redact sensitive fields
     for log in logs:
         if log.get("user_id"):
             user = get_user_by_id(log["user_id"])
@@ -3271,6 +4080,27 @@ def audit_logs():
             log["user_email"] = "System / Unknown"
 
     return render_template('audit_logs.html', audit_logs=logs)
+
+
+@app.route('/data-classification-dashboard')
+@login_required
+@require_classification('users.nric')
+def data_classification_dashboard():
+    """Data Classification Dashboard - Admin only"""
+    if session.get('user_type') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('index'))
+    
+    # Get classification statistics
+    stats = get_classification_stats()
+    
+    return render_template(
+        'data_classification_dashboard.html',
+        stats=stats,
+        all_classifications=DATA_CLASSIFICATION,
+        table_classifications=TABLE_CLASSIFICATIONS,
+        classification_metadata=CLASSIFICATION_METADATA
+    )
 
 
 # ============================================
@@ -3484,6 +4314,24 @@ def report():
                 flash("Failed to save incident report: No ID returned from database.", "error")
                 return render_template("incident_report.html", cart_count=cart_count)
             
+            # --- Audit log for incident report --- 
+            add_audit_log(
+                user_id=session.get('user_id', 0),
+                action='Submit Incident Report',
+                entity_type='INCIDENT_REPORT',
+                entity_id=report_id,
+                new_values=json.dumps({  # ← Fixed with json.dumps()
+                    'report_id': report_id,
+                    'incident_type': request.form.get('incident_type'),
+                    'severity_level': request.form.get('severity_level'),
+                    'booking_id': request.form.get('booking_id')
+                }),
+                result='Success',
+                severity=normalize_severity(request.form.get('severity_level', 'Low')),  # ← Fixed with normalize
+                ip_address=request.remote_addr,
+                device_info=request.headers.get("User-Agent")
+            )
+                    
             # Store email in session so we can retrieve reports later (even if not logged in)
             if submitter_email:
                 session['incident_report_email'] = submitter_email
@@ -3590,6 +4438,18 @@ def update_case_status(report_id):
     try:
         ok = update_incident_status(report_id, new_status)
         if ok:
+            # --- Audit log for case status update ---
+            add_audit_log(
+                user_id=session.get('user_id', 0),
+                action='Update Case Status',
+                entity_type='INCIDENT_REPORT',
+                entity_id=report_id,
+                new_values=json.dumps({'status': new_status}),
+                result='Success',
+                ip_address=request.remote_addr,
+                device_info=request.headers.get("User-Agent")
+            )
+            
             flash(f"Case status updated to {new_status}", "success")
         else:
             flash("Case not found", "error")
@@ -3600,8 +4460,9 @@ def update_case_status(report_id):
 
 
 @app.route("/cases/<int:report_id>/file/<path:filename>")
+@require_classification('incident_report_files.file_path')
 def serve_incident_file(report_id, filename):
-    """Serve decrypted incident report file (with watermark if image)"""
+    """Serve decrypted incident report file (with watermark if image) - RESTRICTED access"""
     try:
         # URL decode filename
         from urllib.parse import unquote
@@ -3729,6 +4590,18 @@ def delete_case(report_id):
     try:
         ok = delete_incident_report(report_id)
         if ok:
+            # --- Audit log for case deletion ---
+            add_audit_log(
+                user_id=session.get('user_id', 0),
+                action='Delete Case',
+                entity_type='INCIDENT_REPORT',
+                entity_id=report_id,
+                result='Success',
+                severity='Medium',
+                ip_address=request.remote_addr,
+                device_info=request.headers.get("User-Agent")
+            )
+            
             flash("Case deleted", "success")
         else:
             flash("Case not found", "error")
@@ -3739,20 +4612,41 @@ def delete_case(report_id):
 
 
 @app.route('/security-logs')
+@require_classification('security_logs.user_id')
 def security_logs():
     """Page 1: Access Security Logs"""
+    # Check if user can access restricted security logs table
+    user_role = session.get('user_type', 'guest')
+    if not can_access_table('security_logs', user_role):
+        flash('Access denied. Administrator privileges required.', 'error')
+        return redirect(url_for('index'))
+    
     return render_template('security_logs.html')
 
 
 @app.route('/vehicle-fraud-logs')
+@require_classification('vehicle_fraud_logs.user_id')
 def vehicle_fraud_logs():
     """Page 2: Vehicle Fraud Logs"""
+    # Check if user can access restricted fraud logs table
+    user_role = session.get('user_type', 'guest')
+    if not can_access_table('vehicle_fraud_logs', user_role):
+        flash('Access denied. Administrator privileges required.', 'error')
+        return redirect(url_for('index'))
+    
     return render_template('vehicle_fraud_logs.html')
 
 
 @app.route('/booking-fraud-logs')
+@require_classification('booking_fraud_logs.user_id')
 def booking_fraud_logs():
     """Page 3: Booking Fraud Logs"""
+    # Check if user can access restricted fraud logs table
+    user_role = session.get('user_type', 'guest')
+    if not can_access_table('booking_fraud_logs', user_role):
+        flash('Access denied. Administrator privileges required.', 'error')
+        return redirect(url_for('index'))
+    
     return render_template('booking_fraud_logs.html')
 
 
@@ -3925,9 +4819,10 @@ def security_check():
 
 
 @app.route("/admin/encrypt-existing-users", methods=["POST"])
+@require_classification('users.password_hash')
 def encrypt_existing_users():
     """
-    One-time helper to encrypt existing plaintext PII in the users table.
+    One-time helper to encrypt existing plaintext PII in the users table - RESTRICTED to admins only.
     Call: POST /admin/encrypt-existing-users?confirm=yes
     """
     if request.args.get("confirm") != "yes":
@@ -3978,13 +4873,27 @@ def encrypt_existing_users():
         conn.commit()
         cursor.close()
 
+    # --- Audit log for bulk encryption ---
+    add_audit_log(
+        user_id=session.get('user_id', 0),
+        action='Encrypt Existing Users',
+        entity_type='SYSTEM',
+        entity_id='bulk_encryption',
+        new_values=json.dumps({'updated_rows': updated}),
+        result='Success',
+        severity='High',
+        ip_address=request.remote_addr,
+        device_info=request.headers.get("User-Agent")
+    )
+
     return jsonify({"updated_rows": updated})
 
 
 @app.route("/admin/decrypt-existing-users", methods=["POST"])
+@require_classification('users.password_hash')
 def decrypt_existing_users():
     """
-    One-time helper to decrypt encrypted PII back to plaintext.
+    One-time helper to decrypt encrypted PII back to plaintext - RESTRICTED to admins only.
     Call: POST /admin/decrypt-existing-users?confirm=yes
     """
     if request.args.get("confirm") != "yes":
@@ -4023,6 +4932,20 @@ def decrypt_existing_users():
 
         conn.commit()
         cursor.close()
+
+    # --- Audit log for bulk decryption ---
+    add_audit_log(
+        user_id=session.get('user_id', 0),
+        action='Decrypt Existing Users',
+        entity_type='SYSTEM',
+        entity_id='bulk_decryption',
+        new_values=json.dumps({'updated_rows': updated}),
+        result='Success',
+        severity='Critical',
+        reason='Bulk decryption operation performed',
+        ip_address=request.remote_addr,
+        device_info=request.headers.get("User-Agent")
+    )
 
     return jsonify({"updated_rows": updated})
 
@@ -4266,6 +5189,125 @@ def log_booking_fraud():
             'error': str(e)
         }), 500
 
+
+# ============================================
+# TEST ROUTES FOR DATA CLASSIFICATION
+# ============================================
+
+@app.route('/test-redaction')
+@login_required
+def test_redaction():
+    """Test data redaction with different roles - Admin only for testing"""
+    if session.get('user_type') != 'admin':
+        flash('Access denied. Admin privileges required for testing.', 'error')
+        return redirect(url_for('index'))
+    
+    # Sample user data
+    test_user = {
+        'user_id': 5,
+        'email': 'john@example.com',
+        'first_name': 'John',
+        'last_name': 'Doe',
+        'phone_number': '+65 1234 5678',
+        'nric': 'S1234567A',
+        'license_number': 'ABC123',
+        'verified': True,
+        'user_type': 'user'
+    }
+    
+    # Test redaction as different roles
+    from data_classification import redact_dict
+    
+    as_admin = redact_dict(test_user, 'users', 'admin', user_id=1, data_owner_id=5)
+    as_owner = redact_dict(test_user, 'users', 'user', user_id=5, data_owner_id=5)
+    as_other_user = redact_dict(test_user, 'users', 'user', user_id=10, data_owner_id=5)
+    as_guest = redact_dict(test_user, 'users', 'guest', user_id=None, data_owner_id=5)
+    
+    return jsonify({
+        'test_explanation': {
+            'admin': 'Admin sees EVERYTHING (all classifications)',
+            'owner': 'User 5 sees their OWN data (PUBLIC + INTERNAL + CONFIDENTIAL)',
+            'other_user': 'User 10 sees LIMITED data (PUBLIC + INTERNAL only)',
+            'guest': 'Guest sees only PUBLIC data (nothing in this case)'
+        },
+        'classification_levels': {
+            'user_id': 'INTERNAL',
+            'email': 'CONFIDENTIAL',
+            'first_name': 'CONFIDENTIAL',
+            'last_name': 'CONFIDENTIAL',
+            'phone_number': 'CONFIDENTIAL',
+            'nric': 'RESTRICTED',
+            'license_number': 'CONFIDENTIAL',
+            'verified': 'INTERNAL',
+            'user_type': 'INTERNAL'
+        },
+        'original_data': test_user,
+        'as_admin': as_admin,
+        'as_owner': as_owner,
+        'as_other_user': as_other_user,
+        'as_guest': as_guest
+    })
+
+
+# ============================================
+# ERROR HANDLERS
+# ============================================
+@app.errorhandler(AccessDeniedException)
+def handle_access_denied(e):
+    print("\n===== AccessDeniedException HANDLER HIT =====")
+
+    # Session + request context
+    user_id = session.get('user_id', 0)
+    user_email = session.get('user', 'Unknown')
+    ip_addr = request.remote_addr if request.remote_addr else 'Unknown'
+    user_agent = request.headers.get("User-Agent", "Unknown")
+
+    print("Session user_id:", user_id)
+    print("Session user_email:", user_email)
+    print("IP address:", ip_addr)
+    print("User-Agent:", user_agent)
+
+    # Inspect exception object
+    print("Exception object:", e)
+    print("Exception type:", type(e))
+    print("Exception attributes:", vars(e) if hasattr(e, "__dict__") else "No __dict__")
+
+    column = getattr(e, "column", None)
+    classification = getattr(e, "classification", None)
+    user_role = getattr(e, "user_role", None)
+
+    print("e.column:", column)
+    print("e.classification:", classification)
+    print("e.user_role:", user_role)
+
+    # Flash (optional, not security-critical)
+    flash('⚠️ Access Denied: You do not have permission to access this resource.', 'error')
+    session.modified = True
+
+    # === AUDIT LOG TEST ===
+    try:
+        print(">>> Attempting add_audit_log()")
+        add_audit_log(
+            user_id=user_id,
+            action='Data Access Denied',
+            entity_type='SECURITY',
+            entity_id=str(column),
+            reason=str(e),
+            result='Failure',
+            severity='Medium',
+            ip_address=ip_addr,
+            device_info=user_agent
+        )
+        print("✅ add_audit_log() SUCCESS")
+    except Exception as audit_error:
+        print("❌ add_audit_log() FAILED")
+        print("Error type:", type(audit_error))
+        print("Error message:", audit_error)
+
+    print("===== END AccessDeniedException HANDLER =====\n")
+
+    from flask import make_response
+    return make_response(redirect(url_for('index')))
 
 # ============================================
 # AUTOMATED BACKUP SCHEDULER

@@ -31,3 +31,4 @@ backups/*.zip.encrypted
 *.pyo
 *.pyd
 
+!AUDIT_AND_CLASSIFICATION_REFERENCE.txt

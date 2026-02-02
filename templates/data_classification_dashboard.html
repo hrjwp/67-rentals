@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Classification Dashboard - 67 Rentals</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --white-color: #ffffff;
+            --primary-color: #81B29A;
+            --secondary-color: #3D405B;
+            --section-bg-color: #F4F1DE;
+            --custom-btn-bg-color: #F2CC8F;
+            --custom-btn-bg-hover-color: #E07A5F;
+            --p-color: #717275;
+            --body-font-family: 'DM Sans', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        body {
+            font-family: var(--body-font-family);
+            background: var(--section-bg-color);
+            min-height: 100vh;
+        }
+
+        /* Security Banner */
+        .security-banner {
+            background: #ff6b6b;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            font-weight: 600;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            font-size: 14px;
+        }
+
+        .session-timer {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 9999;
+            font-weight: 600;
+            color: var(--secondary-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        .watermark-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9997;
+            overflow: hidden;
+        }
+
+        .watermark-text {
+            position: absolute;
+            font-size: 80px;
+            font-weight: bold;
+            color: rgba(61, 64, 91, 0.05);
+            transform: rotate(-45deg);
+            white-space: nowrap;
+        }
+
+        .watermark-text:nth-child(1) { top: 20%; left: 10%; }
+        .watermark-text:nth-child(2) { top: 50%; right: 10%; }
+        .watermark-text:nth-child(3) { bottom: 20%; left: 30%; }
+
+        /* Navbar */
+        .navbar {
+            background: var(--secondary-color);
+            z-index: 99;
+            padding-top: 15px;
+            padding-bottom: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-top: 40px;
+        }
+
+        .navbar-brand-text {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--white-color);
+        }
+
+        .navbar-brand-text small {
+            font-size: 14px;
+            font-weight: 400;
+            display: block;
+            line-height: 1;
+        }
+
+        .nav-link {
+            color: var(--white-color) !important;
+            font-weight: 500;
+            padding: 8px 16px !important;
+            transition: color 0.3s ease;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            color: var(--custom-btn-bg-color) !important;
+        }
+
+        .custom-btn {
+            background: var(--custom-btn-bg-color);
+            color: var(--secondary-color);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .custom-btn:hover {
+            background: var(--custom-btn-bg-hover-color);
+            color: var(--white-color);
+        }
+
+        /* Page Header */
+        .page-header {
+            background: var(--white-color);
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-top: 30px;
+        }
+
+        .page-header h1 {
+            color: var(--secondary-color);
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .page-header p {
+            color: var(--p-color);
+            margin: 0;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--white-color);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card h3 {
+            color: var(--p-color);
+            font-size: 14px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .stat-card .number {
+            font-size: 36px;
+            font-weight: bold;
+        }
+
+        .stat-card .icon {
+            font-size: 48px;
+            opacity: 0.1;
+            position: absolute;
+            right: 20px;
+            bottom: 20px;
+        }
+
+        .stat-card.public {
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .stat-card.public .number {
+            color: var(--primary-color);
+        }
+
+        .stat-card.internal {
+            border-left: 4px solid #17a2b8;
+        }
+
+        .stat-card.internal .number {
+            color: #17a2b8;
+        }
+
+        .stat-card.confidential {
+            border-left: 4px solid var(--custom-btn-bg-color);
+        }
+
+        .stat-card.confidential .number {
+            color: var(--custom-btn-bg-color);
+        }
+
+        .stat-card.restricted {
+            border-left: 4px solid var(--custom-btn-bg-hover-color);
+        }
+
+        .stat-card.restricted .number {
+            color: var(--custom-btn-bg-hover-color);
+        }
+
+        /* Classification Legend */
+        .classification-legend {
+            background: var(--white-color);
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .classification-legend h3 {
+            margin-bottom: 20px;
+            color: var(--secondary-color);
+            font-weight: 600;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: start;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .legend-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .legend-badge {
+            min-width: 120px;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+            margin-right: 20px;
+        }
+
+        .badge-public {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .badge-internal {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .badge-confidential {
+            background: var(--custom-btn-bg-color);
+            color: var(--secondary-color);
+        }
+
+        .badge-restricted {
+            background: var(--custom-btn-bg-hover-color);
+            color: white;
+        }
+
+        /* Filters Section */
+        .filters-section {
+            background: var(--white-color);
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .filters-section h3 {
+            margin-bottom: 20px;
+            color: var(--secondary-color);
+            font-weight: 600;
+        }
+
+        .filter-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .form-select {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(129, 178, 154, 0.25);
+        }
+
+        .form-control {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 12px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(129, 178, 154, 0.25);
+        }
+
+        /* Table Section */
+        .table-section {
+            background: var(--white-color);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .table-section h3 {
+            margin-bottom: 20px;
+            color: var(--secondary-color);
+            font-weight: 600;
+        }
+
+        .table {
+            font-size: 14px;
+        }
+
+        .table thead th {
+            background: var(--section-bg-color);
+            color: var(--secondary-color);
+            font-weight: 600;
+            border: none;
+            padding: 15px;
+        }
+
+        .table tbody td {
+            padding: 15px;
+            vertical-align: middle;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .table tbody tr:hover {
+            background: var(--section-bg-color);
+        }
+
+        .table code {
+            background: var(--section-bg-color);
+            padding: 4px 8px;
+            border-radius: 5px;
+            color: var(--secondary-color);
+            font-weight: 500;
+        }
+
+        /* Footer */
+        .footer {
+            background: var(--secondary-color);
+            color: var(--white-color);
+            padding: 40px 0;
+            margin-top: 60px;
+        }
+
+        .footer p {
+            margin: 0;
+            color: var(--section-bg-color);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .filter-group {
+                grid-template-columns: 1fr;
+            }
+
+            .legend-item {
+                flex-direction: column;
+            }
+
+            .legend-badge {
+                margin-bottom: 10px;
+            }
+
+            .table-responsive {
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Security Banner -->
+    <div class="security-banner">
+        🔒 SECURE DATABASE ACCESS - Data Classification Dashboard - Session: <span id="sessionId"></span>
+    </div>
+
+    <!-- Session Timer -->
+    <div class="session-timer" id="sessionTimer">
+        ⏱️ Session: <span id="timeLeft">15:00</span>
+    </div>
+
+    <!-- Watermark -->
+    <div class="watermark-overlay">
+        <div class="watermark-text">CONFIDENTIAL</div>
+        <div class="watermark-text">CONFIDENTIAL</div>
+        <div class="watermark-text">CONFIDENTIAL</div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                <span class="navbar-brand-text">
+                    67
+                    <small>Rentals</small>
+                </span>
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-lg-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/security-dashboard">Security Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/data-classification-dashboard">Data Classification</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/audit-logs">Audit Logs</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/security-logs">Security Logs</a>
+                    </li>
+                </ul>
+                <div class="d-none d-lg-block ms-lg-3">
+                    <a class="btn custom-btn d-flex align-items-center gap-2" href="#" role="button">
+                        <i class="bi bi-person"></i>
+                        Admin
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main>
+        <div class="container">
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1><i class="bi bi-tags me-2"></i>Data Classification Dashboard</h1>
+                <p>Manage and monitor data security classifications across the system</p>
+            </div>
+
+            <!-- Statistics Cards -->
+            <div class="stats-grid">
+                <div class="stat-card public">
+                    <h3>Public</h3>
+                    <div class="number">{{ stats.by_level.PUBLIC }}</div>
+                    <small style="color: var(--p-color); display: block; margin-top: 10px;">Accessible to all</small>
+                    <div class="icon">🌐</div>
+                </div>
+                <div class="stat-card internal">
+                    <h3>Internal</h3>
+                    <div class="number">{{ stats.by_level.INTERNAL }}</div>
+                    <small style="color: var(--p-color); display: block; margin-top: 10px;">Authenticated users</small>
+                    <div class="icon">👥</div>
+                </div>
+                <div class="stat-card confidential">
+                    <h3>Confidential</h3>
+                    <div class="number">{{ stats.by_level.CONFIDENTIAL }}</div>
+                    <small style="color: var(--p-color); display: block; margin-top: 10px;">Admin + owners</small>
+                    <div class="icon">🔐</div>
+                </div>
+                <div class="stat-card restricted">
+                    <h3>Restricted</h3>
+                    <div class="number">{{ stats.by_level.RESTRICTED }}</div>
+                    <small style="color: var(--p-color); display: block; margin-top: 10px;">Admin only</small>
+                    <div class="icon">🔒</div>
+                </div>
+            </div>
+
+            <!-- Classification Legend -->
+            <div class="classification-legend">
+                <h3><i class="bi bi-info-circle me-2"></i>Classification Levels</h3>
+                {% for level, metadata in classification_metadata.items() %}
+                <div class="legend-item">
+                    <span class="legend-badge badge-{{ level|lower }}">{{ level }}</span>
+                    <div>
+                        <strong style="color: var(--secondary-color);">{{ metadata.description }}</strong><br>
+                        <small style="color: var(--p-color);">Examples: {{ metadata.examples }}</small><br>
+                        <small><strong>Risk Level:</strong> <span style="color: {{ metadata.color }};">{{ metadata.risk_level }}</span></small>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Filters -->
+            <div class="filters-section">
+                <h3><i class="bi bi-funnel me-2"></i>Filters</h3>
+                <div class="filter-group">
+                    <select id="tableFilter" class="form-select">
+                        <option value="">All Tables</option>
+                        {% for table in stats.by_table.keys()|sort %}
+                        <option value="{{ table }}">{{ table }}</option>
+                        {% endfor %}
+                    </select>
+                    <select id="levelFilter" class="form-select">
+                        <option value="">All Levels</option>
+                        <option value="PUBLIC">PUBLIC</option>
+                        <option value="INTERNAL">INTERNAL</option>
+                        <option value="CONFIDENTIAL">CONFIDENTIAL</option>
+                        <option value="RESTRICTED">RESTRICTED</option>
+                    </select>
+                    <input type="text" id="searchColumn" class="form-control" placeholder="Search column...">
+                </div>
+            </div>
+
+            <!-- Classification Table -->
+            <div class="table-section">
+                <h3><i class="bi bi-table me-2"></i>Column Classifications</h3>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Table</th>
+                                <th>Column</th>
+                                <th>Classification</th>
+                                <th>Access Control</th>
+                            </tr>
+                        </thead>
+                        <tbody id="classificationTableBody">
+                            {% for column_full, classification in all_classifications|dictsort %}
+                            <tr data-table="{{ column_full.split('.')[0] }}" data-level="{{ classification }}" data-column="{{ column_full }}">
+                                <td><strong style="color: var(--secondary-color);">{{ column_full.split('.')[0] }}</strong></td>
+                                <td><code>{{ column_full.split('.')[1] }}</code></td>
+                                <td>
+                                    <span class="legend-badge badge-{{ classification|lower }}">
+                                        {{ classification }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <small style="color: var(--p-color);">
+                                        {% if classification == 'PUBLIC' %}
+                                            <i class="bi bi-globe" style="color: var(--primary-color);"></i> Everyone
+                                        {% elif classification == 'INTERNAL' %}
+                                            <i class="bi bi-people" style="color: #17a2b8;"></i> Authenticated Users
+                                        {% elif classification == 'CONFIDENTIAL' %}
+                                            <i class="bi bi-lock" style="color: var(--custom-btn-bg-color);"></i> Admin + Data Owner
+                                        {% elif classification == 'RESTRICTED' %}
+                                            <i class="bi bi-shield-lock" style="color: var(--custom-btn-bg-hover-color);"></i> Admin Only
+                                        {% endif %}
+                                    </small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Table Summary -->
+            <div class="table-section">
+                <h3><i class="bi bi-bar-chart me-2"></i>Classification Summary by Table</h3>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Table Name</th>
+                                <th>Table Level</th>
+                                <th style="text-align: center;">PUBLIC</th>
+                                <th style="text-align: center;">INTERNAL</th>
+                                <th style="text-align: center;">CONFIDENTIAL</th>
+                                <th style="text-align: center;">RESTRICTED</th>
+                                <th style="text-align: center;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for table, counts in stats.by_table.items()|sort %}
+                            <tr>
+                                <td><strong style="color: var(--secondary-color);">{{ table }}</strong></td>
+                                <td>
+                                    <span class="legend-badge badge-{{ table_classifications[table]|lower }}">
+                                        {{ table_classifications[table] }}
+                                    </span>
+                                </td>
+                                <td style="text-align: center;">
+                                    <span class="badge" style="background: var(--primary-color); color: white;">{{ counts.PUBLIC }}</span>
+                                </td>
+                                <td style="text-align: center;">
+                                    <span class="badge" style="background: #17a2b8; color: white;">{{ counts.INTERNAL }}</span>
+                                </td>
+                                <td style="text-align: center;">
+                                    <span class="badge" style="background: var(--custom-btn-bg-color); color: var(--secondary-color);">{{ counts.CONFIDENTIAL }}</span>
+                                </td>
+                                <td style="text-align: center;">
+                                    <span class="badge" style="background: var(--custom-btn-bg-hover-color); color: white;">{{ counts.RESTRICTED }}</span>
+                                </td>
+                                <td style="text-align: center;">
+                                    <strong>{{ counts.PUBLIC + counts.INTERNAL + counts.CONFIDENTIAL + counts.RESTRICTED }}</strong>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-12 text-center">
+                    <p>© 2026 67 Rentals. All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Generate random session ID
+        document.getElementById('sessionId').textContent = Math.random().toString(36).substring(2, 15);
+
+        // Session timer
+        let timeLeft = 15 * 60; // 15 minutes
+        const timerElement = document.getElementById('timeLeft');
+        const timerContainer = document.getElementById('sessionTimer');
+
+        setInterval(() => {
+            timeLeft--;
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+            if (timeLeft < 60) {
+                timerContainer.classList.add('timer-warning');
+            }
+
+            if (timeLeft <= 0) {
+                window.location.reload();
+            }
+        }, 1000);
+
+        // Filter functionality
+        const tableFilter = document.getElementById('tableFilter');
+        const levelFilter = document.getElementById('levelFilter');
+        const searchColumn = document.getElementById('searchColumn');
+        const tbody = document.getElementById('classificationTableBody');
+
+        function filterTable() {
+            const tableValue = tableFilter.value.toLowerCase();
+            const levelValue = levelFilter.value;
+            const searchValue = searchColumn.value.toLowerCase();
+            
+            const rows = tbody.getElementsByTagName('tr');
+            
+            for (let row of rows) {
+                const table = row.getAttribute('data-table').toLowerCase();
+                const level = row.getAttribute('data-level');
+                const column = row.getAttribute('data-column').toLowerCase();
+                
+                const matchTable = !tableValue || table === tableValue;
+                const matchLevel = !levelValue || level === levelValue;
+                const matchSearch = !searchValue || column.includes(searchValue);
+                
+                if (matchTable && matchLevel && matchSearch) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        }
+
+        tableFilter.addEventListener('change', filterTable);
+        levelFilter.addEventListener('change', filterTable);
+        searchColumn.addEventListener('keyup', filterTable);
+    </script>
+</body>
+</html>

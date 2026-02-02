@@ -16,6 +16,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css"
         rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/templatemo-tiya-golf-club.css') }}" rel="stylesheet">
 
     <style>
         :root {
@@ -53,36 +54,6 @@
         body {
             background-color: var(--section-bg-color);
             font-family: var(--body-font-family);
-        }
-
-        .navbar {
-            background: #3D405B;
-            z-index: 99;
-            padding-top: 15px;
-            padding-bottom: 15px;
-        }
-
-        .navbar-brand-text {
-            color: var(--white-color);
-            font-size: 28px;
-            font-weight: 700;
-            margin-left: 10px;
-        }
-
-        .navbar-brand-text small {
-            display: block;
-            font-size: 14px;
-            font-weight: 400;
-        }
-
-        .nav-link {
-            color: var(--white-color) !important;
-            font-weight: 500;
-            padding: 10px 20px !important;
-        }
-
-        .nav-link:hover {
-            color: #F2CC8F !important;
         }
 
         /* Profile Page Styles */
@@ -290,44 +261,8 @@
 
 <body>
     <!-- Navbar (Same as signup page) -->
-    <nav class="navbar navbar-expand-lg">
-        <div class="container">
-            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index_logged') }}">
-                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50'%3E%3Ccircle cx='25' cy='25' r='25' fill='%2381B29A'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='20' font-weight='bold'%3E67%3C/text%3E%3C/svg%3E"
-                    class="navbar-brand-image img-fluid" alt="67 Rentals" style="width: 50px;">
-                <span class="navbar-brand-text">
-                    67
-                    <small>Rentals</small>
-                </span>
-            </a>
-
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-lg-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index_logged') }}">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#">My Bookings</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="#">Profile</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#">Contact</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('logout') }}">
-                            <i class="bi bi-box-arrow-right me-1"></i>Logout
-                        </a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+    {% set nav_solid = true %}
+    {% include 'partials/navbar_tiya.html' %}
 
     <!-- Profile Content -->
     <div class="profile-container">

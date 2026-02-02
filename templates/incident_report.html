@@ -8,21 +8,39 @@
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
-        <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
-        <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/bootstrap-icons.css') }}" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/templatemo-tiya-golf-club.css') }}" rel="stylesheet">
 
         <style>
+            :root {
+                --white-color:                  #ffffff;
+                --primary-color:                #81B29A;
+                --secondary-color:              #3D405B;
+                --section-bg-color:             #F4F1DE;
+                --custom-btn-bg-color:          #F2CC8F;
+                --custom-btn-bg-hover-color:    #E07A5F;
+                --dark-color:                   #000000;
+                --p-color:                      #717275;
+                --link-hover-color:             #F2CC8F;
+
+                --body-font-family:             'DM Sans', sans-serif;
+            }
+
             body {
-                font-family: 'DM Sans', sans-serif;
+                font-family: var(--body-font-family);
+                background-color: var(--white-color);
             }
 
             .navbar {
-                background-color: #3D405B !important;
-                padding: 20px 0;
+                background: #3D405B;
+                z-index: 99;
+                padding-top: 15px;
+                padding-bottom: 15px;
             }
 
             .navbar-brand-text {
-                color: #ffffff;
+                color: var(--white-color);
                 font-size: 28px;
                 font-weight: 700;
             }
@@ -34,7 +52,7 @@
             }
 
             .nav-link {
-                color: #ffffff !important;
+                color: var(--white-color) !important;
                 font-weight: 500;
                 padding: 10px 20px !important;
             }
@@ -202,68 +220,7 @@
 
     <body>
 <!-- Navbar -->
-            <nav class="navbar navbar-expand-lg">
-                <div class="container">
-                    <a class="navbar-brand d-flex align-items-center" href="#">
-                        <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid" alt="Tiya Golf Club">
-                        <span class="navbar-brand-text">
-                            67
-                            <small>Rentals</small>
-                        </span>
-                    </a>
-
-                    <div class="d-lg-none ms-auto me-3">
-                        <a class="btn custom-btn custom-border-btn d-flex align-items-center gap-2" href="{{ url_for('logout') }}">
-                            <i class="bi bi-box-arrow-right"></i>
-                            Logout
-                        </a>
-                    </div>
-
-                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                        <span class="navbar-toggler-icon"></span>
-                    </button>
-
-                    <div class="collapse navbar-collapse" id="navbarNav">
-                        <ul class="navbar-nav ms-lg-auto">
-                            <li class="nav-item">
-                                <a class="nav-link click-scroll" href="{{ url_for('index_logged') }}#section_1">Home</a>
-                            </li>
-
-                            <li class="nav-item">
-                                <a class="nav-link click-scroll" href="{{ url_for('index_logged') }}#section_2">About</a>
-                            </li>
-
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('vehicle_listing_logged') }}">Vehicles</a>
-                            </li>
-
-                            <li class="nav-item">
-                                <a class="nav-link active" href="{{ url_for('report') }}">Report</a>
-                            </li>
-
-                            <li class="nav-item">
-                                <a class="nav-link click-scroll" href="{{ url_for('index_logged') }}#section_4">Contact Us</a>
-                            </li>
-
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('booking_history') }}">
-                                    My Bookings
-                                </a>
-                            </li>
-
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('cart_logged') }}">
-                                    <i class="bi bi-cart3"></i> Cart
-                                    {% if cart_count > 0 %}
-                                    <span class="badge bg-danger">{{ cart_count }}</span>
-                                    {% endif %}
-                                </a>
-                            </li>
-
-                        </ul>
-                    </div>
-                </div>
-            </nav>
+            {% include 'partials/navbar_tiya.html' %}
 
 
 <!-- Navbar end -->
@@ -441,7 +398,7 @@
                                         Upload photos of damage, insurance documents, police reports, and other incident evidence.
                                         For your protection, uploaded files are validated by type, limited in size, renamed on upload, and stored in encrypted, access-controlled storage outside the public site.
                                         Images are watermarked to help prevent tampering.
-                                        (Images: jpg, jpeg, png, gif, webp | Videos: mp4, avi, mov, wmv | Documents: pdf – Max 10 files, 10&nbsp;MB per file)
+                                        (Images: jpg, jpeg, png, gif, webp | Documents: pdf – Max 10 files, 10&nbsp;MB per file)
                                     </small>
                                 </div>
 

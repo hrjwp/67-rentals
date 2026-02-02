@@ -1,19 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - 67 Rentals</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/templatemo-graph-page.css') }}">
 </head>
+
 <body>
     <!-- Navigation -->
+<<<<<<< HEAD
     <nav id="navbar">
         <div class="nav-container">
             <a href="{{ url_for('index') }}" class="logo">
                 <div class="logo-icon">
                     <svg viewBox="0 0 24 24">
-                        <path d="M3 13h2v8H3zm4-8h2v13H7zm4-2h2v15h-2zm4 4h2v11h-2zm4-2h2v13h-2z"/>
+                        <path d="M3 13h2v8H3zm4-8h2v13H7zm4-2h2v15h-2zm4 4h2v11h-2zm4-2h2v13h-2z" />
                     </svg>
                 </div>
                 <span class="logo-text">67 Rentals</span>
@@ -25,12 +28,21 @@
                 <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
                 <li><a href="{{ url_for('security_dashboard') }}">Security</a></li>
             </ul>
-            <a href="https://www.google.com/search" target="_blank" rel="noopener" title="Search">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <path d="m21 21-4.35-4.35"></path>
-                </svg>
-            </a>
+            <div class="d-flex align-items-center gap-2">
+                {% set admin_name = session.get('user_name') or session.get('user', 'Admin') %}
+                {% if '@' in admin_name %}
+                {% set admin_name = admin_name.split('@')[0] %}
+                {% endif %}
+                <a href="{{ url_for('profile') }}" class="cta-button secondary" style="padding:10px 16px;">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"
+                        style="margin-right:6px;vertical-align:middle;">
+                        <path
+                            d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                    </svg>
+                    {{ admin_name }}
+                </a>
+                <a href="{{ url_for('logout') }}" class="cta-button secondary" style="padding:10px 16px;">Logout</a>
+            </div>
             <div class="hamburger" id="hamburger">
                 <span></span>
                 <span></span>
@@ -38,13 +50,18 @@
             </div>
         </div>
         <ul class="nav-links-mobile" id="navLinksMobile">
-            <li><a href="{{ url_for('index') }}">Home</a></li>
+            <li><a href="{{ url_for('dashboard') }}">Home</a></li>
             <li><a href="{{ url_for('dashboard') }}" class="active">Dashboard</a></li>
             <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
             <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
             <li><a href="{{ url_for('security_dashboard') }}">Security</a></li>
+            <li><a href="{{ url_for('profile') }}">Profile</a></li>
+            <li><a href="{{ url_for('logout') }}">Logout</a></li>
         </ul>
     </nav>
+=======
+    {% include 'partials/navbar_graph.html' %}
+>>>>>>> e0007d3 (Standardize navbars and admin retention UI)
 
     <!-- Hero Section -->
     <section class="hero" id="home">
@@ -57,14 +74,15 @@
             <div class="shape shape5"></div>
             <div class="shape shape6"></div>
         </div>
-        
+
         <div class="hero-content">
             <div class="hero-text">
                 <h1>Data Analytics<br>Dashboard</h1>
-                <p>Transform your data into actionable insights with our cutting-edge analytics platform. Real-time monitoring, intelligent predictions, and beautiful visualizations.</p>
+                <p>Transform your data into actionable insights with our cutting-edge analytics platform. Real-time
+                    monitoring, intelligent predictions, and beautiful visualizations.</p>
                 <a href="#dashboard" class="cta-button">Get Started</a>
             </div>
-            
+
             <div class="hero-visual">
                 <div class="city-container">
                     <div class="building building1">
@@ -102,7 +120,8 @@
                         <div class="stat-title">Total Revenue</div>
                     </div>
                     <div class="stat-value">$42,847</div>
-                    <div class="stat-description">Monthly revenue increased by 23% compared to last month with strong performance across all channels.</div>
+                    <div class="stat-description">Monthly revenue increased by 23% compared to last month with strong
+                        performance across all channels.</div>
                     <div class="stat-chart">
                         <canvas class="mini-chart" id="miniChart1"></canvas>
                     </div>
@@ -114,7 +133,8 @@
                         <div class="stat-title">Active Users</div>
                     </div>
                     <div class="stat-value">18.5K</div>
-                    <div class="stat-description">Real-time analytics showing active users currently engaging with the platform.</div>
+                    <div class="stat-description">Real-time analytics showing active users currently engaging with the
+                        platform.</div>
                     <div class="stat-chart">
                         <canvas class="mini-chart" id="miniChart2"></canvas>
                     </div>
@@ -126,7 +146,8 @@
                         <div class="stat-title">Conversion Rate</div>
                     </div>
                     <div class="stat-value">94.3%</div>
-                    <div class="stat-description">Customer satisfaction rate based on recent surveys and feedback analysis.</div>
+                    <div class="stat-description">Customer satisfaction rate based on recent surveys and feedback
+                        analysis.</div>
                     <div class="stat-chart">
                         <canvas class="mini-chart" id="miniChart3"></canvas>
                     </div>
@@ -138,7 +159,8 @@
                         <div class="stat-title">Performance Score</div>
                     </div>
                     <div class="stat-value">7,392</div>
-                    <div class="stat-description">Overall system performance metrics showing optimal operation across all services.</div>
+                    <div class="stat-description">Overall system performance metrics showing optimal operation across
+                        all services.</div>
                     <div class="stat-chart">
                         <canvas class="mini-chart" id="miniChart4"></canvas>
                     </div>
@@ -150,7 +172,8 @@
                         <div class="stat-title">Monthly Growth</div>
                     </div>
                     <div class="stat-value">+28.5%</div>
-                    <div class="stat-description">Consistent month-over-month growth in user acquisition and revenue generation.</div>
+                    <div class="stat-description">Consistent month-over-month growth in user acquisition and revenue
+                        generation.</div>
                     <div class="stat-chart">
                         <canvas class="mini-chart" id="miniChart5"></canvas>
                     </div>
@@ -162,7 +185,8 @@
                         <div class="stat-title">System Uptime</div>
                     </div>
                     <div class="stat-value">99.9%</div>
-                    <div class="stat-description">Exceptional reliability with minimal downtime ensuring seamless user experience.</div>
+                    <div class="stat-description">Exceptional reliability with minimal downtime ensuring seamless user
+                        experience.</div>
                     <div class="stat-chart">
                         <canvas class="mini-chart" id="miniChart6"></canvas>
                     </div>
@@ -175,7 +199,7 @@
     <section class="analytics-section" id="analytics">
         <div class="dashboard-container">
             <h2 class="section-title">Advanced Analytics</h2>
-            
+
             <!-- Key Metrics Overview -->
             <div class="metrics-grid">
                 <div class="metric-item">
@@ -277,13 +301,17 @@
                                 <line x1="0" y1="150" x2="500" y2="150" class="chart-grid-line" />
                                 <line x1="0" y1="200" x2="500" y2="200" class="chart-grid-line" />
                                 <line x1="0" y1="250" x2="500" y2="250" class="chart-grid-line" />
-                                
+
                                 <!-- Area -->
-                                <path d="M 0,200 L 62,180 L 125,150 L 187,170 L 250,120 L 312,140 L 375,100 L 437,130 L 500,110 L 500,300 L 0,300 Z" class="chart-area" />
-                                
+                                <path
+                                    d="M 0,200 L 62,180 L 125,150 L 187,170 L 250,120 L 312,140 L 375,100 L 437,130 L 500,110 L 500,300 L 0,300 Z"
+                                    class="chart-area" />
+
                                 <!-- Line -->
-                                <path d="M 0,200 L 62,180 L 125,150 L 187,170 L 250,120 L 312,140 L 375,100 L 437,130 L 500,110" class="chart-line" />
-                                
+                                <path
+                                    d="M 0,200 L 62,180 L 125,150 L 187,170 L 250,120 L 312,140 L 375,100 L 437,130 L 500,110"
+                                    class="chart-line" />
+
                                 <!-- Dots -->
                                 <circle cx="0" cy="200" class="chart-dot" />
                                 <circle cx="62" cy="180" class="chart-dot" />
@@ -310,19 +338,23 @@
                     </div>
                     <div class="chart-container">
                         <div class="bar-chart">
-                            <div class="bar" style="height: 85%; background: linear-gradient(180deg, #81B29A 0%, #F2CC8F 100%);">
+                            <div class="bar"
+                                style="height: 85%; background: linear-gradient(180deg, #81B29A 0%, #F2CC8F 100%);">
                                 <span class="bar-value">42%</span>
                                 <span class="bar-label">USA</span>
                             </div>
-                            <div class="bar" style="height: 65%; background: linear-gradient(180deg, #F2CC8F 0%, #E07A5F 100%);">
+                            <div class="bar"
+                                style="height: 65%; background: linear-gradient(180deg, #F2CC8F 0%, #E07A5F 100%);">
                                 <span class="bar-value">28%</span>
                                 <span class="bar-label">EU</span>
                             </div>
-                            <div class="bar" style="height: 45%; background: linear-gradient(180deg, #81B29A 0%, #3D405B 100%);">
+                            <div class="bar"
+                                style="height: 45%; background: linear-gradient(180deg, #81B29A 0%, #3D405B 100%);">
                                 <span class="bar-value">18%</span>
                                 <span class="bar-label">Asia</span>
                             </div>
-                            <div class="bar" style="height: 25%; background: linear-gradient(180deg, #E07A5F 0%, #3D405B 100%);">
+                            <div class="bar"
+                                style="height: 25%; background: linear-gradient(180deg, #E07A5F 0%, #3D405B 100%);">
                                 <span class="bar-value">12%</span>
                                 <span class="bar-label">Other</span>
                             </div>
@@ -347,13 +379,15 @@
                                 <line x1="0" y1="120" x2="500" y2="120" class="chart-grid-line" />
                                 <line x1="0" y1="180" x2="500" y2="180" class="chart-grid-line" />
                                 <line x1="0" y1="240" x2="500" y2="240" class="chart-grid-line" />
-                                
+
                                 <!-- Mobile Line -->
-                                <path d="M 0,180 L 71,160 L 142,140 L 214,120 L 285,100 L 357,90 L 428,80 L 500,70" stroke="#E07A5F" stroke-width="2" fill="none"/>
-                                
+                                <path d="M 0,180 L 71,160 L 142,140 L 214,120 L 285,100 L 357,90 L 428,80 L 500,70"
+                                    stroke="#E07A5F" stroke-width="2" fill="none" />
+
                                 <!-- Desktop Line -->
-                                <path d="M 0,220 L 71,210 L 142,200 L 214,190 L 285,185 L 357,180 L 428,175 L 500,170" stroke="#81B29A" stroke-width="2" fill="none"/>
-                                
+                                <path d="M 0,220 L 71,210 L 142,200 L 214,190 L 285,185 L 357,180 L 428,175 L 500,170"
+                                    stroke="#81B29A" stroke-width="2" fill="none" />
+
                                 <!-- Mobile dots -->
                                 <circle cx="0" cy="180" r="4" fill="#E07A5F" />
                                 <circle cx="71" cy="160" r="4" fill="#E07A5F" />
@@ -363,7 +397,7 @@
                                 <circle cx="357" cy="90" r="4" fill="#E07A5F" />
                                 <circle cx="428" cy="80" r="4" fill="#E07A5F" />
                                 <circle cx="500" cy="70" r="4" fill="#E07A5F" />
-                                
+
                                 <!-- Desktop dots -->
                                 <circle cx="0" cy="220" r="4" fill="#81B29A" />
                                 <circle cx="71" cy="210" r="4" fill="#81B29A" />
@@ -373,7 +407,7 @@
                                 <circle cx="357" cy="180" r="4" fill="#81B29A" />
                                 <circle cx="428" cy="175" r="4" fill="#81B29A" />
                                 <circle cx="500" cy="170" r="4" fill="#81B29A" />
-                                
+
                                 <!-- Labels -->
                                 <text x="20" y="50" fill="#E07A5F" font-size="12">Mobile</text>
                                 <text x="20" y="35" fill="#81B29A" font-size="12">Desktop</text>
@@ -394,37 +428,43 @@
                     <div class="info-icon">💼</div>
                     <h3 class="info-title">Business Intelligence</h3>
                     <div class="info-value">98.5%</div>
-                    <p style="font-size: 14px; color: var(--p-color);">Accuracy in predictive analytics and business forecasting models.</p>
+                    <p style="font-size: 14px; color: var(--p-color);">Accuracy in predictive analytics and business
+                        forecasting models.</p>
                 </div>
                 <div class="info-card">
                     <div class="info-icon">📱</div>
                     <h3 class="info-title">Mobile Analytics</h3>
                     <div class="info-value">2.4M</div>
-                    <p style="font-size: 14px; color: var(--p-color);">Mobile app downloads and active user engagement metrics.</p>
+                    <p style="font-size: 14px; color: var(--p-color);">Mobile app downloads and active user engagement
+                        metrics.</p>
                 </div>
                 <div class="info-card">
                     <div class="info-icon">🌍</div>
                     <h3 class="info-title">Global Reach</h3>
                     <div class="info-value">150+</div>
-                    <p style="font-size: 14px; color: var(--p-color);">Countries actively using our analytics platform worldwide.</p>
+                    <p style="font-size: 14px; color: var(--p-color);">Countries actively using our analytics platform
+                        worldwide.</p>
                 </div>
                 <div class="info-card">
                     <div class="info-icon">🚀</div>
                     <h3 class="info-title">Performance Index</h3>
                     <div class="info-value">847</div>
-                    <p style="font-size: 14px; color: var(--p-color);">Comprehensive performance scoring across all platform metrics.</p>
+                    <p style="font-size: 14px; color: var(--p-color);">Comprehensive performance scoring across all
+                        platform metrics.</p>
                 </div>
                 <div class="info-card">
                     <div class="info-icon">⚡</div>
                     <h3 class="info-title">Response Time</h3>
                     <div class="info-value">0.2s</div>
-                    <p style="font-size: 14px; color: var(--p-color);">Average API response time ensuring optimal user experience.</p>
+                    <p style="font-size: 14px; color: var(--p-color);">Average API response time ensuring optimal user
+                        experience.</p>
                 </div>
                 <div class="info-card">
                     <div class="info-icon">📊</div>
                     <h3 class="info-title">Data Processing</h3>
                     <div class="info-value">12TB</div>
-                    <p style="font-size: 14px; color: var(--p-color);">Daily data volume processed through our analytics pipeline.</p>
+                    <p style="font-size: 14px; color: var(--p-color);">Daily data volume processed through our analytics
+                        pipeline.</p>
                 </div>
             </div>
         </div>
@@ -437,6 +477,7 @@
         </div>
     </footer>
 
-<script src="{{ url_for('static', filename='js/templatemo-graph-script.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/templatemo-graph-script.js') }}"></script>
 </body>
+
 </html>
