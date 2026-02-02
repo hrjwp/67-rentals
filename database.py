@@ -7,6 +7,7 @@ from utils.field_encryption_config import get_encrypted_columns, get_column_keys
 import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
+from utils.encryption import encrypt_value, decrypt_value
 
 
 def create_connection():
