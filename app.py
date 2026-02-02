@@ -806,13 +806,13 @@ def signup():
             f.write(encrypted_license_bytes)
 
         user_data_plain = {
-            'first_name': first_name,  # Plaintext
-            'last_name': last_name,  # Plaintext
-            'email': email,  # Plaintext (not encrypted)
-            'phone': phone,  # Plaintext
-            'nric': nric,  # Plaintext
-            'license_number': license_number,  # Plaintext
-            'password_hash': generate_password_hash(password),  # Hashed, not encrypted
+            'first_name': first_name,
+            'last_name': last_name,
+            'email': email,
+            'phone': phone,
+            'nric': nric,
+            'license_number': license_number,
+            'password_hash': generate_password_hash(password),
             'user_type': 'user',
             'documents': {
                 'nric_image': {'filename': nric_filename, 'mime': nric_image.mimetype,
@@ -1343,28 +1343,26 @@ def profile():
             for error in errors:
                 flash(error, 'error')
         else:
-                # Store old values for audit logging (decrypt for comparison)
-                old_values = {
-                    'first_name': _safe_decrypt(user.get('first_name')),
-                    'last_name': _safe_decrypt(user.get('last_name')),
-                    'email': user.get('email'),  # Email is NOT encrypted
-                    'phone': _safe_decrypt(user.get('phone'))
-                }
-
-                # IMPORTANT: update_user_profile() handles encryption internally
-                # Pass PLAINTEXT values - function will encrypt them
-                ok, error = update_user_profile(
-                    user['user_id'],
-                    form_values['first_name'],  # Plaintext
-                    form_values['last_name'],  # Plaintext
-                    form_values['email'],  # Plaintext (not encrypted)
-                    form_values['phone']  # Plaintext
-                )
-                if not ok:
-                    flash(error or 'Unable to update profile.', 'error')
-                else:
+            # Store old values for audit logging
+            old_values = {
+                'first_name': user.get('first_name'),
+                'last_name': user.get('last_name'),
+                'email': user.get('email'),
+                'phone': user.get('phone')
+            }
+            
+            ok, error = update_user_profile(
+                user['user_id'],
+                form_values['first_name'],
+                form_values['last_name'],
+                form_values['email'],
+                form_values['phone']
+            )
+            if not ok:
+                flash(error or 'Unable to update profile.', 'error')
+            else:
                 # AUDIT: Log profile updates with before/after values
-                    new_values = {
+                new_values = {
                     'first_name': form_values['first_name'],
                     'last_name': form_values['last_name'],
                     'email': form_values['email'],
