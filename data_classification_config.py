@@ -54,13 +54,16 @@ DATA_CLASSIFICATION = {
     "vehicles.pickup_location": ClassificationLevel.PUBLIC,
     "vehicles.status": ClassificationLevel.INTERNAL,
     
-    # BOOKINGS TABLE
-    "bookings.booking_id": ClassificationLevel.INTERNAL,
-    "bookings.user_id": ClassificationLevel.CONFIDENTIAL,
-    "bookings.pickup_date": ClassificationLevel.CONFIDENTIAL,
-    "bookings.return_date": ClassificationLevel.CONFIDENTIAL,
-    "bookings.total_amount": ClassificationLevel.CONFIDENTIAL,
-    "bookings.payment_intent_id": ClassificationLevel.RESTRICTED,
+    # Booking – safe display fields
+    'bookings.vehicle_image': ClassificationLevel.PUBLIC,
+    'bookings.vehicle_name': ClassificationLevel.PUBLIC,
+    'bookings.vehicle_type': ClassificationLevel.PUBLIC,
+    'bookings.pickup_location': ClassificationLevel.PUBLIC,
+    'bookings.pickup_date': ClassificationLevel.INTERNAL,
+    'bookings.return_date': ClassificationLevel.INTERNAL,
+    'bookings.days': ClassificationLevel.INTERNAL,
+    'bookings.total_amount': ClassificationLevel.CONFIDENTIAL,
+    'bookings.status': ClassificationLevel.PUBLIC,
     
     # INCIDENT REPORTS
     "incident_reports.full_name": ClassificationLevel.CONFIDENTIAL,
