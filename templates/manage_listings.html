@@ -275,12 +275,12 @@
                                 <button class="tab-btn" onclick="showTab('add')">
                                     <i class="bi bi-plus-circle"></i> Add New Listing
                                 </button>
-                                <button class="tab-btn" onclick="showTab('cancellations')">
-                                    <i class="bi bi-x-circle"></i> Cancellation Requests
-                                    {% if pending_requests|length > 0 %}
-                                    <span class="badge bg-warning ms-1">{{ pending_requests|length }}</span>
+                                <a href="{{ url_for('seller_cancellation_requests') }}" class="tab-btn" style="text-decoration: none;">
+                                    <i class="bi bi-x-circle"></i> View Cancellations
+                                    {% if pending_cancellations_count > 0 %}
+                                    <span class="badge bg-warning ms-1">{{ pending_cancellations_count }}</span>
                                     {% endif %}
-                                </button>
+                                </a>
                             </div>
 
                             <!-- View Listings Tab -->
@@ -450,102 +450,6 @@
                                 </div>
                             </div>
 
-                            <!-- Cancellation Requests Tab -->
-                            <div id="cancellations-tab" class="tab-content" style="display: none;">
-                                <h3 class="mb-4">Cancellation Requests</h3>
-
-                                {% if pending_requests %}
-                                    {% for request_id, request in pending_requests.items() %}
-                                    <div class="cancellation-card" id="request-{{ request_id }}">
-                                        <div class="cancellation-header">
-                                            <div class="cancellation-details">
-                                                <h5 class="mb-2">Request #{{ request_id }}</h5>
-                                                <p class="text-muted mb-0">
-                                                    <i class="bi bi-clock"></i> Requested on {{ request.request_date }}
-                                                </p>
-                                            </div>
-                                            <span class="badge-pending">
-                                                <i class="bi bi-hourglass-split"></i> {{ request.status }}
-                                            </span>
-                                        </div>
-
-                                        <!-- Vehicle Info -->
-                                        <div class="vehicle-info">
-                                            <img src="{{ url_for('static', filename=request.booking.vehicle_image) }}"
-                                                 class="vehicle-thumbnail"
-                                                 alt="{{ request.booking.vehicle_name }}">
-                                            <div>
-                                                <h6 class="mb-1">{{ request.booking.vehicle_name }}</h6>
-                                                <small class="text-muted">Booking ID: {{ request.booking.booking_id }}</small>
-                                            </div>
-                                        </div>
-
-                                        <!-- Customer & Booking Details -->
-                                        <div class="row mb-3">
-                                            <div class="col-md-6">
-                                                <p class="mb-1"><strong>Customer:</strong> {{ request.booking.customer_name }}</p>
-                                                <p class="mb-1"><strong>Email:</strong> {{ request.booking.customer_email }}</p>
-                                            </div>
-                                            <div class="col-md-6">
-                                                <p class="mb-1"><strong>Pickup:</strong> {{ request.booking.pickup_date }}</p>
-                                                <p class="mb-1"><strong>Return:</strong> {{ request.booking.return_date }}</p>
-                                                <p class="mb-1"><strong>Duration:</strong> {{ request.booking.days }} days</p>
-                                            </div>
-                                        </div>
-
-                                        <!-- Cancellation Reason -->
-                                        <div class="mb-3">
-                                            <strong>Reason for Cancellation:</strong>
-                                            <p class="mb-0 text-muted">{{ request.reason }}</p>
-                                        </div>
-
-                                        <!-- Refund Calculation -->
-                                        <div class="refund-info">
-                                            <h6 class="mb-3">Refund Calculation</h6>
-                                            <div class="refund-row">
-                                                <span>Original Amount:</span>
-                                                <span>${{ "%.2f"|format(request.booking.total_amount) }}</span>
-                                            </div>
-                                            <div class="refund-row">
-                                                <span>Refund Percentage:</span>
-                                                <span>{{ request.refund_percentage }}%</span>
-                                            </div>
-                                            <div class="refund-row">
-                                                <span>Subtotal:</span>
-                                                <span>${{ "%.2f"|format(request.booking.total_amount * request.refund_percentage / 100) }}</span>
-                                            </div>
-                                            <div class="refund-row">
-                                                <span>Processing Fee:</span>
-                                                <span>-$10.00</span>
-                                            </div>
-                                            <div class="refund-row total">
-                                                <span>Total Refund:</span>
-                                                <span class="text-success">${{ "%.2f"|format((request.booking.total_amount * request.refund_percentage / 100) - 10) }}</span>
-                                            </div>
-                                        </div>
-
-                                        <!-- Action Buttons -->
-                                        <div class="action-buttons">
-                                            <button class="btn btn-success" onclick="handleCancellation('{{ request_id }}', 'approve')">
-                                                <i class="bi bi-check-circle"></i> Approve Cancellation
-                                            </button>
-                                            <button class="btn btn-danger" onclick="handleCancellation('{{ request_id }}', 'reject')">
-                                                <i class="bi bi-x-circle"></i> Reject Request
-                                            </button>
-                                        </div>
-
-                                        <div id="message-{{ request_id }}" class="mt-3" style="display: none;"></div>
-                                    </div>
-                                    {% endfor %}
-                                {% else %}
-                                    <div class="empty-state">
-                                        <i class="bi bi-check-circle"></i>
-                                        <h4>No pending cancellation requests</h4>
-                                        <p>All caught up! You'll see new cancellation requests here.</p>
-                                    </div>
-                                {% endif %}
-                            </div>
-
                         </div>
                     </div>
                 </div>
@@ -582,7 +486,6 @@
                 // Hide all tabs
                 document.getElementById('view-tab').style.display = 'none';
                 document.getElementById('add-tab').style.display = 'none';
-                document.getElementById('cancellations-tab').style.display = 'none';
 
                 // Remove active class from all buttons
                 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -596,9 +499,6 @@
                 } else if (tabName === 'add') {
                     document.getElementById('add-tab').style.display = 'block';
                     document.querySelectorAll('.tab-btn')[1].classList.add('active');
-                } else if (tabName === 'cancellations') {
-                    document.getElementById('cancellations-tab').style.display = 'block';
-                    document.querySelectorAll('.tab-btn')[2].classList.add('active');
                 }
             }
 
@@ -615,79 +515,6 @@
                 });
             }
 
-            function handleCancellation(requestId, action) {
-                const url = action === 'approve'
-                    ? `/seller/approve-cancellation/${requestId}`
-                    : `/seller/reject-cancellation/${requestId}`;
-
-                fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const messageDiv = document.getElementById(`message-${requestId}`);
-                        const card = document.getElementById(`request-${requestId}`);
-
-                        if (action === 'approve') {
-                            messageDiv.innerHTML = `
-                                <div class="alert alert-success">
-                                    <i class="bi bi-check-circle"></i>
-                                    Cancellation approved! Refund of $${data.refund_amount.toFixed(2)} will be processed.
-                                    <br>Refund ID: ${data.refund_id}
-                                </div>
-                            `;
-                        } else {
-                            messageDiv.innerHTML = `
-                                <div class="alert alert-danger">
-                                    <i class="bi bi-x-circle"></i>
-                                    Cancellation request has been rejected.
-                                </div>
-                            `;
-                        }
-
-                        messageDiv.style.display = 'block';
-
-                        // Hide action buttons
-                        card.querySelector('.action-buttons').style.display = 'none';
-
-                        // Update badge
-                        const badge = card.querySelector('.badge-pending');
-                        badge.className = action === 'approve' ? 'listing-status status-active' : 'listing-status status-inactive';
-                        badge.innerHTML = `<i class="bi bi-${action === 'approve' ? 'check' : 'x'}-circle"></i> ${action === 'approve' ? 'Approved' : 'Rejected'}`;
-
-                        // Fade out after 2 seconds
-                        setTimeout(() => {
-                            card.style.transition = 'opacity 0.5s';
-                            card.style.opacity = '0';
-                            setTimeout(() => {
-                                card.remove();
-
-                                // Check if no more requests
-                                const remainingRequests = document.querySelectorAll('.cancellation-card').length;
-                                if (remainingRequests === 0) {
-                                    document.getElementById('cancellations-tab').innerHTML = `
-                                        <div class="empty-state">
-                                            <i class="bi bi-check-circle"></i>
-                                            <h4>No pending cancellation requests</h4>
-                                            <p>All caught up! You'll see new cancellation requests here.</p>
-                                        </div>
-                                    `;
-                                }
-                            }, 500);
-                        }, 2000);
-                    } else {
-                        alert('Error processing request: ' + (data.error || 'Unknown error'));
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Failed to process request. Please try again.');
-                });
-            }
 
             function generateTripMetrics(vehicleId, btnEl) {
                 if (!vehicleId) {

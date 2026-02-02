@@ -3500,35 +3500,146 @@ def submit_cancellation(booking_id):
                            booking=booking)
 
 
+# @app.route('/seller/cancellation-requests')
+# @login_required
+# def seller_cancellation_requests():
+#     """Seller page to view all cancellation requests"""
+#     user_role = session.get('user_type', 'guest')
+#     user_id = session.get('user_id')
+    
+#     # Check if user is seller or admin
+#     if user_role not in ['seller', 'admin']:
+#         flash('Access denied. Seller privileges required.', 'error')
+#         return redirect(url_for('index'))
+    
+#     pending_requests = {
+#         rid: req for rid, req in CANCELLATION_REQUESTS.items()
+#         if req['status'] == 'Pending'
+#     }
+    
+#     # Redact sensitive customer data in cancellation requests
+#     redacted_requests = {}
+#     for rid, req in pending_requests.items():
+#         booking = req.get('booking', {})
+#         booking_owner_id = booking.get('user_id')
+#         redacted_booking = redact_dict(booking, 'bookings', user_role, user_id, booking_owner_id)
+#         redacted_req = dict(req)
+#         redacted_req['booking'] = redacted_booking
+#         redacted_requests[rid] = redacted_req
+    
+#     return render_template('seller_cancellations.html', requests=redacted_requests)
+
 @app.route('/seller/cancellation-requests')
 @login_required
 def seller_cancellation_requests():
-    """Seller page to view all cancellation requests"""
-    user_role = session.get('user_type', 'guest')
+    """Dedicated page for seller to view and manage all cancellation requests"""
+    from database import get_db_connection
+    
+    # Get user details from session
     user_id = session.get('user_id')
     
-    # Check if user is seller or admin
-    if user_role not in ['seller', 'admin']:
-        flash('Access denied. Seller privileges required.', 'error')
-        return redirect(url_for('index'))
+    # Get all cancellation requests
+    all_requests = []
+    pending_requests = []
+    history_requests = []
     
-    pending_requests = {
-        rid: req for rid, req in CANCELLATION_REQUESTS.items()
-        if req['status'] == 'Pending'
-    }
+    # Statistics
+    pending_count = 0
+    approved_count = 0
+    rejected_count = 0
     
-    # Redact sensitive customer data in cancellation requests
-    redacted_requests = {}
-    for rid, req in pending_requests.items():
-        booking = req.get('booking', {})
-        booking_owner_id = booking.get('user_id')
-        redacted_booking = redact_dict(booking, 'bookings', user_role, user_id, booking_owner_id)
-        redacted_req = dict(req)
-        redacted_req['booking'] = redacted_booking
-        redacted_requests[rid] = redacted_req
+    # Fetch cancellation requests from database
+    conn = None  # ← CHANGED
+    try:  # ← ADDED
+        conn = get_db_connection()  # ← CHANGED
+        cursor = conn.cursor(dictionary=True)
+        # Query to get all cancellation requests with booking and customer details
+        query = """
+            SELECT 
+                cr.request_id,
+                cr.booking_id,
+                cr.reason,
+                cr.details,
+                cr.request_date,
+                cr.status,
+                cr.reviewed_date,
+                cr.refund_percentage,
+                cr.refund_amount,
+                cr.processing_fee,
+                b.pickup_date,
+                b.return_date,
+                b.total_amount as original_amount,
+                v.name as vehicle_name,
+                v.model as vehicle_model,
+                u.first_name as customer_first_name,
+                u.last_name as customer_last_name,
+                u.email as customer_email
+            FROM CancellationRequests cr
+            JOIN Bookings b ON cr.booking_id = b.booking_id
+            JOIN Vehicles v ON b.vehicle_id = v.vehicle_id
+            JOIN Users u ON b.user_id = u.user_id
+            ORDER BY cr.request_date DESC
+        """
+        
+        cursor.execute(query)
+        results = cursor.fetchall()
+        
+        for row in results:
+            request_data = {
+                'request_id': row['request_id'],
+                'booking_id': row['booking_id'],
+                'reason': row['reason'],
+                'details': row['details'],
+                'request_date': row['request_date'].strftime('%B %d, %Y at %I:%M %p') if row['request_date'] else 'N/A',
+                'status': row['status'],
+                'reviewed_date': row['reviewed_date'].strftime('%B %d, %Y at %I:%M %p') if row['reviewed_date'] else 'N/A',
+                'refund_percentage': row['refund_percentage'],
+                'refund_amount': float(row['refund_amount']) if row['refund_amount'] else 0.0,
+                'processing_fee': float(row['processing_fee']) if row['processing_fee'] else 0.0,
+                'pickup_date': row['pickup_date'].strftime('%B %d, %Y') if row['pickup_date'] else 'N/A',
+                'return_date': row['return_date'].strftime('%B %d, %Y') if row['return_date'] else 'N/A',
+                'original_amount': float(row['original_amount']) if row['original_amount'] else 0.0,
+                'vehicle_name': f"{row['vehicle_name']} {row['vehicle_model']}" if row['vehicle_model'] else row['vehicle_name'],
+                'customer_name': f"{row['customer_first_name']} {row['customer_last_name']}",
+                'customer_email': row['customer_email']
+            }
+            
+            # Categorize by status
+            if row['status'] == 'Pending':
+                pending_requests.append(request_data)
+                pending_count += 1
+            elif row['status'] == 'Approved':
+                history_requests.append(request_data)
+                approved_count += 1
+            elif row['status'] == 'Rejected':
+                history_requests.append(request_data)
+                rejected_count += 1
+            
+            all_requests.append(request_data)
     
-    return render_template('seller_cancellations.html', requests=redacted_requests)
-
+    except Exception as e:
+        print(f"Error fetching cancellation requests: {e}")
+        import traceback
+        traceback.print_exc()
+        # Fallback to empty lists if database query fails
+        pending_requests = []
+        history_requests = []
+    
+    finally:
+        if conn and hasattr(conn, 'close'):  # ← CHANGED - safer closing
+            conn.close()
+    
+    # Calculate totals
+    total_count = len(all_requests)
+    
+    # Render the dedicated cancellations page
+    return render_template('seller_cancellations.html',
+                           pending_requests=pending_requests,
+                           history_requests=history_requests,
+                           pending_count=pending_count,
+                           approved_count=approved_count,
+                           rejected_count=rejected_count,
+                           total_count=total_count)
 
 @app.route('/seller/approve-cancellation/<request_id>', methods=['POST'])
 def seller_approve_cancellation(request_id):
@@ -3684,24 +3795,51 @@ def seller_index():
             session.modified = True
     return render_template('seller_index.html')
 
+# changed for cancellation requests page
+# @app.route('/seller/manage-listings')
+# def manage_listings():
+#     """Seller page to manage listings and view cancellation requests"""
+#     # Import the data from models
+#     from models import listings, CANCELLATION_REQUESTS
+
+#     # Filter for pending cancellation requests
+#     pending_requests = {
+#         rid: req for rid, req in CANCELLATION_REQUESTS.items()
+#         if req['status'] == 'Pending'
+#     }
+
+#     # Pass both listings and pending_requests to the template
+#     return render_template('manage_listings.html',
+#                            listings=listings,
+#                            pending_requests=pending_requests)
 
 @app.route('/seller/manage-listings')
 def manage_listings():
-    """Seller page to manage listings and view cancellation requests"""
+    """Seller page to manage listings"""
     # Import the data from models
-    from models import listings, CANCELLATION_REQUESTS
+    from models import listings
+    from database import get_db_connection
 
-    # Filter for pending cancellation requests
-    pending_requests = {
-        rid: req for rid, req in CANCELLATION_REQUESTS.items()
-        if req['status'] == 'Pending'
-    }
+    # Get pending cancellations count for badge
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM CancellationRequests WHERE status = 'Pending'")
+        result = cursor.fetchone()
+        pending_cancellations_count = result[0] if result else 0
+        cursor.close()
+    except Exception as e:
+        print(f"Error fetching pending cancellations count: {e}")
+        pending_cancellations_count = 0
+    finally:
+        if conn and hasattr(conn, 'close'):
+            conn.close()
 
-    # Pass both listings and pending_requests to the template
+    # Pass listings and pending count to the template
     return render_template('manage_listings.html',
                            listings=listings,
-                           pending_requests=pending_requests)
-
+                           pending_cancellations_count=pending_cancellations_count)
 
 @app.route('/seller/generate-vehicle-metrics/<int:vehicle_id>', methods=['POST'])
 def generate_vehicle_metrics(vehicle_id):
