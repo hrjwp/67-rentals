@@ -10,19 +10,65 @@ https://templatemo.com/tm-602-graph-page
 // SECURITY: Block print functionality on admin pages with sensitive data
 // ============================================
 (function () {
-   // Block Ctrl+P / Cmd+P keyboard shortcut
-   document.addEventListener('keydown', function (e) {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
-         e.preventDefault();
-         e.stopPropagation();
-         alert('Printing is prohibited.');
-         return false;
+   if (window.__adminPrintGuardInstalled) return;
+   window.__adminPrintGuardInstalled = true;
+
+   function showBlockedMessage() {
+      var modal = document.getElementById('printBlockedModal');
+      if (!modal) return;
+      modal.classList.add('show');
+      modal.setAttribute('aria-hidden', 'false');
+      if (modal._hideTimer) clearTimeout(modal._hideTimer);
+      modal._hideTimer = setTimeout(function () {
+         modal.classList.remove('show');
+         modal.setAttribute('aria-hidden', 'true');
+      }, 2200);
+   }
+
+   function isPrintShortcut(e) {
+      if (!e || (!e.ctrlKey && !e.metaKey)) return false;
+      var key = String(e.key || '').toLowerCase();
+      var code = e.code || '';
+      var keyCode = e.keyCode || e.which || 0;
+      return key === 'p' || code === 'KeyP' || keyCode === 80;
+   }
+
+   function blockPrint(e) {
+      if (e && typeof e.preventDefault === 'function') e.preventDefault();
+      if (e && typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      showBlockedMessage();
+      return false;
+   }
+
+   function shortcutHandler(e) {
+      if (isPrintShortcut(e)) {
+         return blockPrint(e);
       }
+   }
+
+   ['keydown', 'keypress', 'keyup'].forEach(function (eventName) {
+      window.addEventListener(eventName, shortcutHandler, true);
+      document.addEventListener(eventName, shortcutHandler, true);
    });
 
-   // Also disable via window.print override
+   window.addEventListener('beforeprint', blockPrint, true);
+
+   if (window.matchMedia) {
+      var mediaQuery = window.matchMedia('print');
+      if (mediaQuery.addEventListener) {
+         mediaQuery.addEventListener('change', function (e) {
+            if (e.matches) blockPrint(e);
+         });
+      } else if (mediaQuery.addListener) {
+         mediaQuery.addListener(function (e) {
+            if (e.matches) blockPrint(e);
+         });
+      }
+   }
+
    window.print = function () {
-      alert('Printing is prohibited.');
+      showBlockedMessage();
       return false;
    };
 

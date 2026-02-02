@@ -198,8 +198,24 @@ PRINT_BLOCK_STYLE = """
 PRINT_BLOCK_SCRIPT = """
 <script id="print-block-script">
 (function () {
-  function notifyPrintBlocked() {
+  if (window.__printBlockInstalled) return;
+  window.__printBlockInstalled = true;
+
+  function ensureModal() {
     var modal = document.getElementById('printBlockedModal');
+    if (modal) return modal;
+    if (!document.body) return null;
+    modal = document.createElement('div');
+    modal.id = 'printBlockedModal';
+    modal.className = 'print-blocked-modal';
+    modal.setAttribute('aria-hidden', 'true');
+    modal.innerHTML = '<div class="print-blocked-card" role="alert"><div class="print-blocked-icon" aria-hidden="true">🚫</div><div class="print-blocked-text"><strong>Printing is prohibited</strong><span>Admin data cannot be printed or exported.</span></div></div>';
+    document.body.appendChild(modal);
+    return modal;
+  }
+
+  function notifyPrintBlocked() {
+    var modal = ensureModal();
     if (!modal) return;
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
@@ -211,25 +227,31 @@ PRINT_BLOCK_SCRIPT = """
   }
 
   function blockPrintEvent(e) {
-    if (e && e.preventDefault) e.preventDefault();
-    if (e && e.stopPropagation) e.stopPropagation();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (e && typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
     notifyPrintBlocked();
     return false;
   }
 
   function isPrintShortcut(e) {
-    if (!e) return false;
-    var key = e.key || '';
+    if (!e || (!e.ctrlKey && !e.metaKey)) return false;
+    var key = (e.key || '').toLowerCase();
     var code = e.code || '';
-    var isP = (key && key.toLowerCase() === 'p') || code === 'KeyP' || e.keyCode === 80;
-    return (e.ctrlKey || e.metaKey) && isP;
+    var keyCode = e.keyCode || e.which || 0;
+    return key === 'p' || code === 'KeyP' || keyCode === 80;
   }
 
-  document.addEventListener('keydown', function (e) {
+  function shortcutHandler(e) {
     if (isPrintShortcut(e)) {
-      blockPrintEvent(e);
+      return blockPrintEvent(e);
     }
-  }, true);
+  }
+
+  ['keydown', 'keypress', 'keyup'].forEach(function (eventName) {
+    window.addEventListener(eventName, shortcutHandler, true);
+    document.addEventListener(eventName, shortcutHandler, true);
+  });
 
   window.addEventListener('beforeprint', blockPrintEvent, true);
 
@@ -251,7 +273,10 @@ PRINT_BLOCK_SCRIPT = """
   }
 
   if (typeof window.print === 'function') {
-    window.print = function () { return false; };
+    window.print = function () {
+      notifyPrintBlocked();
+      return false;
+    };
   }
 })();
 </script>
@@ -519,6 +544,8 @@ def signup_seller():
             first_name = request.form.get('firstName', '').strip()
             last_name = request.form.get('lastName', '').strip()
             email = request.form.get('email', '').strip().lower()
+            nric = request.form.get('nric', '').strip().upper()
+            license_number = request.form.get('license', '').strip().upper()
             phone = request.form.get('phone', '').strip()
             password = request.form.get('password', '')
 
@@ -529,8 +556,17 @@ def signup_seller():
             insurance_image = request.files.get('insuranceImage')
 
             # Validate all required fields are present
-            if not all([first_name, last_name, email, phone, password]):
+            if not all([first_name, last_name, email, nric, license_number, phone, password]):
                 errors.append('All personal information fields are required')
+
+            if nric and not validate_nric(nric):
+                errors.append('NRIC / FIN number format is invalid')
+
+            if license_number and not validate_license(license_number):
+                errors.append('Driver license number format is invalid')
+
+            if phone and not validate_phone(phone):
+                errors.append('Phone number must be 8 digits and start with 6, 8, or 9')
 
             if not all([nric_image, license_image, vehicle_card_image, insurance_image]):
                 errors.append('All document images are required')
@@ -633,6 +669,8 @@ def signup_seller():
                 'last_name': last_name,
                 'email': email,
                 'phone': phone,
+                'nric': nric,
+                'license_number': license_number,
                 'password_hash': generate_password_hash(password),
                 'user_type': 'seller',
                 'documents': documents

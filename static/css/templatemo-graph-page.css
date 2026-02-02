@@ -1241,7 +1241,7 @@ footer {
   }
 
   body::before {
-    content: "Printing is disabled for security reasons.";
+    content: "Printing is prohibited.";
     display: block;
     padding: 24px;
     font-size: 16px;
