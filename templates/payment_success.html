@@ -15,6 +15,72 @@
     <link href="{{ url_for('static', filename='css/templatemo-tiya-golf-club.css') }}" rel="stylesheet">
 
     <style>
+        :root {
+            --white-color: #ffffff;
+            --primary-color: #81B29A;
+            --secondary-color: #3D405B;
+            --section-bg-color: #F4F1DE;
+            --custom-btn-bg-color: #F2CC8F;
+            --custom-btn-bg-hover-color: #E07A5F;
+            --dark-color: #000000;
+            --p-color: #717275;
+            --link-hover-color: #F2CC8F;
+
+            --body-font-family: 'DM Sans', sans-serif;
+
+            --h1-font-size: 42px;
+            --h2-font-size: 36px;
+            --h3-font-size: 28px;
+            --h4-font-size: 24px;
+            --h5-font-size: 22px;
+            --h6-font-size: 20px;
+            --p-font-size: 18px;
+            --menu-font-size: 16px;
+            --btn-font-size: 14px;
+
+            --border-radius-large: 100px;
+            --border-radius-medium: 20px;
+            --border-radius-small: 10px;
+
+            --font-weight-normal: 400;
+            --font-weight-medium: 500;
+            --font-weight-bold: 700;
+        }
+
+        body {
+            background-color: var(--white-color);
+            font-family: var(--body-font-family);
+        }
+
+        .navbar {
+            background: #3D405B;
+            z-index: 99;
+            padding-top: 15px;
+            padding-bottom: 15px;
+        }
+
+        .navbar-brand-text {
+            color: var(--white-color);
+            font-size: 28px;
+            font-weight: 700;
+            margin-left: 10px;
+        }
+
+        .navbar-brand-text small {
+            display: block;
+            font-size: 14px;
+            font-weight: 400;
+        }
+
+        .nav-link {
+            color: var(--white-color) !important;
+            font-weight: 500;
+        }
+
+        .nav-link:hover {
+            color: #F2CC8F !important;
+        }
+
         .success-section {
             padding: 100px 0;
             min-height: 70vh;
@@ -134,51 +200,9 @@
 </head>
 
 <body>
-    <nav class="navbar navbar-expand-lg">
-        <div class="container">
-            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index_logged') }}">
-                <img src="{{ url_for('static', filename='images/logo.png') }}" class="navbar-brand-image img-fluid"
-                    alt="67 Rentals" style="width: 50px;">
-                <span class="navbar-brand-text">
-                    67
-                    <small>Rentals</small>
-                </span>
-            </a>
 
-<<<<<<< HEAD
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-lg-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index_logged') }}">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('vehicle_listing_logged') }}">Vehicles</a>
-                    </li>
-                </ul>
-                <div class="d-none d-lg-block ms-lg-3">
-                    <a class="btn btn-outline-light btn-sm" href="{{ url_for('profile') }}">
-                        <i class="bi bi-person"></i> Profile
-                    </a>
-                </div>
-                <div class="d-none d-lg-block ms-lg-2">
-                    <a class="btn btn-warning btn-sm" href="{{ url_for('logout') }}">
-                        <i class="bi bi-box-arrow-right"></i> Logout
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
-=======
-            .btn-secondary-custom:hover {
-                background-color: #3D405B;
-                color: #ffffff;
-            }
-        </style>
-    </head>
+{% include 'partials/navbar_tiya.html' %}
 
-    <body>
-        {% include 'partials/navbar_tiya.html' %}
->>>>>>> e0007d3 (Standardize navbars and admin retention UI)
 
     <section class="success-section">
         <div class="container">
