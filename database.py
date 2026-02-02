@@ -844,24 +844,72 @@ def mark_password_reset_otp_used(otp_id: int):
 
 
 def get_user_bookings(user_id):
-    """Get all bookings for a specific user"""
-    with get_db_connection() as conn:
-        cursor = conn.cursor(dictionary=True)
-        query = """
-            SELECT 
-                b.*, 
-                v.name as vehicle_name,      -- Fetched via JOIN
-                v.image as vehicle_image,    -- Fetched via JOIN
-                v.type as vehicle_type       -- Fetched via JOIN
-            FROM bookings b
-            LEFT JOIN vehicles v ON b.vehicle_id = v.id
-            WHERE b.user_id = %s
-            ORDER BY b.pickup_date DESC
-        """
-        cursor.execute(query, (user_id,))
-        bookings = cursor.fetchall()
-        cursor.close()
-        return bookings
+    """
+    Get all bookings for a specific user with complete data including payment info.
+
+    Args:
+        user_id: The user's ID
+
+    Returns:
+        List of booking dictionaries with all fields populated
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+
+            # FIXED QUERY: Include ALL necessary fields including payment_intent_id
+            query = """
+                SELECT 
+                    b.booking_id,
+                    b.user_id,
+                    b.vehicle_id,
+                    b.vehicle_name,
+                    b.pickup_date,
+                    b.return_date,
+                    b.pickup_location,
+                    b.days,
+                    b.total_amount,
+                    b.status,
+                    b.payment_intent_id,
+                    b.stripe_payment_id,
+                    b.created_at,
+                    b.updated_at
+                FROM bookings b
+                WHERE b.user_id = %s
+                ORDER BY b.created_at DESC
+            """
+
+            cursor.execute(query, (user_id,))
+            bookings = cursor.fetchall()
+            cursor.close()
+
+            # Process each booking to ensure data consistency
+            for booking in bookings:
+                # Ensure payment_intent_id is set (check both fields)
+                if not booking.get('payment_intent_id') and booking.get('stripe_payment_id'):
+                    booking['payment_intent_id'] = booking['stripe_payment_id']
+                elif not booking.get('payment_intent_id'):
+                    booking['payment_intent_id'] = None
+
+                # Convert datetime objects to strings
+                if booking.get('created_at'):
+                    booking['created_at'] = booking['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+                if booking.get('updated_at'):
+                    booking['updated_at'] = booking['updated_at'].strftime('%Y-%m-%d %H:%M:%S')
+                if booking.get('pickup_date'):
+                    if hasattr(booking['pickup_date'], 'strftime'):
+                        booking['pickup_date'] = booking['pickup_date'].strftime('%Y-%m-%d')
+                if booking.get('return_date'):
+                    if hasattr(booking['return_date'], 'strftime'):
+                        booking['return_date'] = booking['return_date'].strftime('%Y-%m-%d')
+
+            return bookings
+
+    except Exception as e:
+        print(f"Error retrieving user bookings: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
 
 
 # Ensure tables/columns exist when module is imported
