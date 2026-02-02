@@ -5116,24 +5116,42 @@ def decrypt_existing_users():
 # LOGGING & API (With Timezone Support)
 # ============================================
 
-@app.route('/api/security-logs')
+app.route('/api/security-logs')
 def get_security_logs_route():
-    """Get security logs with Singapore Time (SGT) conversion."""
+    # NOTE: The function name is changed to avoid conflict with the imported function
+    """Get security logs with filtering"""
+    severity = request.args.get('severity')
+    event_type = request.args.get('event_type')
+    user_id = request.args.get('user_id')
+    limit = request.args.get('limit', 100, type=int)
+
     try:
-        logs = get_security_logs(limit=request.args.get('limit', 100, type=int))
+        # CORRECTED: Calling the imported function directly
+        logs = get_security_logs(
+            severity=severity,
+            event_type=event_type,
+            user_id=user_id,
+            limit=limit
+        )
+
         sgt = ZoneInfo("Asia/Singapore")
+
+        # Format timestamps for JSON (Singapore time)
         formatted_logs = []
         for log in logs:
             log_copy = log.copy()
             if isinstance(log_copy['timestamp'], datetime):
                 dt = log_copy['timestamp']
+                # MySQL DATETIME is typically naive; treat as UTC then convert to SGT
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=timezone.utc)
                 log_copy['timestamp'] = dt.astimezone(sgt).strftime('%Y-%m-%d %H:%M:%S')
             formatted_logs.append(log_copy)
+
         return jsonify(formatted_logs)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 
 @app.route('/api/vehicle-fraud-logs')
@@ -5155,12 +5173,17 @@ def get_vehicle_fraud_logs_route():
             limit=limit
         )
 
-        # Format timestamps and decimals for JSON
+        sgt = ZoneInfo("Asia/Singapore")
+
+        # Format timestamps and decimals for JSON (Singapore time)
         formatted_logs = []
         for log in logs:
             log_copy = log.copy()
             if isinstance(log_copy['timestamp'], datetime):
-                log_copy['timestamp'] = log_copy['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+                dt = log_copy['timestamp']
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                log_copy['timestamp'] = dt.astimezone(sgt).strftime('%Y-%m-%d %H:%M:%S')
             if 'risk_score' in log_copy and log_copy['risk_score']:
                 # The float conversion is correct for JSON serialization
                 log_copy['risk_score'] = float(log_copy['risk_score'])
@@ -5169,6 +5192,7 @@ def get_vehicle_fraud_logs_route():
         return jsonify(formatted_logs)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 
 @app.route('/api/booking-fraud-logs')
@@ -5190,12 +5214,17 @@ def get_booking_fraud_logs_route():
             limit=limit
         )
 
-        # Format timestamps and decimals for JSON
+        sgt = ZoneInfo("Asia/Singapore")
+
+        # Format timestamps and decimals for JSON (Singapore time)
         formatted_logs = []
         for log in logs:
             log_copy = log.copy()
             if isinstance(log_copy['timestamp'], datetime):
-                log_copy['timestamp'] = log_copy['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+                dt = log_copy['timestamp']
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                log_copy['timestamp'] = dt.astimezone(sgt).strftime('%Y-%m-%d %H:%M:%S')
             if 'risk_score' in log_copy and log_copy['risk_score']:
                 log_copy['risk_score'] = float(log_copy['risk_score'])
             formatted_logs.append(log_copy)
