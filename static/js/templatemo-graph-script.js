@@ -15,14 +15,14 @@ https://templatemo.com/tm-602-graph-page
       if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
          e.preventDefault();
          e.stopPropagation();
-         alert('Printing is disabled on this page to protect sensitive user data.');
+         alert('Printing is prohibited.');
          return false;
       }
    });
 
    // Also disable via window.print override
    window.print = function () {
-      alert('Printing is disabled on this page to protect sensitive user data.');
+      alert('Printing is prohibited.');
       return false;
    };
 

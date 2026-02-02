@@ -128,7 +128,7 @@ PRINT_BLOCK_STYLE = """
     display: none !important;
   }
   body::before {
-    content: "Printing is disabled for security reasons.";
+    content: "Printing is prohibited.";
     display: block;
     padding: 24px;
     font-size: 16px;
@@ -1321,12 +1321,13 @@ def profile():
                     add_audit_log(
                         action='PROFILE_UPDATED',
                         user_id=user['user_id'],
+                        entity_type='USER',
+                        entity_id=user['user_id'],
+                        previous_values=old_values,
+                        new_values=new_values,
+                        reason=f'Profile updated for {user_email}',
                         ip_address=request.remote_addr,
-                        details=f'Profile updated for {user_email}',
-                        table_name='users',
-                        record_id=user['user_id'],
-                        previous_values=json.dumps(old_values),
-                        new_values=json.dumps(new_values)
+                        device_info=request.headers.get("User-Agent")
                     )
                 
                 session['user'] = form_values['email']
@@ -1646,10 +1647,11 @@ def forgot_password():
             add_audit_log(
                 action='PASSWORD_RESET_REQUESTED',
                 user_id=user['user_id'],
+                entity_type='USER',
+                entity_id=user['user_id'],
+                reason=f'Password reset requested for {email}',
                 ip_address=request.remote_addr,
-                details=f'Password reset requested for {email}',
-                table_name='users',
-                record_id=user['user_id']
+                device_info=request.headers.get("User-Agent")
             )
 
             session['password_reset_email'] = email
@@ -1700,10 +1702,11 @@ def forgot_password():
             add_audit_log(
                 action='PASSWORD_RESET_COMPLETED',
                 user_id=user['user_id'],
+                entity_type='USER',
+                entity_id=user['user_id'],
+                reason=f'Password reset completed for {email}',
                 ip_address=request.remote_addr,
-                details=f'Password reset completed for {email}',
-                table_name='users',
-                record_id=user['user_id']
+                device_info=request.headers.get("User-Agent")
             )
             
             session.pop('password_reset_step', None)
@@ -3497,10 +3500,11 @@ def delete_listing(listing_id):
         add_audit_log(
             action='LISTING_DELETED',
             user_id=session.get('user_id'),
+            entity_type='VEHICLE',
+            entity_id=listing_id,
+            reason=f"Listing deleted: {listing_to_delete.get('name', 'Unknown')} (ID: {listing_id})",
             ip_address=request.remote_addr,
-            details=f"Listing deleted: {listing_to_delete.get('name', 'Unknown')} (ID: {listing_id})",
-            table_name='vehicles',
-            record_id=listing_id
+            device_info=request.headers.get("User-Agent")
         )
         
         listings.remove(listing_to_delete)
@@ -3672,9 +3676,11 @@ def data_retention_purge():
     add_audit_log(
         action='DATA_PURGE_EXECUTED',
         user_id=session.get('user_id'),
+        entity_type='RETENTION',
+        entity_id='manual',
+        reason=f"Data purge executed: {result.get('purged_count', 0)} accounts purged",
         ip_address=request.remote_addr,
-        details=f"Data purge executed: {result.get('purged_count', 0)} accounts purged",
-        table_name='users'
+        device_info=request.headers.get("User-Agent")
     )
     
     if result.get('skipped_reason'):
@@ -3715,10 +3721,11 @@ def data_retention_extend_user(user_id):
     add_audit_log(
         action='RETENTION_EXTENDED',
         user_id=session.get('user_id'),
+        entity_type='USER',
+        entity_id=user_id,
+        reason=f"Retention extended for user_id {user_id} ({target_user.get('email') if target_user else 'unknown'}) by {extension_days} days",
         ip_address=request.remote_addr,
-        details=f"Retention extended for user_id {user_id} ({target_user.get('email') if target_user else 'unknown'}) by {extension_days} days",
-        table_name='users',
-        record_id=user_id
+        device_info=request.headers.get("User-Agent")
     )
     
     if extension_days == 0:
@@ -3754,12 +3761,13 @@ def data_retention_purge_user(user_id):
 
     # AUDIT: Log before individual user purge (CRITICAL - must log before deletion)
     add_audit_log(
-        action='USER_DATA_PURGED',
         user_id=session.get('user_id'),
+        action='USER_DATA_PURGED',
+        entity_type='USER',
+        entity_id=user_id,
+        reason=f"User data purged for user_id {user_id} ({user_row.get('email')})",
         ip_address=request.remote_addr,
-        details=f"User data purged for user_id {user_id} ({user_row.get('email')})",
-        table_name='users',
-        record_id=user_id
+        device_info=request.headers.get("User-Agent")
     )
     
     purge_user_data(user_id, user_row.get('email'))
@@ -3820,9 +3828,12 @@ def api_update_retention_policy(data_type):
         add_audit_log(
             action='RETENTION_POLICY_UPDATED',
             user_id=session.get('user_id'),
+            entity_type='RETENTION_POLICY',
+            entity_id=data_type,
+            new_values=data,
+            reason=f"Updated retention policy for {data_type}",
             ip_address=request.remote_addr,
-            details=f"Updated retention policy for {data_type}: {data}",
-            table_name='data_retention_policies'
+            device_info=request.headers.get("User-Agent")
         )
         return jsonify({"success": True, "message": f"Policy for {data_type} updated"})
     
@@ -3841,9 +3852,11 @@ def api_purge_retention_type(data_type):
     add_audit_log(
         action='DATA_TYPE_PURGED',
         user_id=session.get('user_id'),
+        entity_type='RETENTION_DATA',
+        entity_id=data_type,
+        reason=f"Purged {result.get('purged_count', 0)} records from {data_type}",
         ip_address=request.remote_addr,
-        details=f"Purged {result.get('purged_count', 0)} records from {data_type}",
-        table_name=data_type
+        device_info=request.headers.get("User-Agent")
     )
     
     return jsonify(result)
@@ -3861,9 +3874,11 @@ def api_purge_all_retention():
     add_audit_log(
         action='ALL_DATA_RETENTION_PURGED',
         user_id=session.get('user_id'),
+        entity_type='RETENTION_DATA',
+        entity_id='ALL',
+        reason=f"Purged {result.get('total_purged', 0)} total records across {result.get('types_processed', 0)} data types",
         ip_address=request.remote_addr,
-        details=f"Purged {result.get('total_purged', 0)} total records across {result.get('types_processed', 0)} data types",
-        table_name='data_retention_policies'
+        device_info=request.headers.get("User-Agent")
     )
     
     return jsonify(result)
