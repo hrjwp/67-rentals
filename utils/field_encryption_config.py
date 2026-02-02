@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple
 # Map of table_name -> list of column names that store encrypted values
 # Email is excluded from users table (needed for login lookup)
 SENSITIVE_FIELDS: Dict[str, List[str]] = {
-    "users": ["first_name", "last_name", "email", "phone_number", "nric", "license_number"],  # ← Add "email"
+    "users": ["first_name", "last_name", "phone_number", "nric", "license_number"] ,
     "incident_reports": [
         "full_name", "contact_number", "email", "booking_id",
         "incident_location", "incident_description"
