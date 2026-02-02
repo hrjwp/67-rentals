@@ -2135,53 +2135,88 @@ def cart():
 @app.route('/booking-history')
 @login_required
 def booking_history():
-    """Display user's booking history"""
+    """Display user's booking history with complete data including images"""
     user_email = session.get('user')
     user_role = session.get('user_type', 'user')
     user_id = session.get('user_id')
-    
-    if not user_email:
-        flash('Please login to view your bookings', 'error')
-        return redirect(url_for('login'))
 
-    # Try to get user from database first
+    if not user_email and not user_id:
+        flash('Please login to view your bookings', 'error')
+        return redirect(url_for('index'))
+
     bookings = []
+
     try:
-        user = get_user_by_email(user_email)
-        if user and user.get('user_id'):
-            # Get user bookings from database
-            raw_bookings = get_user_bookings(user.get('user_id'))
-            # Redact sensitive booking data based on user permissions
+        if user_id:
+            raw_bookings = get_user_bookings(user_id)
+
+            # Process each booking to ensure all fields are present
+            for booking in raw_bookings:
+                booking.setdefault('booking_id', 'N/A')
+                booking.setdefault('vehicle_name', 'Unknown Vehicle')
+                booking.setdefault('pickup_date', 'N/A')
+                booking.setdefault('return_date', 'N/A')
+                booking.setdefault('days', 0)
+                booking.setdefault('pickup_location', 'N/A')
+                booking.setdefault('total_amount', 0.0)
+                booking.setdefault('status', 'Pending')
+
+                # Ensure payment_intent_id is included
+                if not booking.get('payment_intent_id'):
+                    booking['payment_intent_id'] = booking.get('stripe_payment_id') or None
+
+                # Get vehicle image from VEHICLES dict
+                vehicle_id = booking.get('vehicle_id')
+                if vehicle_id and vehicle_id in VEHICLES:
+                    booking['vehicle_image'] = VEHICLES[vehicle_id].get('image', 'images/default.png')
+                    booking['vehicle_name'] = VEHICLES[vehicle_id].get('name', booking.get('vehicle_name'))
+                    booking['vehicle_type'] = VEHICLES[vehicle_id].get('type', 'Unknown')
+                else:
+                    booking['vehicle_image'] = 'images/default.png'
+                    booking['vehicle_type'] = 'Unknown'
+
+            # Redact sensitive data
             from data_classification import redact_list
             bookings = redact_list(raw_bookings, 'bookings', user_role, user_id)
-    except Exception as e:
-        # If database fails, try session-based bookings
-        print(f"Database error: {e}")
-        # Fallback to session-based bookings if available
-        pass
 
-    # If no database bookings, check session-based bookings (for demo/testing)
+    except Exception as e:
+        print(f"❌ Database error: {e}")
+        import traceback
+        traceback.print_exc()
+
+    # Fallback to in-memory BOOKINGS
     if not bookings:
-        # Try to get bookings from session or models
         from models import BOOKINGS
-        # Filter bookings by user email if available
+
         session_bookings = []
         for booking_id, booking in BOOKINGS.items():
-            if booking.get('customer_email') == user_email:
-                session_bookings.append(booking)
-        # Redact session bookings as well
-        from data_classification import redact_list
-        bookings = redact_list(session_bookings, 'bookings', user_role, user_id)
+            if booking.get('customer_email') == user_email or booking.get('user_id') == user_id:
+                # Ensure all fields exist
+                booking.setdefault('booking_id', booking_id)
+                booking.setdefault('vehicle_name', 'Unknown Vehicle')
+                booking.setdefault('vehicle_image', 'images/default.png')
+                booking.setdefault('vehicle_type', 'Unknown')
+                booking.setdefault('pickup_date', 'N/A')
+                booking.setdefault('return_date', 'N/A')
+                booking.setdefault('days', 0)
+                booking.setdefault('pickup_location', 'N/A')
+                booking.setdefault('total_amount', 0.0)
+                booking.setdefault('status', 'Pending')
+                booking.setdefault('payment_intent_id', 'N/A')
 
-    # Get cart count for navbar
+                session_bookings.append(booking)
+
+        if session_bookings:
+            from data_classification import redact_list
+            bookings = redact_list(session_bookings, 'bookings', user_role, user_id)
+
     cart_count = get_cart_count(session)
 
     return render_template('booking_history.html',
                            bookings=bookings,
                            cart_count=cart_count,
-                        user_email = session.get('user'),
-                        user_name = session.get('user_name'))
-
+                           user_email=session.get('user'),
+                           user_name=session.get('user_name'))
 
 @app.route('/cart_logged')
 def cart_logged():
