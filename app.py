@@ -1119,7 +1119,7 @@ def admin_approve_user(ticket_id):
         from database import get_db_connection
         with get_db_connection() as conn:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT user_id FROM signup_tickets WHERE ticket_id = %s", (ticket_id,))
+            cursor.execute("SELECT user_id FROM signup_tickets WHERE id = %s", (ticket_id,))
             ticket_info = cursor.fetchone()
             cursor.close()
             
@@ -1129,7 +1129,7 @@ def admin_approve_user(ticket_id):
                 action='Admin Approve User',
                 entity_type='USER',
                 entity_id=ticket_info['user_id'],
-                new_values=json.dumps({'status': 'approved', 'ticket_id': ticket_id}),
+                new_values={'status': 'approved', 'ticket_id': ticket_id},
                 result='Success',
                 ip_address=request.remote_addr,
                 device_info=request.headers.get("User-Agent")
@@ -1159,7 +1159,7 @@ def admin_reject_user(ticket_id):
         from database import get_db_connection
         with get_db_connection() as conn:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT user_id FROM signup_tickets WHERE ticket_id = %s", (ticket_id,))
+            cursor.execute("SELECT user_id FROM signup_tickets WHERE id = %s", (ticket_id,))
             ticket_info = cursor.fetchone()
             cursor.close()
             
@@ -1169,7 +1169,7 @@ def admin_reject_user(ticket_id):
                 action='Admin Reject User',
                 entity_type='USER',
                 entity_id=ticket_info['user_id'],
-                new_values=json.dumps({'status': 'rejected', 'ticket_id': ticket_id}),
+                new_values={'status': 'rejected', 'ticket_id': ticket_id},
                 result='Success',
                 severity='Medium',
                 ip_address=request.remote_addr,
