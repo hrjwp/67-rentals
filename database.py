@@ -1180,7 +1180,7 @@ def add_booking_fraud_log(user_id: str, booking_id: str, vehicle_id: str,
                           event_type: str, severity: str, risk_score: float,
                           description: str, action_taken: str = None,
                           booking_data: Dict = None, payment_data: Dict = None,
-                          ml_indicators: List[str] = None) -> int:
+                          ml_indicators: List[str] = None, ip_address: str = None) -> int:
     """Add a booking fraud log entry"""
     # CORRECTED: Use get_db_connection() instead of self.get_connection()
     with get_db_connection() as conn:
@@ -1199,20 +1199,22 @@ def add_booking_fraud_log(user_id: str, booking_id: str, vehicle_id: str,
         # Convert ml_indicators to JSON
         ml_indicators_json = json.dumps(ml_indicators) if ml_indicators else None
 
+        # Build query with optional fields (ip_address, fraud_score, fraud_type)
+        # These are aliases for compatibility
         query = """
             INSERT INTO booking_fraud_logs 
             (user_id, booking_id, vehicle_id, event_type, severity, risk_score,
              description, action_taken, bookings_count_last_hour, bookings_count_last_day,
              avg_interval_minutes, decline_count, cards_attempted, last_decline_reason,
-             ml_indicators)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             ml_indicators, ip_address, fraud_score, fraud_type)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
         cursor.execute(query, (user_id, booking_id, vehicle_id, event_type, severity,
                                risk_score, description, action_taken,
                                bookings_count_last_hour, bookings_count_last_day,
                                avg_interval_minutes, decline_count, cards_attempted,
-                               last_decline_reason, ml_indicators_json))
+                               last_decline_reason, ml_indicators_json, ip_address, risk_score, event_type))
         conn.commit()
         log_id = cursor.lastrowid
         cursor.close()
