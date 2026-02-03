@@ -157,6 +157,32 @@
             gap: 0.5rem;
             flex-wrap: wrap;
         }
+        .approval-card.minor-case {
+            border-color: rgba(234, 88, 12, 0.45);
+            box-shadow: 0 18px 40px rgba(234, 88, 12, 0.12);
+        }
+        .minor-warning {
+            display: flex;
+            gap: 0.55rem;
+            align-items: flex-start;
+            margin-top: 0.85rem;
+            padding: 0.7rem 0.9rem;
+            border-radius: 10px;
+            border: 1px solid #fdba74;
+            background: #fff7ed;
+            color: #9a3412;
+            font-size: 0.86rem;
+            font-weight: 600;
+        }
+        .minor-warning i {
+            margin-top: 0.1rem;
+        }
+        .age-meta {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+        }
         .cta-button.secondary { background: #1f2937; }
         .section-title { margin-bottom: 1rem; }
         .section-subtitle { color: #94a3b8; margin-bottom: 1.5rem; }
@@ -413,7 +439,7 @@
                         <h3 class="section-title" style="margin-top:0;">Users</h3>
                         {% if pending_users %}
                             {% for user in pending_users %}
-                                <div class="approval-card">
+                                <div class="approval-card{% if user.is_minor is sameas true %} minor-case{% endif %}">
                                     <div class="approval-header">
                                         <div>
                                             <div class="approval-name">{{ user.first_name }} {{ user.last_name }}</div>
@@ -424,6 +450,12 @@
                                         </div>
                                         <span class="admin-badge badge-user">User</span>
                                     </div>
+                                    {% if user.is_minor is sameas true %}
+                                    <div class="minor-warning">
+                                        <i class="bi bi-exclamation-triangle-fill"></i>
+                                        <span>Age warning: applicant appears to be under 18 based on NRIC. Please verify documents and approve or reject with caution.</span>
+                                    </div>
+                                    {% endif %}
                                     <div class="detail-grid">
                                         <div class="detail-item">
                                             <span class="detail-label">Email</span>
@@ -443,7 +475,12 @@
                                         </div>
                                         <div class="detail-item">
                                             <span class="detail-label">Estimated Age</span>
-                                            <span class="detail-value">{% if user.estimated_age is not none %}{{ user.estimated_age }} yrs{% else %}—{% endif %}</span>
+                                            <span class="detail-value age-meta">
+                                                {% if user.estimated_age is not none %}{{ user.estimated_age }} yrs{% else %}—{% endif %}
+                                                {% if user.is_minor is sameas true %}
+                                                <span class="admin-badge badge-age minor">Under 18</span>
+                                                {% endif %}
+                                            </span>
                                         </div>
                                     </div>
                                     <div class="approval-footer">
@@ -459,7 +496,13 @@
                                             <form method="post" action="{{ url_for('admin_reject_user', ticket_id=user.ticket_id) }}">
                                                 <button type="submit" class="cta-button secondary" style="padding:10px 14px;">Reject</button>
                                             </form>
-                                            <form method="post" action="{{ url_for('admin_approve_user', ticket_id=user.ticket_id) }}">
+                                            <form method="post"
+                                                action="{{ url_for('admin_approve_user', ticket_id=user.ticket_id) }}"
+                                                {% if user.is_minor is sameas true %}
+                                                class="minor-approval-form"
+                                                data-applicant-name="{{ (user.first_name ~ ' ' ~ user.last_name)|trim|e }}"
+                                                data-age-message="{{ user.age_message|default('Age appears below 18.')|e }}"
+                                                {% endif %}>
                                                 <button type="submit" class="cta-button" style="padding:10px 14px;">Approve</button>
                                             </form>
                                         </div>
@@ -469,12 +512,14 @@
                         {% else %}
                         <p class="section-subtitle" style="margin:0;">No pending user registrations.</p>
                         {% endif %}
-<div class="grid-item full-width">
+                    </div>
+                </div>
+                <div class="grid-item full-width">
                     <div class="admin-card">
                         <h3 class="section-title" style="margin-top:0;">Sellers</h3>
                         {% if pending_sellers %}
                             {% for seller in pending_sellers %}
-                                <div class="approval-card">
+                                <div class="approval-card{% if seller.is_minor is sameas true %} minor-case{% endif %}">
                                     <div class="approval-header">
                                         <div>
                                             <div class="approval-name">{{ seller.first_name }} {{ seller.last_name }}</div>
@@ -485,6 +530,12 @@
                                         </div>
                                         <span class="admin-badge badge-seller">Seller</span>
                                     </div>
+                                    {% if seller.is_minor is sameas true %}
+                                    <div class="minor-warning">
+                                        <i class="bi bi-exclamation-triangle-fill"></i>
+                                        <span>Age warning: applicant appears to be under 18 based on NRIC. Please verify documents and approve or reject with caution.</span>
+                                    </div>
+                                    {% endif %}
                                     <div class="detail-grid">
                                         <div class="detail-item">
                                             <span class="detail-label">Email</span>
@@ -504,7 +555,12 @@
                                         </div>
                                         <div class="detail-item">
                                             <span class="detail-label">Estimated Age</span>
-                                            <span class="detail-value">{% if seller.estimated_age is not none %}{{ seller.estimated_age }} yrs{% else %}—{% endif %}</span>
+                                            <span class="detail-value age-meta">
+                                                {% if seller.estimated_age is not none %}{{ seller.estimated_age }} yrs{% else %}—{% endif %}
+                                                {% if seller.is_minor is sameas true %}
+                                                <span class="admin-badge badge-age minor">Under 18</span>
+                                                {% endif %}
+                                            </span>
                                         </div>
                                     </div>
                                     <div class="approval-footer">
@@ -518,7 +574,13 @@
                                             <form method="post" action="{{ url_for('admin_reject_user', ticket_id=seller.ticket_id) }}">
                                                 <button type="submit" class="cta-button secondary" style="padding:10px 14px;">Reject</button>
                                             </form>
-                                            <form method="post" action="{{ url_for('admin_approve_user', ticket_id=seller.ticket_id) }}">
+                                            <form method="post"
+                                                action="{{ url_for('admin_approve_user', ticket_id=seller.ticket_id) }}"
+                                                {% if seller.is_minor is sameas true %}
+                                                class="minor-approval-form"
+                                                data-applicant-name="{{ (seller.first_name ~ ' ' ~ seller.last_name)|trim|e }}"
+                                                data-age-message="{{ seller.age_message|default('Age appears below 18.')|e }}"
+                                                {% endif %}>
                                                 <button type="submit" class="cta-button" style="padding:10px 14px;">Approve</button>
                                             </form>
                                         </div>
@@ -528,6 +590,12 @@
                         {% else %}
                         <p class="section-subtitle" style="margin:0;">No pending seller registrations.</p>
                         {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
 <!-- Data Retention Overview -->
     <section class="dashboard-section" id="retention-overview">
         <div class="dashboard-container">
@@ -857,6 +925,17 @@
 
             updateView();
         }
+
+        document.querySelectorAll('.minor-approval-form').forEach(form => {
+            form.addEventListener('submit', (event) => {
+                const applicantName = form.dataset.applicantName || 'This applicant';
+                const ageMessage = form.dataset.ageMessage || 'NRIC indicates age below 18.';
+                const warning = `Minor warning for ${applicantName}.\n${ageMessage}\n\nProceed with approval?`;
+                if (!window.confirm(warning)) {
+                    event.preventDefault();
+                }
+            });
+        });
 
         document.addEventListener('keydown', (e) => {
             const isPrintKey = e.key === 'p' || e.key === 'P' || e.code === 'KeyP' || e.keyCode === 80;

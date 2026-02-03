@@ -1077,22 +1077,6 @@ def admin_panel():
         decrypted = _safe_decrypt(value)
         return '' if _looks_encrypted(decrypted) else decrypted
 
-    def _estimate_age_from_nric(nric_value):
-        if not nric_value:
-            return None
-        nric_value = str(nric_value).strip().upper()
-        match = re.match(r'^([STFG])(\d{2})\d{5}[A-Z]$', nric_value)
-        if not match:
-            return None
-        prefix, yy = match.group(1), int(match.group(2))
-        century = 1900 if prefix in ('S', 'F') else 2000
-        year = century + yy
-        current_year = datetime.now().year
-        age = current_year - year
-        if age < 0 or age > 120:
-            return None
-        return age
-
     def adapt(ticket):
         docs = ticket.get('documents', {})
         first_name = _clean_value(ticket.get('first_name'))
@@ -1100,7 +1084,20 @@ def admin_panel():
         phone = _clean_value(ticket.get('phone'))
         nric = _clean_value(ticket.get('nric'))
         license_number = _clean_value(ticket.get('license_number'))
-        estimated_age = _estimate_age_from_nric(nric)
+
+        # Age hints are derived from NRIC only for admin review context.
+        if nric:
+            age_info = extract_age_from_nric(nric)
+        else:
+            age_info = {
+                "age": None,
+                "is_minor": None,
+                "confidence": "unknown",
+                "message": "No NRIC provided"
+            }
+
+        estimated_age = age_info.get("age")
+        is_minor = age_info.get("is_minor") is True
 
         if not first_name and not last_name:
             email = ticket.get('email', '')
@@ -1122,28 +1119,20 @@ def admin_panel():
             'phone': phone or None,
             'nric': nric or None,
             'estimated_age': estimated_age,
+            'is_minor': is_minor,
+            'age_message': age_info.get('message'),
+            'age_confidence': age_info.get('confidence'),
             'license_number': license_number or None,
             'user_type': ticket.get('user_type'),
             'created_at': ticket.get('submitted_at'),
             'status': ticket.get('status'),
+            'age_info': age_info,
             'nric_image': doc_url(docs.get('nric_image')),
             'license_image': doc_url(docs.get('license_image')),
             'vehicle_card_image': doc_url(docs.get('vehicle_card_image')),
             'insurance_image': doc_url(docs.get('insurance_image')),
         }
-        
-        # Extract age from NRIC for admin review
-        if nric:
-            age_info = extract_age_from_nric(nric)
-            ticket_data['age_info'] = age_info
-        else:
-            ticket_data['age_info'] = {
-                "age": None,
-                "is_minor": None,
-                "confidence": "unknown",
-                "message": "No NRIC provided"
-            }
-        
+
         # Redact sensitive fields based on user permissions
         return redact_dict(ticket_data, 'users', user_role, user_id, ticket.get('user_id'))
 
