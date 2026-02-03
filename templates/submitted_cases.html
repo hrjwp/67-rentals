@@ -955,7 +955,7 @@
 
                 if (searchTerm) {
                     filtered = filtered.filter(r =>
-                        (r.id || '').toLowerCase().includes(searchTerm) ||
+                        String(r.id || '').toLowerCase() ||
                         (r.full_name || '').toLowerCase().includes(searchTerm) ||
                         (r.vehicle_name || '').toLowerCase().includes(searchTerm) ||
                         (r.booking_id || '').toLowerCase().includes(searchTerm)
