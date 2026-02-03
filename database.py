@@ -1125,59 +1125,26 @@ def get_incident_reports(email: str = None, user_id: int = None) -> List[Dict[st
         if not conn:
             print("ERROR: Failed to connect to database in get_incident_reports")
             return []
-        
-        cursor = conn.cursor(dictionary=True)
-        clauses = []
-        params = []
-        
-        # Match by user_id OR email (whichever is available)
-        # Since email is encrypted, we need to encrypt the search email first
-        # Use user_id for exact match, or search all and filter by decrypted email
-        if user_id and email:
-            # If we have user_id, use that (more efficient)
-            clauses.append("user_id = %s")
-            params.append(user_id)
-        elif user_id:
-            clauses.append("user_id = %s")
-            params.append(user_id)
-        elif email:
-            # Email is encrypted, so we need to search all and filter after decryption
-            # For now, we'll get all reports and filter by email after decryption
-            # This is less efficient but necessary for encrypted data
-            pass  # Will filter after decryption
 
-        # Build query - if email search without user_id, get all and filter after decryption
-        if email and not user_id:
-            # Get all reports, will filter by email after decryption
-            query = """
-                SELECT
-                    id, user_id, full_name, contact_number, email,
-                    booking_id, vehicle_name, incident_date, incident_time,
-                    incident_location, incident_type, severity_level,
-                    incident_description, files_json, status, created_at
-                FROM incident_reports
-                ORDER BY created_at DESC
-            """
-            cursor.execute(query)
-        else:
-            # Use WHERE clause for user_id or no filter
-            where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-            query = f"""
-                SELECT
-                    id, user_id, full_name, contact_number, email,
-                    booking_id, vehicle_name, incident_date, incident_time,
-                    incident_location, incident_type, severity_level,
-                    incident_description, files_json, status, created_at
-                FROM incident_reports
-                {where}
-                ORDER BY created_at DESC
-            """
-            cursor.execute(query, tuple(params))
-        
+        cursor = conn.cursor(dictionary=True)
+
+        # Get ALL reports first (filtering happens after decryption)
+        query = """
+            SELECT
+                id, user_id, full_name, contact_number, email,
+                booking_id, vehicle_name, incident_date, incident_time,
+                incident_location, incident_type, severity_level,
+                incident_description, files_json, status, created_at
+            FROM incident_reports
+            ORDER BY created_at DESC
+        """
+        cursor.execute(query)
         rows = cursor.fetchall()
-        
+
+        print(f"📊 get_incident_reports(): Fetched {len(rows)} total reports from database")
+
         # Decrypt sensitive fields and hydrate files list from files_json for each report
-        filtered_rows = []
+        all_reports = []
         for row in rows:
             # Decrypt sensitive fields
             try:
@@ -1204,31 +1171,54 @@ def get_incident_reports(email: str = None, user_id: int = None) -> List[Dict[st
                     # MySQL connector may already return JSON as Python object
                     if isinstance(files_json_val, str):
                         row['files'] = json.loads(files_json_val)
+                        print(f"  📁 Report {row.get('id')}: Parsed {len(row['files'])} files from JSON string")
                     else:
                         row['files'] = list(files_json_val)
+                        print(f"  📁 Report {row.get('id')}: Got {len(row['files'])} files from JSON object")
                 except Exception as e:
                     print(f"WARNING: Error parsing files_json for report {row.get('id')}: {e}")
+                    print(f"  Raw value: {repr(files_json_val)}")
                     row['files'] = []
             else:
                 row['files'] = []
-            
-            # Filter by email if email was provided but no user_id (since email is encrypted)
-            if email and not user_id:
-                if row.get('email') and row['email'].lower() == email.lower():
-                    filtered_rows.append(row)
-            else:
-                filtered_rows.append(row)
-        
-        rows = filtered_rows
-        
-        cursor.close()
-        conn.close()
-        return rows
+                print(f"  ⚠️  Report {row.get('id')}: No files_json value")
+
+            all_reports.append(row)
+
+        # Filter by user_id or email if specified
+        if user_id and email:
+            # Filter by user_id first (more efficient)
+            filtered = [r for r in all_reports if r.get('user_id') == user_id]
+            print(f"🔍 Filtered to {len(filtered)} reports for user_id={user_id}")
+            cursor.close()
+            conn.close()
+            return filtered
+        elif user_id:
+            filtered = [r for r in all_reports if r.get('user_id') == user_id]
+            print(f"🔍 Filtered to {len(filtered)} reports for user_id={user_id}")
+            cursor.close()
+            conn.close()
+            return filtered
+        elif email:
+            # Filter by email after decryption
+            filtered = [r for r in all_reports if r.get('email') and r['email'].lower() == email.lower()]
+            print(f"🔍 Filtered to {len(filtered)} reports for email={email}")
+            cursor.close()
+            conn.close()
+            return filtered
+        else:
+            # No filter - return all
+            print(f"🔍 No filter - returning all {len(all_reports)} reports")
+            cursor.close()
+            conn.close()
+            return all_reports
+
     except Exception as e:
         print(f"ERROR in get_incident_reports: {e}")
         import traceback
         print(traceback.format_exc())
         return []
+
 
 
 def update_incident_status(report_id: int, status: str) -> bool:
