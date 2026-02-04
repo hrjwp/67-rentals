@@ -8,6 +8,7 @@ import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 from utils.encryption import encrypt_value, decrypt_value
+import hashlib
 
 
 def create_connection():
@@ -68,7 +69,7 @@ def _safe_alter(cursor, statement: str):
         cursor.execute(statement)
     except Error as exc:
         # Ignore duplicate field, unknown column, and duplicate key errors
-        if exc.errno in {errorcode.ER_DUP_FIELDNAME, errorcode.ER_BAD_FIELD_ERROR, errorcode.ER_DUP_KEYNAME}:
+        if exc.errno in {errorcode.ER_DUP_FIELDNAME, errorcode.ER_BAD_FIELD_ERROR, errorcode.ER_DUP_KEYNAME, errorcode.ER_NO_SUCH_TABLE}:
             return
         # For MODIFY operations, also ignore warnings about data truncation if increasing size
         if 'MODIFY' in statement.upper() and exc.errno == 1265:  # Data truncated warning
@@ -359,6 +360,9 @@ def ensure_schema():
         _safe_alter(cursor, "ALTER TABLE users ADD COLUMN user_type VARCHAR(20) DEFAULT 'user'")
         _safe_alter(cursor, "ALTER TABLE users ADD COLUMN nric VARCHAR(20) NULL")
         _safe_alter(cursor, "ALTER TABLE users ADD COLUMN license_number VARCHAR(50) NULL")
+
+        _safe_alter(cursor, "ALTER TABLE security_logs ADD COLUMN prev_hash VARCHAR(64) NULL")
+        _safe_alter(cursor, "ALTER TABLE security_logs ADD COLUMN event_hash VARCHAR(64) NULL")
         # Increase column sizes to accommodate encrypted values (encrypted data is base64, much longer)
         _safe_alter(cursor, "ALTER TABLE users MODIFY phone_number VARCHAR(255)")
         _safe_alter(cursor, "ALTER TABLE users MODIFY first_name VARCHAR(255)")
@@ -376,6 +380,15 @@ def ensure_schema():
         _safe_alter(cursor, "ALTER TABLE incident_reports MODIFY incident_location VARCHAR(1000)")
 
         conn.commit()
+
+
+def _canonical_json(data: Dict[str, Any]) -> str:
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _compute_security_log_hash(event_data: Dict[str, Any], prev_hash: str) -> str:
+    payload = _canonical_json(event_data) + "|" + (prev_hash or "")
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def add_vehicle_trip(
@@ -927,19 +940,95 @@ def add_security_log(user_id: str, event_type: str, severity: str,
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
+        prev_hash = None
+        try:
+            cursor.execute(
+                "SELECT event_hash FROM security_logs WHERE event_hash IS NOT NULL ORDER BY timestamp DESC LIMIT 1"
+            )
+            row = cursor.fetchone()
+            if row:
+                prev_hash = row[0]
+        except Exception:
+            prev_hash = None
+
+        event_data = {
+            "user_id": user_id,
+            "event_type": event_type,
+            "severity": severity,
+            "description": description,
+            "ip_address": ip_address,
+            "device_info": device_info,
+            "action_taken": action_taken,
+        }
+        event_hash = _compute_security_log_hash(event_data, prev_hash)
+
         query = """
             INSERT INTO security_logs 
-            (user_id, event_type, severity, description, ip_address, device_info, action_taken)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            (user_id, event_type, severity, description, ip_address, device_info, action_taken, prev_hash, event_hash)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
-        cursor.execute(query, (user_id, event_type, severity, description,
-                               ip_address, device_info, action_taken))
+        cursor.execute(query, (
+            user_id, event_type, severity, description, ip_address, device_info, action_taken
+            , prev_hash, event_hash
+        ))
+
         conn.commit()
         log_id = cursor.lastrowid
         cursor.close()
-
         return log_id
+
+
+def verify_security_logs_hash_chain(limit: int = None) -> Dict[str, Any]:
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        q = """
+            SELECT timestamp, user_id, event_type, severity, description, ip_address, device_info, action_taken,
+                   prev_hash, event_hash
+            FROM security_logs
+            ORDER BY timestamp ASC
+        """
+        if limit:
+            q += " LIMIT %s"
+            cursor.execute(q, (int(limit),))
+        else:
+            cursor.execute(q)
+
+        rows = cursor.fetchall()
+        cursor.close()
+
+    expected_prev = None
+    checked = 0
+    for row in rows:
+        checked += 1
+        if (row.get("prev_hash") or None) != expected_prev:
+            return {
+                "valid": False,
+                "checked": checked,
+                "reason": "prev_hash mismatch",
+            }
+
+        event_data = {
+            "user_id": row.get("user_id"),
+            "event_type": row.get("event_type"),
+            "severity": row.get("severity"),
+            "description": row.get("description"),
+            "ip_address": row.get("ip_address"),
+            "device_info": row.get("device_info"),
+            "action_taken": row.get("action_taken"),
+        }
+        computed = _compute_security_log_hash(event_data, expected_prev)
+        if (row.get("event_hash") or "") != computed:
+            return {
+                "valid": False,
+                "checked": checked,
+                "reason": "event_hash mismatch",
+            }
+
+        expected_prev = computed
+
+    return {"valid": True, "checked": checked}
+
 
 def get_security_logs(severity: str = None, event_type: str = None,
                       user_id: str = None, limit: int = 100) -> List[Dict]:
