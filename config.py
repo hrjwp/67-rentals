@@ -6,11 +6,12 @@ def _env(key: str, default: str = "") -> str:
     return os.environ.get(key, default).strip()
 class Config:
     """Application configuration"""
-
+    DB_ENCRYPTION_KEY = _env("DB_ENCRYPTION_KEY")
     # Flask
     SECRET_KEY = _env("SECRET_KEY")
     # AES data encryption key (URL-safe base64, 16/24/32 bytes when decoded)
     DATA_ENCRYPTION_KEY = _env("DATA_ENCRYPTION_KEY")
+    BACKUP_ENCRYPTION_KEY = _env("BACKUP_ENCRYPTION_KEY")
     # Session cookie settings - will be overridden by app.py based on HTTPS usage
     SESSION_COOKIE_SECURE = True  # Will be set dynamically based on HTTPS
     SESSION_COOKIE_HTTPONLY = True     # block JS access to cookies

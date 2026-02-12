@@ -14,6 +14,7 @@ from io import BytesIO
 from dotenv import load_dotenv
 from functools import wraps
 import uuid, time
+from werkzeug.exceptions import HTTPException
 
 # --- Automated System Setup (Integrated from app1) ---
 from utils.auto_setup import ensure_env_file
@@ -4948,45 +4949,37 @@ def serve_incident_file(report_id, filename):
             u = session.get('user')
             if u and '@' in u:
                 user_email = u
-        user_id = session.get('user_id')
 
-        if user_id:
-            reports = get_incident_reports(user_id=user_id)
-        elif user_email:
-            reports = get_incident_reports(email=user_email)
+        user_id = session.get('user_id')
+        is_admin = session.get('user_type') == 'admin'  # ✅ allow admin to view all
+
+        if is_admin:
+            reports = get_incident_reports()  # admin can access all
         else:
-            reports = []
+            if user_id:
+                reports = get_incident_reports(user_id=user_id)
+            elif user_email:
+                reports = get_incident_reports(email=user_email)
+            else:
+                reports = []
 
         report = next((r for r in reports if r.get('id') == report_id), None)
 
         if not report:
-            # Last-chance lookup by ID, then enforce ownership via user_id OR email.
-            all_reports = get_incident_reports()
-            report = next((r for r in all_reports if r.get('id') == report_id), None)
-            if not report:
-                abort(404, description="Report not found")
+            abort(404, description="Report not found")
 
+        # Non-admin must own the report
+        if not is_admin:
             owns_by_user = bool(user_id) and (report.get('user_id') == user_id)
             owns_by_email = bool(user_email) and bool(report.get('email')) and (
-                        report['email'].lower() == user_email.lower())
+                report['email'].lower() == user_email.lower()
+            )
             if not (owns_by_user or owns_by_email):
                 abort(403, description="Access denied")
-            if report:
-                # Allow access if EITHER:
-                # - logged in user_id matches report.user_id
-                # - OR email matches (for non-logged-in submissions)
-                report_user_id = report.get('user_id')
 
-                if user_id and report_user_id and int(report_user_id) == int(user_id):
-                    pass  # OK
-                elif user_email and report.get('email') and report['email'].lower() == user_email.lower():
-                    pass  # OK
-                else:
-                    abort(403, description="Access denied")
         # Check if file exists in report
         report_files = report.get('files', [])
 
-        # Debug logging
         print(f"🔍 Serve file request:")
         print(f"  Report ID: {report_id}")
         print(f"  Filename: {filename}")
@@ -5019,18 +5012,6 @@ def serve_incident_file(report_id, filename):
             print(f"❌ File not found in any of these locations:")
             for path in possible_paths:
                 print(f"   - {path} (exists: {os.path.exists(path)})")
-
-            # List what's actually in the upload folder
-            try:
-                upload_folder = Config.UPLOAD_FOLDER
-                if os.path.exists(upload_folder):
-                    files = os.listdir(upload_folder)
-                    print(f"📁 Files in {upload_folder}:")
-                    for f in files[:20]:  # Show first 20
-                        print(f"   - {f}")
-            except Exception as e:
-                print(f"❌ Could not list upload folder: {e}")
-
             abort(404, description="File not found on server")
 
         # Read file
@@ -5043,16 +5024,12 @@ def serve_incident_file(report_id, filename):
 
         # Try to decrypt if encrypted
         try:
-            decrypted_content = decrypt_file(file_content)
-            file_content = decrypted_content
+            file_content = decrypt_file(file_content)
             print(f"✅ Decrypted file {filename} ({len(file_content)} bytes)")
         except Exception as decrypt_error:
-            # Some uploads may already be processed but not encrypted, even if the filename ends with
-            # .encrypted/.enc. Serve original bytes instead of failing the request.
-            if filename.endswith(('.encrypted', '.enc')):
-                print(f"⚠️  Decrypt failed for {filename}: {decrypt_error} - serving original bytes")
-            else:
-                print(f"ℹ️  File not encrypted, serving as-is ({len(file_content)} bytes)")
+            # If decrypt fails, DO NOT send encrypted bytes as an "image"
+            print(f"❌ Decrypt failed for {filename}: {decrypt_error}")
+            abort(500, description="Decryption failed (check DATA_ENCRYPTION_KEY / .env loading)")
 
         # Get original filename
         original_filename = filename.replace('.encrypted', '')
@@ -5080,18 +5057,12 @@ def serve_incident_file(report_id, filename):
 
         response.headers['Cache-Control'] = 'private, max-age=3600'
         response.headers['X-Content-Type-Options'] = 'nosniff'
-
         return response
 
-    except Exception as e:
-        # Don't swallow Flask/Werkzeug HTTP exceptions (e.g., abort(403/404)).
-        try:
-            from werkzeug.exceptions import HTTPException
-            if isinstance(e, HTTPException):
-                raise
-        except Exception:
-            pass
+    except HTTPException:
+        raise  # ✅ keep 403/404 as 403/404
 
+    except Exception as e:
         print(f"❌ Error serving incident file: {e}")
         import traceback
         traceback.print_exc()

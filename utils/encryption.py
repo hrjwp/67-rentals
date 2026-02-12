@@ -5,6 +5,8 @@ from typing import Optional
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from config import Config
 
+from cryptography.fernet import Fernet
+
 
 def _load_key() -> bytes:
     """
@@ -58,4 +60,43 @@ def decrypt_value(token: Optional[str], *, fallback_on_error: bool = False) -> O
         if fallback_on_error:
             return token
         raise
+def _load_db_key() -> bytes:
+    key_b64 = Config.DB_ENCRYPTION_KEY
+    if not key_b64:
+        raise RuntimeError("DB_ENCRYPTION_KEY is not set")
+
+    try:
+        key = base64.urlsafe_b64decode(key_b64)
+    except Exception as exc:
+        raise ValueError("DB_ENCRYPTION_KEY must be URL-safe base64") from exc
+
+    if len(key) not in (16, 24, 32):
+        raise ValueError("DB_ENCRYPTION_KEY must decode to 16/24/32 bytes")
+    return key
+
+def encrypt_db_value(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    data = value if isinstance(value, bytes) else str(value).encode()
+    key = _load_db_key()
+    aesgcm = AESGCM(key)
+    nonce = os.urandom(12)
+    ciphertext = aesgcm.encrypt(nonce, data, None)
+    return base64.urlsafe_b64encode(nonce + ciphertext).decode()
+
+def decrypt_db_value(token: Optional[str], *, fallback_on_error: bool = False) -> Optional[str]:
+    if token is None:
+        return None
+    try:
+        key = _load_db_key()
+        raw = base64.urlsafe_b64decode(token)
+        nonce, ciphertext = raw[:12], raw[12:]
+        aesgcm = AESGCM(key)
+        plaintext = aesgcm.decrypt(nonce, ciphertext, None)
+        return plaintext.decode()
+    except Exception:
+        if fallback_on_error:
+            return token
+        raise
+
 
