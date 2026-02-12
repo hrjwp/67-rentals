@@ -1276,9 +1276,13 @@ def get_incident_reports(email: str = None, user_id: int = None) -> List[Dict[st
 
         # Filter by user_id or email if specified
         if user_id and email:
-            # Filter by user_id first (more efficient)
-            filtered = [r for r in all_reports if r.get('user_id') == user_id]
-            print(f"🔍 Filtered to {len(filtered)} reports for user_id={user_id}")
+            # Include reports created while logged in (user_id)
+            # OR created while logged out but with the same email.
+            filtered = [
+                r for r in all_reports
+                if (r.get('user_id') == user_id) or (r.get('email') and r['email'].lower() == email.lower())
+            ]
+            print(f"🔍 Filtered to {len(filtered)} reports for user_id={user_id} OR email={email}")
             cursor.close()
             conn.close()
             return filtered
