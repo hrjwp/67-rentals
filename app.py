@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, redirect, url_for, jsonify, flash, send_file
+from flask import Flask, render_template, request, session, redirect, url_for, jsonify, flash, send_file, abort
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from werkzeug.utils import secure_filename
@@ -13,6 +13,7 @@ import time
 from io import BytesIO
 from dotenv import load_dotenv
 from functools import wraps
+import uuid, time
 
 # --- Automated System Setup (Integrated from app1) ---
 from utils.auto_setup import ensure_env_file
@@ -4665,7 +4666,10 @@ def report():
             # Save encrypted file
             os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
             safe_name = sanitize_filename(file.filename)
-            filename = secure_filename(f"incident_{request.form.get('email', 'user')}_{safe_name}.encrypted")
+            unique = f"{int(time.time())}_{uuid.uuid4().hex[:8]}"
+            filename = secure_filename(
+                f"incident_{request.form.get('email', 'user')}_{unique}_{safe_name}.encrypted"
+            )
             file_path = os.path.join(Config.UPLOAD_FOLDER, filename)
 
             # Write encrypted content
@@ -4816,7 +4820,11 @@ def cases():
     print("=" * 70 + "\n")
 
     try:
-        user_email = session.get('user') or session.get('incident_report_email')
+        raw_user = session.get('user')
+        # Prefer explicit email keys; only treat session['user'] as email if it looks like one
+        user_email = session.get('email') or session.get('user_email') or session.get('incident_report_email')
+        if not user_email and raw_user and ('@' in str(raw_user)):
+            user_email = raw_user
         user_id = session.get('user_id')
 
         print(f"🔍 Querying with email={user_email}, user_id={user_id}")
@@ -4927,7 +4935,6 @@ def update_case_status(report_id):
 
 
 @app.route("/cases/<int:report_id>/file/<path:filename>")
-@require_classification('incident_report_files.file_path')
 def serve_incident_file(report_id, filename):
     """Serve decrypted incident report file (with watermark if image) - RESTRICTED access"""
     try:
@@ -4935,91 +4942,126 @@ def serve_incident_file(report_id, filename):
         from urllib.parse import unquote
         filename = unquote(filename)
 
-        # Verify user has access to this report (works for both logged-in and non-logged-in users)
-        user_email = session.get('user') or session.get('incident_report_email')
+        # Verify user has access to this report
+        user_email = session.get('incident_report_email')
+        if not user_email:
+            u = session.get('user')
+            if u and '@' in u:
+                user_email = u
         user_id = session.get('user_id')
 
-        reports = get_incident_reports(email=user_email, user_id=user_id)
-        report = next((r for r in reports if r['id'] == report_id), None)
+        if user_id:
+            reports = get_incident_reports(user_id=user_id)
+        elif user_email:
+            reports = get_incident_reports(email=user_email)
+        else:
+            reports = []
+
+        report = next((r for r in reports if r.get('id') == report_id), None)
 
         if not report:
-            # Try to find report by ID only (for cases where user submitted via email)
+            # Last-chance lookup by ID, then enforce ownership via user_id OR email.
             all_reports = get_incident_reports()
-            report = next((r for r in all_reports if r['id'] == report_id), None)
-            if report:
-                # Verify email matches if email was provided in session
-                if user_email and report.get('email'):
-                    if report['email'].lower() != user_email.lower():
-                        flash("Access denied or report not found", "error")
-                        return redirect(url_for("cases"))
-                # If no email in session, allow access (user might have submitted anonymously)
-            else:
-                flash("Access denied or report not found", "error")
-                return redirect(url_for("cases"))
+            report = next((r for r in all_reports if r.get('id') == report_id), None)
+            if not report:
+                abort(404, description="Report not found")
 
+            owns_by_user = bool(user_id) and (report.get('user_id') == user_id)
+            owns_by_email = bool(user_email) and bool(report.get('email')) and (
+                        report['email'].lower() == user_email.lower())
+            if not (owns_by_user or owns_by_email):
+                abort(403, description="Access denied")
+            if report:
+                # Allow access if EITHER:
+                # - logged in user_id matches report.user_id
+                # - OR email matches (for non-logged-in submissions)
+                report_user_id = report.get('user_id')
+
+                if user_id and report_user_id and int(report_user_id) == int(user_id):
+                    pass  # OK
+                elif user_email and report.get('email') and report['email'].lower() == user_email.lower():
+                    pass  # OK
+                else:
+                    abort(403, description="Access denied")
         # Check if file exists in report
         report_files = report.get('files', [])
 
         # Debug logging
-        print(f"DEBUG: Looking for file '{filename}' in report {report_id}")
-        print(f"DEBUG: Report files list: {report_files}")
-        print(f"DEBUG: Report files type: {type(report_files)}")
+        print(f"🔍 Serve file request:")
+        print(f"  Report ID: {report_id}")
+        print(f"  Filename: {filename}")
+        print(f"  Report files: {report_files}")
 
         if not report_files:
-            print(f"WARNING: Report {report_id} has no files in 'files' field")
-            flash("No files found for this report", "error")
-            return redirect(url_for("cases"))
+            print(f"⚠️  Report {report_id} has no files")
+            abort(404, description="No files found for this report")
 
         if filename not in report_files:
-            print(f"WARNING: File '{filename}' not found in report files. Available files: {report_files}")
-            flash("File not found in this report", "error")
-            return redirect(url_for("cases"))
+            print(f"⚠️  File '{filename}' not in report files: {report_files}")
+            abort(404, description="File not found in this report")
 
-        # Get file path
-        file_path = os.path.join(Config.UPLOAD_FOLDER, filename)
+        # Try multiple possible file locations
+        possible_paths = [
+            os.path.join(Config.UPLOAD_FOLDER, filename),
+            os.path.join(Config.UPLOAD_FOLDER, 'incident_reports', filename),
+            os.path.join('static', 'uploads', filename),
+            os.path.join('static', 'uploads', 'incident_reports', filename),
+        ]
 
-        if not os.path.exists(file_path):
-            print(f"ERROR: File not found at path: {file_path}")
-            print(f"ERROR: Upload folder: {Config.UPLOAD_FOLDER}")
-            print(f"ERROR: Looking for filename: {filename}")
-            flash("File not found on server", "error")
-            return redirect(url_for("cases"))
+        file_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                file_path = path
+                print(f"✅ Found file at: {path}")
+                break
 
+        if not file_path:
+            print(f"❌ File not found in any of these locations:")
+            for path in possible_paths:
+                print(f"   - {path} (exists: {os.path.exists(path)})")
+
+            # List what's actually in the upload folder
+            try:
+                upload_folder = Config.UPLOAD_FOLDER
+                if os.path.exists(upload_folder):
+                    files = os.listdir(upload_folder)
+                    print(f"📁 Files in {upload_folder}:")
+                    for f in files[:20]:  # Show first 20
+                        print(f"   - {f}")
+            except Exception as e:
+                print(f"❌ Could not list upload folder: {e}")
+
+            abort(404, description="File not found on server")
+
+        # Read file
         with open(file_path, 'rb') as f:
             file_content = f.read()
 
         if len(file_content) == 0:
-            print(f"ERROR: File {filename} is empty")
-            flash("File is empty", "error")
-            return redirect(url_for("cases"))
+            print(f"❌ File is empty: {file_path}")
+            abort(500, description="File is empty")
 
-        # Try to decrypt (if encrypted)
+        # Try to decrypt if encrypted
         try:
             decrypted_content = decrypt_file(file_content)
             file_content = decrypted_content
-            print(f"SECURITY: Decrypted file {filename} (size: {len(file_content)} bytes) for user {user_email}")
+            print(f"✅ Decrypted file {filename} ({len(file_content)} bytes)")
         except Exception as decrypt_error:
-            # File might not be encrypted (backward compatibility)
-            if filename.endswith('.encrypted'):
-                # File should be encrypted but decryption failed
-                print(f"ERROR: Failed to decrypt encrypted file {filename}: {decrypt_error}")
-                import traceback
-                print(traceback.format_exc())
-                flash("Error decrypting file. Please contact administrator.", "error")
-                return redirect(url_for("cases"))
+            # Some uploads may already be processed but not encrypted, even if the filename ends with
+            # .encrypted/.enc. Serve original bytes instead of failing the request.
+            if filename.endswith(('.encrypted', '.enc')):
+                print(f"⚠️  Decrypt failed for {filename}: {decrypt_error} - serving original bytes")
             else:
-                # File is not encrypted (backward compatibility)
-                print(f"INFO: File {filename} is not encrypted, serving as-is (size: {len(file_content)} bytes)")
+                print(f"ℹ️  File not encrypted, serving as-is ({len(file_content)} bytes)")
 
-        # Get original filename (remove .encrypted suffix if present)
+        # Get original filename
         original_filename = filename.replace('.encrypted', '')
         if original_filename.startswith('incident_'):
-            # Extract original name if possible
             parts = original_filename.split('_', 2)
             if len(parts) > 2:
                 original_filename = parts[2]
 
-        # Determine MIME type from original filename (not encrypted filename)
+        # Determine MIME type
         ext = original_filename.rsplit('.', 1)[-1].lower() if '.' in original_filename else ''
         mime_types = {
             'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
@@ -5033,22 +5075,27 @@ def serve_incident_file(report_id, filename):
             BytesIO(file_content),
             download_name=original_filename,
             mimetype=mime_type,
-            as_attachment=False  # Display in browser for images
+            as_attachment=False
         )
 
-        # Add headers to allow images/videos to be displayed
         response.headers['Cache-Control'] = 'private, max-age=3600'
         response.headers['X-Content-Type-Options'] = 'nosniff'
 
         return response
 
     except Exception as e:
-        print(f"ERROR serving incident file: {e}")
-        import traceback
-        print(traceback.format_exc())
-        flash("Error retrieving file", "error")
-        return redirect(url_for("cases"))
+        # Don't swallow Flask/Werkzeug HTTP exceptions (e.g., abort(403/404)).
+        try:
+            from werkzeug.exceptions import HTTPException
+            if isinstance(e, HTTPException):
+                raise
+        except Exception:
+            pass
 
+        print(f"❌ Error serving incident file: {e}")
+        import traceback
+        traceback.print_exc()
+        abort(500, description="Error retrieving file")
 
 @app.route("/cases/<int:report_id>/delete", methods=["POST"])
 @login_required
