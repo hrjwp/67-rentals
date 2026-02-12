@@ -852,9 +852,8 @@
                                                 return `
                                                     <div style="text-align: center; position: relative;" class="file-item">
                                                         <a href="${fileUrl}" target="_blank" 
-                                                           style="display: inline-block; text-decoration: none; color: #3D405B;"
-                                                           onclick="event.preventDefault(); window.open('${fileUrl}', '_blank');">
-                                                            <img src="${fileUrl}" 
+                                                           style="display: inline-block; text-decoration: none; color: #3D405B;">
+                                                            <img src="${fileUrl}"
                                                                  alt="${originalName}"
                                                                  style="max-width: 150px; max-height: 150px; border: 2px solid #81B29A; border-radius: 5px; padding: 5px; object-fit: cover; cursor: pointer; display: block;"
                                                                  onerror="console.error('Failed to load image: ${fileUrl}'); this.style.display='none'; this.nextElementSibling.style.display='block';"
@@ -871,9 +870,8 @@
                                             } else if (isVideo) {
                                                 return `
                                                     <div style="text-align: center;" class="file-item">
-                                                        <a href="${fileUrl}" target="_blank" 
-                                                           style="display: inline-block; padding: 15px; border: 2px solid #81B29A; border-radius: 5px; text-decoration: none; color: #3D405B; background: #f8f9fa; transition: all 0.3s; min-width: 120px;"
-                                                           onclick="event.preventDefault(); window.open('${fileUrl}', '_blank');">
+                                                        <a href="${fileUrl}" target="_blank"
+                                                           style="display: inline-block; padding: 15px; border: 2px solid #81B29A; border-radius: 5px; text-decoration: none; color: #3D405B; background: #f8f9fa; transition: all 0.3s; min-width: 120px;">
                                                             <i class="bi bi-file-earmark-play" style="font-size: 32px; color: #81B29A;"></i><br>
                                                             <small style="word-break: break-word; max-width: 120px; display: inline-block; margin-top: 5px;">${originalName}</small>
                                                         </a>
@@ -882,9 +880,8 @@
                                             } else {
                                                 return `
                                                     <div style="text-align: center;" class="file-item">
-                                                        <a href="${fileUrl}" target="_blank" 
-                                                           style="display: inline-block; padding: 10px; border: 1px solid #81B29A; border-radius: 5px; text-decoration: none; color: #3D405B; transition: all 0.3s; min-width: 100px;"
-                                                           onclick="event.preventDefault(); window.open('${fileUrl}', '_blank');">
+                                                        <a href="${fileUrl}" target="_blank"
+                                                           style="display: inline-block; padding: 10px; border: 1px solid #81B29A; border-radius: 5px; text-decoration: none; color: #3D405B; transition: all 0.3s; min-width: 100px;">
                                                             <i class="bi bi-file-earmark" style="font-size: 24px; color: #81B29A;"></i><br>
                                                             <small style="word-break: break-word; max-width: 100px; display: inline-block;">${originalName}</small>
                                                         </a>
@@ -983,7 +980,7 @@
                 const statusFilter = document.getElementById('statusFilter');
                 const severityFilter = document.getElementById('severityFilter');
                 const searchInput = document.getElementById('searchInput');
-                
+
                 if (statusFilter) statusFilter.addEventListener('change', filterReports);
                 if (severityFilter) severityFilter.addEventListener('change', filterReports);
                 if (searchInput) searchInput.addEventListener('input', filterReports);
