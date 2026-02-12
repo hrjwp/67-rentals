@@ -6,6 +6,11 @@ __pycache__/
 *.pyc
 venv/
 
+!app.py
+!database.py
+!templates/
+!templates/**
+
 # Environment & IDE
 *.env
 .idea/
