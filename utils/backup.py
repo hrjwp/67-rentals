@@ -14,10 +14,18 @@ from typing import Dict, List, Optional
 import mysql.connector
 from mysql.connector import Error
 from db_config import DB_CONFIG
+import base64, os, json
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from config import Config
 from utils.encryption import encrypt_value, decrypt_value
 
+from datetime import datetime, date
+
+def _json_safe(obj):
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    raise TypeError
 
 class SecureBackup:
     """Handles secure backup and recovery of sensitive data"""
@@ -143,36 +151,37 @@ class SecureBackup:
             db_data = self.backup_database()
             
             # Create encrypted ZIP archive
-            with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_DEFLATED) as backup_zip:
-                # Add database backup (JSON)
-                db_json = json.dumps(db_data, indent=2, default=str)
-                backup_zip.writestr('database_backup.json', db_json)
-                
-                # Add uploaded files if requested
+            with zipfile.ZipFile(backup_path, 'w', compression=zipfile.ZIP_DEFLATED) as backup_zip:
+                # ✅ Add encrypted DB backup (inside zip)
+                backup_zip.writestr('database_backup.json.enc', encrypt_db_backup_json(db_data))
+
+                # ✅ Add uploaded files if requested
                 if include_files:
                     uploaded_files = self.backup_uploaded_files()
                     for file_path in uploaded_files:
                         if os.path.exists(file_path):
-                            # Store relative path in archive
                             arcname = os.path.relpath(file_path, Config.UPLOAD_FOLDER)
                             backup_zip.write(file_path, f"uploads/{arcname}")
-                
-                # Add in-memory data backup (listings, etc.)
+
+                # ✅ Add in-memory data (optional)
                 if 'in_memory_data' in db_data and db_data['in_memory_data']:
                     in_memory_json = json.dumps(db_data['in_memory_data'], indent=2, default=str)
                     backup_zip.writestr('in_memory_data.json', in_memory_json)
-                
-                # Add backup metadata
+
+                # ✅ Add metadata (define first, then write once)
                 metadata = {
+                    'backup_scope': 'full' if include_files else 'db-only',
+                    'db_encrypted_with': 'BACKUP_DB_ENCRYPTION_KEY',
+                    'files_encrypted_with': 'BACKUP_ENCRYPTION_KEY',
                     'backup_timestamp': timestamp,
                     'backup_date': datetime.now().isoformat(),
                     'database_tables': list(db_data['tables'].keys()),
-                    'in_memory_data_included': 'in_memory_data' in db_data and bool(db_data['in_memory_data']),
+                    'in_memory_data_included': bool(db_data.get('in_memory_data')),
                     'files_included': include_files,
                     'file_count': len(uploaded_files) if include_files else 0
                 }
-                backup_zip.writestr('backup_metadata.json', json.dumps(metadata, indent=2))
-            
+                backup_zip.writestr('backup_metadata.json', json.dumps(metadata, indent=2, default=str))
+
             # Calculate checksum BEFORE encryption for verification
             checksum = self.calculate_checksum(backup_path)
             
@@ -284,9 +293,9 @@ class SecureBackup:
         encrypted_path = file_path + '.encrypted'
         
         # Load encryption key
-        key_b64 = Config.DATA_ENCRYPTION_KEY
+        key_b64 = Config.BACKUP_ENCRYPTION_KEY
         if not key_b64:
-            raise RuntimeError("DATA_ENCRYPTION_KEY is not set")
+            raise RuntimeError("BACKUP_ENCRYPTION_KEY is not set")
         key = base64.urlsafe_b64decode(key_b64)
         
         # Read file data
@@ -314,9 +323,9 @@ class SecureBackup:
         decrypted_path = encrypted_path.replace('.encrypted', '_decrypted.zip')
         
         # Load encryption key
-        key_b64 = Config.DATA_ENCRYPTION_KEY
+        key_b64 = Config.BACKUP_ENCRYPTION_KEY
         if not key_b64:
-            raise RuntimeError("DATA_ENCRYPTION_KEY is not set")
+            raise RuntimeError("BACKUP_ENCRYPTION_KEY is not set")
         key = base64.urlsafe_b64decode(key_b64)
         
         # Read encrypted data
@@ -374,10 +383,12 @@ class SecureBackup:
                 backup_zip.extractall(extract_dir)
             
             # Load database backup
-            db_backup_path = os.path.join(extract_dir, 'database_backup.json')
-            with open(db_backup_path, 'r') as f:
-                db_data = json.load(f)
-            
+            db_enc_path = os.path.join(extract_dir, 'database_backup.json.enc')
+            with open(db_enc_path, 'rb') as f:
+                enc_bytes = f.read()
+
+            db_data = decrypt_db_backup_json(enc_bytes)
+
             # Restore in-memory data (listings, etc.) FIRST
             restored_in_memory = {}
             in_memory_backup_path = os.path.join(extract_dir, 'in_memory_data.json')
@@ -590,3 +601,30 @@ class SecureBackup:
             raise Exception(f"Failed to restore in-memory data: {e}")
         
         return restored
+
+def _load_backup_db_key() -> bytes:
+    key_b64 = Config.BACKUP_DB_ENCRYPTION_KEY
+    if not key_b64:
+        raise RuntimeError("BACKUP_DB_ENCRYPTION_KEY is not set")
+
+    key = base64.urlsafe_b64decode(key_b64)
+    if len(key) not in (16, 24, 32):
+        raise ValueError("BACKUP_DB_ENCRYPTION_KEY must decode to 16/24/32 bytes")
+    return key
+
+def encrypt_db_backup_json(db_obj: dict) -> bytes:
+    """Returns encrypted bytes for the DB backup JSON."""
+    plaintext = json.dumps(db_obj, ensure_ascii=False, default=str).encode("utf-8")
+    key = _load_backup_db_key()
+    aesgcm = AESGCM(key)
+    nonce = os.urandom(12)
+    ct = aesgcm.encrypt(nonce, plaintext, None)
+    return base64.urlsafe_b64encode(nonce + ct)
+
+def decrypt_db_backup_json(enc_b64_bytes: bytes) -> dict:
+    raw = base64.urlsafe_b64decode(enc_b64_bytes)
+    nonce, ct = raw[:12], raw[12:]
+    key = _load_backup_db_key()
+    aesgcm = AESGCM(key)
+    plaintext = aesgcm.decrypt(nonce, ct, None)
+    return json.loads(plaintext.decode("utf-8"))

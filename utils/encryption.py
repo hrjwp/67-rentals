@@ -98,5 +98,3 @@ def decrypt_db_value(token: Optional[str], *, fallback_on_error: bool = False) -
         if fallback_on_error:
             return token
         raise
-
-
