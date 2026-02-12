@@ -8,7 +8,7 @@ class Config:
     """Application configuration"""
 
     # Flask
-    SECRET_KEY = _env("SECRET_KEY") or "ApwndeZdD93PE8mPTua_q_oATzzyNd5wBkdSgmyl39U"
+    SECRET_KEY = _env("SECRET_KEY")
     # AES data encryption key (URL-safe base64, 16/24/32 bytes when decoded)
     DATA_ENCRYPTION_KEY = _env("DATA_ENCRYPTION_KEY")
     # Session cookie settings - will be overridden by app.py based on HTTPS usage
