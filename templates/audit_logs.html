@@ -359,6 +359,8 @@
                             <th>IP Address</th>
                             <th>Result</th>
                             <th>Details</th>
+                            <th>Prev Hash</th>
+                            <th>Event Hash</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -392,6 +394,8 @@
                                 <br><strong>Risk:</strong> {{ log.risk_score }} ({{ log.severity }})
                                 {% endif %}
                             </td>
+                            <td title="{{ log.prev_hash or '' }}">{{ (log.prev_hash or '-')[:8] }}{% if log.prev_hash %}…{{ log.prev_hash[-8:] }}{% endif %}</td>
+                            <td title="{{ log.event_hash or '' }}">{{ (log.event_hash or '-')[:8] }}{% if log.event_hash %}…{{ log.event_hash[-8:] }}{% endif %}</td>
                         </tr>
                         {% endfor %}
                     </tbody>

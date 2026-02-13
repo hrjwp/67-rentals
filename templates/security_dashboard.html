@@ -58,6 +58,7 @@
 
 
             <div class="info-grid" style="max-width: 800px; margin: 0 auto;">
+
                 <div class="info-card" style="cursor: pointer;"
                     onclick="window.location.href='{{ url_for('data_classification') }}'">
                     <div class="info-icon">🔐</div>
@@ -68,6 +69,18 @@
                     <div style="margin-top: 20px;">
                         <a href="{{ url_for('data_classification_dashboard') }}" class="cta-button">View
                             Classifications</a>
+                    </div>
+                </div>
+
+                <div class="info-card" style="cursor: pointer;"
+                    onclick="window.location.href='{{ url_for('hash_chain_integrity') }}'">
+                    <div class="info-icon">🔗</div>
+                    <h3 class="info-title">Hash Chain Integrity</h3>
+                    <p style="font-size: 14px; color: var(--p-color); margin-top: 15px;">
+                        Verify tamper-evident hash chaining for audit, security, and fraud logs.
+                    </p>
+                    <div style="margin-top: 20px;">
+                        <a href="{{ url_for('hash_chain_integrity') }}" class="cta-button">View Status</a>
                     </div>
                 </div>
 

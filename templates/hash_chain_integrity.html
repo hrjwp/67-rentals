@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hash Chain Integrity - 67 Rentals</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap"
+        rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+
+
+    <style>
+        :root {
+            --white-color: #ffffff;
+            --primary-color: #81B29A;
+            --secondary-color: #3D405B;
+            --section-bg-color: #F4F1DE;
+            --custom-btn-bg-color: #F2CC8F;
+            --custom-btn-bg-hover-color: #E07A5F;
+            --p-color: #717275;
+            --body-font-family: 'DM Sans', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        body {
+            font-family: var(--body-font-family);
+            background: var(--section-bg-color);
+            min-height: 100vh;
+        }
+
+        .security-banner {
+            background: #ff6b6b;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            font-weight: 600;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10000;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            font-size: 14px;
+        }
+
+        .session-timer {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            z-index: 9999;
+            font-weight: 600;
+            color: var(--secondary-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        .timer-warning {
+            background: #ff6b6b !important;
+            color: white !important;
+            border-color: #ff6b6b;
+        }
+
+        .page-header {
+            text-align: center;
+            padding: 40px 0;
+            border-bottom: 2px solid rgba(129, 178, 154, 0.2);
+            margin-bottom: 30px;
+        }
+
+        .page-header h1 {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--secondary-color);
+            margin-bottom: 10px;
+        }
+
+        .page-header p {
+            font-size: 16px;
+            color: var(--p-color);
+            margin: 0;
+        }
+        .navbar {
+            background: var(--secondary-color);
+            z-index: 99;
+            padding-top: 15px;
+            padding-bottom: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-top: 40px; /* Push down to fit security banner */
+        }
+
+        .navbar-brand-text {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--white-color);
+        }
+
+        .navbar-brand-text small {
+            font-size: 14px;
+            font-weight: 400;
+            display: block;
+            line-height: 1;
+        }
+
+        .nav-link {
+            color: var(--white-color) !important;
+            font-weight: 500;
+            padding: 8px 16px !important;
+            transition: color 0.3s ease;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            color: var(--custom-btn-bg-color) !important;
+        }
+
+
+        .custom-btn {
+            background: #F2CC8F !important;
+            color: #3D405B !important;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            white-space: nowrap; /* Keeps text from breaking into two lines */
+        }
+
+        .custom-btn:hover {
+            background: #E07A5F !important;
+            color: #ffffff !important;
+        }
+
+        /* Small gap between the buttons */
+        .button-gap {
+            margin-left: 12px;
+        }
+
+
+        .status-card {
+            background: var(--white-color);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.10);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            height: 100%;
+        }
+
+        .meta-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .meta-title {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--secondary-color);
+        }
+
+        .meta-subtitle {
+            margin-top: 6px;
+            font-size: 13px;
+            color: var(--p-color);
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 12px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            border: 1px solid transparent;
+        }
+
+        .pill-ok {
+            background: rgba(129, 178, 154, 0.18);
+            color: #2e6b4e;
+            border-color: rgba(129, 178, 154, 0.45);
+        }
+
+        .pill-break {
+            background: rgba(224, 122, 95, 0.18);
+            color: #a03822;
+            border-color: rgba(224, 122, 95, 0.45);
+        }
+
+        .pill-unknown {
+            background: rgba(61, 64, 91, 0.10);
+            color: var(--secondary-color);
+            border-color: rgba(61, 64, 91, 0.22);
+        }
+
+        .kv {
+            margin-top: 8px;
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--p-color);
+        }
+
+        .kv strong {
+            color: var(--secondary-color);
+            font-weight: 700;
+        }
+
+        .reason-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            word-break: break-word;
+        }
+
+        .reason-text.is-collapsed {
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+        }
+
+        .reason-toggle {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin-top: 6px;
+            color: var(--secondary-color);
+            font-weight: 700;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .reason-toggle:focus {
+            outline: none;
+        }
+
+        .action-link {
+            display: inline-block;
+            padding: 10px 14px;
+            border-radius: 999px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 13px;
+            background: var(--custom-btn-bg-color);
+            color: var(--white-color);
+        }
+
+        .action-link.secondary {
+            background: var(--secondary-color);
+        }
+
+        .action-link:hover {
+            color: var(--white-color);
+            background: var(--custom-btn-bg-hover-color);
+        }
+
+        .action-link.secondary:hover {
+            background: var(--secondary-color);
+            filter: brightness(1.06);
+        }
+
+        main {
+            margin-top: 40px;
+        }
+        .footer {
+            background: var(--secondary-color);
+            color: var(--white-color);
+            padding: 40px 0;
+            margin-top: 60px;
+        }
+
+        .footer p {
+            margin: 0;
+            color: var(--section-bg-color);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="security-banner">
+        Integrity Verification Mode - Session: <span id="sessionId"></span>
+    </div>
+
+    <div class="session-timer" id="sessionTimer">
+        Session Timeout: <span id="timerDisplay">15:00</span>
+    </div>
+
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                <span style="color: white; font-weight: bold;">67 Rentals </span>
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-lg-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/accounts">Accounts</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/vehicles-page">Management</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/security-dashboard">Security</a>
+                    </li>
+                </ul>
+                <div class="d-none d-lg-flex align-items-center ms-lg-3">
+                    {% set admin_name = session.get('user_name') or session.get('user', 'Admin') %}
+                    {% if '@' in admin_name %}
+                        {% set admin_name = admin_name.split('@')[0] %}
+                    {% endif %}
+
+                    <a class="btn custom-btn" href="{{ url_for('profile') }}">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-right:6px;">
+                            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                        </svg>
+                        {{ admin_name }}
+                    </a>
+
+                    <a href="{{ url_for('logout') }}" class="btn custom-btn button-gap">Logout</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <div class="container">
+            <div class="page-header">
+                <h1>Hash Chain Integrity</h1>
+                <p>Verify tamper-evident hash chaining for audit, security, and fraud logs</p>
+                <div class="mt-3 d-flex justify-content-center gap-2 flex-wrap">
+                    <a class="action-link secondary" href="{{ url_for('security_dashboard') }}">Back to Security</a>
+                    <a class="action-link" href="{{ url_for('hash_chain_integrity') }}">Refresh</a>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                {% for item in integrity_items %}
+                <div class="col-12 col-md-6 col-lg-4">
+                    <div class="status-card">
+                        <div class="meta-row">
+                            <div>
+                                <h3 class="meta-title">{{ item.title }}</h3>
+                                <div class="meta-subtitle">{{ item.table_name }}</div>
+                            </div>
+
+                            {% if item.status == 'ok' %}
+                            <span class="pill pill-ok">OK</span>
+                            {% elif item.status == 'break' %}
+                            <span class="pill pill-break">Break Detected</span>
+                            {% else %}
+                            <span class="pill pill-unknown">Unknown</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="kv">
+                            <strong>Checked rows</strong>
+                            <div>{{ item.checked }}</div>
+
+                            <strong>Reason</strong>
+                            <div>
+                                <div class="reason-text is-collapsed">{{ item.reason }}</div>
+                                <button type="button" class="reason-toggle d-none">More</button>
+                            </div>
+                        </div>
+
+                        <div class="mt-3 d-flex gap-2 flex-wrap">
+                            {% if item.view_endpoint %}
+                            <a class="action-link" href="{{ url_for(item.view_endpoint) }}">View Logs</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-6 col-12 text-center text-lg-start mb-3">
+                    <span class="navbar-brand-text">
+                        67
+                        <small>Rentals</small>
+                    </span>
+                </div>
+                <div class="col-lg-6 col-12 text-center text-lg-end">
+                    <p>Copyright © 2048 67 Rentals</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const sessionId = 'INT-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+        document.getElementById('sessionId').textContent = sessionId;
+
+        let sessionTimeLeft = 15 * 60;
+        function updateTimer() {
+            const minutes = Math.floor(sessionTimeLeft / 60);
+            const seconds = sessionTimeLeft % 60;
+            const display = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            const el = document.getElementById('timerDisplay');
+            if (el) el.textContent = display;
+
+            const timerBox = document.getElementById('sessionTimer');
+            if (timerBox) {
+                if (sessionTimeLeft <= 120) timerBox.classList.add('timer-warning');
+                else timerBox.classList.remove('timer-warning');
+            }
+
+            if (sessionTimeLeft > 0) sessionTimeLeft -= 1;
+        }
+
+        function resetSessionTimer() {
+            sessionTimeLeft = 15 * 60;
+        }
+
+        updateTimer();
+        setInterval(updateTimer, 1000);
+
+        document.addEventListener('mousemove', resetSessionTimer);
+        document.addEventListener('click', resetSessionTimer);
+        document.addEventListener('scroll', resetSessionTimer);
+
+        function initReasonToggles() {
+            const cards = document.querySelectorAll('.status-card');
+            cards.forEach((card) => {
+                const reasonText = card.querySelector('.reason-text');
+                const toggle = card.querySelector('.reason-toggle');
+                if (!reasonText || !toggle) return;
+
+                const isOverflowing = reasonText.scrollHeight > reasonText.clientHeight + 1;
+                if (!isOverflowing) return;
+
+                toggle.classList.remove('d-none');
+                toggle.addEventListener('click', () => {
+                    const collapsed = reasonText.classList.contains('is-collapsed');
+                    if (collapsed) {
+                        reasonText.classList.remove('is-collapsed');
+                        toggle.textContent = 'Less';
+                    } else {
+                        reasonText.classList.add('is-collapsed');
+                        toggle.textContent = 'More';
+                    }
+                });
+            });
+        }
+
+        window.addEventListener('load', initReasonToggles);
+    </script>
+</body>
+
+</html>

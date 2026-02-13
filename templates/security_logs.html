@@ -985,6 +985,8 @@
                                 <th>IP Address</th>
                                 <th>Description</th>
                                 <th>Action Taken</th>
+                                <th>Prev Hash</th>
+                                <th>Event Hash</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -992,6 +994,14 @@
 
             logs.forEach(log => {
                 const logId = getLogId(log);
+                const prevHash = (log.prev_hash || log.prevHash || '');
+                const eventHash = (log.event_hash || log.eventHash || '');
+                const truncateHash = (h) => {
+                    if (!h) return '-';
+                    const s = String(h);
+                    if (s.length <= 16) return s;
+                    return s.slice(0, 8) + '…' + s.slice(-8);
+                };
                 html += `
                     <tr>
                         <td><strong>${logId}</strong></td>
@@ -1002,6 +1012,8 @@
                         <td>${log.ip_address}</td>
                         <td>${log.description}</td>
                         <td>${log.action_taken}</td>
+                        <td title="${prevHash}">${truncateHash(prevHash)}</td>
+                        <td title="${eventHash}">${truncateHash(eventHash)}</td>
                     </tr>
                 `;
             });

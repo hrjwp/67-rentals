@@ -214,20 +214,28 @@
         .nav-link.active {
             color: var(--custom-btn-bg-color) !important;
         }
-
         .custom-btn {
-            background: var(--custom-btn-bg-color);
-            color: var(--secondary-color);
+            background: #F2CC8F !important;
+            color: #3D405B !important;
             border: none;
             padding: 10px 20px;
             border-radius: 50px;
             font-weight: 600;
+            text-decoration: none;
             transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            white-space: nowrap; /* Keeps text from breaking into two lines */
         }
 
         .custom-btn:hover {
-            background: var(--custom-btn-bg-hover-color);
-            color: var(--white-color);
+            background: #E07A5F !important;
+            color: #ffffff !important;
+        }
+
+        /* Small gap between the buttons */
+        .button-gap {
+            margin-left: 12px;
         }
 
         .page-header {
@@ -966,7 +974,6 @@
 
             const response = await fetch(url);
             const logs = await response.json();
-
             displayLogs(logs);
             // NOTE: Do NOT reset session timer here to avoid infinite session loops
         }
@@ -996,6 +1003,14 @@
                                  log.risk_score >= 0.8 ? 'high' :
                                  log.risk_score >= 0.6 ? 'medium' : 'low';
                 const logId = getLogId(log);
+                const prevHash = (log.prev_hash || log.prevHash || '');
+                const eventHash = (log.event_hash || log.eventHash || '');
+                const truncateHash = (h) => {
+                    if (!h) return '-';
+                    const s = String(h);
+                    if (s.length <= 16) return s;
+                    return s.slice(0, 8) + '…' + s.slice(-8);
+                };
 
                 html += `
                     <div class="log-card">
@@ -1027,6 +1042,14 @@
                             <div class="meta-item">
                                 <span class="meta-label">Event Type</span>
                                 <span class="meta-value">${log.event_type}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Prev Hash</span>
+                                <span class="meta-value" title="${prevHash}">${truncateHash(prevHash)}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Event Hash</span>
+                                <span class="meta-value" title="${eventHash}">${truncateHash(eventHash)}</span>
                             </div>
                         </div>
 

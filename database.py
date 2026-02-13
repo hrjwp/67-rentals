@@ -6,7 +6,7 @@ from db_config import DB_CONFIG
 from utils.field_encryption_config import get_encrypted_columns, get_column_keys_for_decrypt
 import json
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Union
 from utils.encryption import encrypt_value, decrypt_value
 import hashlib
 
@@ -363,6 +363,10 @@ def ensure_schema():
 
         _safe_alter(cursor, "ALTER TABLE security_logs ADD COLUMN prev_hash VARCHAR(64) NULL")
         _safe_alter(cursor, "ALTER TABLE security_logs ADD COLUMN event_hash VARCHAR(64) NULL")
+        _safe_alter(cursor, "ALTER TABLE audit_logs ADD COLUMN prev_hash VARCHAR(64) NULL")
+        _safe_alter(cursor, "ALTER TABLE audit_logs ADD COLUMN event_hash VARCHAR(64) NULL")
+        _safe_alter(cursor, "ALTER TABLE booking_fraud_logs ADD COLUMN prev_hash VARCHAR(64) NULL")
+        _safe_alter(cursor, "ALTER TABLE booking_fraud_logs ADD COLUMN event_hash VARCHAR(64) NULL")
         # Increase column sizes to accommodate encrypted values (encrypted data is base64, much longer)
         _safe_alter(cursor, "ALTER TABLE users MODIFY phone_number VARCHAR(255)")
         _safe_alter(cursor, "ALTER TABLE users MODIFY first_name VARCHAR(255)")
@@ -389,6 +393,44 @@ def _canonical_json(data: Dict[str, Any]) -> str:
 def _compute_security_log_hash(event_data: Dict[str, Any], prev_hash: str) -> str:
     payload = _canonical_json(event_data) + "|" + (prev_hash or "")
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _compute_log_chain_hash(event_data: Dict[str, Any], prev_hash: str) -> str:
+    payload = _canonical_json(event_data) + "|" + (prev_hash or "")
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _pick_log_order_id_column(conn, table_name: str, candidates: List[str]) -> Optional[str]:
+    """Pick a stable ordering id column for a table, if present.
+
+    Some of our log tables were created outside this module. To avoid relying on a hardcoded
+    primary key name, we detect a suitable id column at runtime.
+    """
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(f"SHOW COLUMNS FROM {table_name}")
+        cols = {row.get("Field") for row in (cur.fetchall() or [])}
+        cur.close()
+        for name in candidates:
+            if name in cols:
+                return name
+    except Exception:
+        return None
+    return None
+
+
+def _order_by_timestamp_and_id_sql(conn, table_name: str, timestamp_col: str, candidates: List[str]) -> str:
+    col = _pick_log_order_id_column(conn, table_name, candidates)
+    if col:
+        return f" ORDER BY {timestamp_col} ASC, {col} ASC"
+    return f" ORDER BY {timestamp_col} ASC"
+
+
+def _order_by_timestamp_and_id_desc_sql(conn, table_name: str, timestamp_col: str, candidates: List[str]) -> str:
+    col = _pick_log_order_id_column(conn, table_name, candidates)
+    if col:
+        return f" ORDER BY {timestamp_col} DESC, {col} DESC"
+    return f" ORDER BY {timestamp_col} DESC"
 
 
 def add_vehicle_trip(
@@ -530,7 +572,7 @@ def create_user_with_documents(user_data):
         user_values = (
             user_row["first_name"],
             user_row["last_name"],
-            user_row["email"],  # ✅ NOW ENCRYPTED
+            user_row["email"],  # ← ADD THIS LINE
             user_row["phone_number"],
             user_data["password_hash"],
             user_row["nric"],
@@ -942,8 +984,14 @@ def add_security_log(user_id: str, event_type: str, severity: str,
 
         prev_hash = None
         try:
+            order_sql = _order_by_timestamp_and_id_desc_sql(
+                conn,
+                table_name="security_logs",
+                timestamp_col="timestamp",
+                candidates=["id", "log_id", "security_log_id", "event_id"],
+            )
             cursor.execute(
-                "SELECT event_hash FROM security_logs WHERE event_hash IS NOT NULL ORDER BY timestamp DESC LIMIT 1"
+                "SELECT event_hash FROM security_logs WHERE event_hash IS NOT NULL" + order_sql + " LIMIT 1"
             )
             row = cursor.fetchone()
             if row:
@@ -982,12 +1030,17 @@ def add_security_log(user_id: str, event_type: str, severity: str,
 def verify_security_logs_hash_chain(limit: int = None) -> Dict[str, Any]:
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
-        q = """
-            SELECT timestamp, user_id, event_type, severity, description, ip_address, device_info, action_taken,
-                   prev_hash, event_hash
-            FROM security_logs
-            ORDER BY timestamp ASC
-        """
+        order_sql = _order_by_timestamp_and_id_sql(
+            conn,
+            table_name="security_logs",
+            timestamp_col="timestamp",
+            candidates=["id", "log_id", "security_log_id", "event_id"],
+        )
+        q = (
+            "SELECT timestamp, user_id, event_type, severity, description, ip_address, device_info, action_taken, "
+            "prev_hash, event_hash "
+            "FROM security_logs" + order_sql
+        )
         if limit:
             q += " LIMIT %s"
             cursor.execute(q, (int(limit),))
@@ -999,35 +1052,57 @@ def verify_security_logs_hash_chain(limit: int = None) -> Dict[str, Any]:
 
     expected_prev = None
     checked = 0
+    break_count = 0
+    first_break = None
+    last_break = None
+
     for row in rows:
         checked += 1
-        if (row.get("prev_hash") or None) != expected_prev:
-            return {
-                "valid": False,
-                "checked": checked,
+        mismatch = None
+
+        actual_prev = (row.get("prev_hash") or None)
+        if actual_prev != expected_prev:
+            mismatch = {
                 "reason": "prev_hash mismatch",
+                "timestamp": row.get("timestamp"),
+                "expected_prev_hash": expected_prev,
+                "actual_prev_hash": actual_prev,
             }
+        else:
+            event_data = {
+                "user_id": row.get("user_id"),
+                "event_type": row.get("event_type"),
+                "severity": row.get("severity"),
+                "description": row.get("description"),
+                "ip_address": row.get("ip_address"),
+                "device_info": row.get("device_info"),
+                "action_taken": row.get("action_taken"),
+            }
+            computed = _compute_security_log_hash(event_data, expected_prev)
+            if (row.get("event_hash") or "") != computed:
+                mismatch = {
+                    "reason": "event_hash mismatch",
+                    "timestamp": row.get("timestamp"),
+                }
+            else:
+                expected_prev = computed
 
-        event_data = {
-            "user_id": row.get("user_id"),
-            "event_type": row.get("event_type"),
-            "severity": row.get("severity"),
-            "description": row.get("description"),
-            "ip_address": row.get("ip_address"),
-            "device_info": row.get("device_info"),
-            "action_taken": row.get("action_taken"),
+        if mismatch:
+            break_count += 1
+            if first_break is None:
+                first_break = mismatch
+            last_break = mismatch
+
+    if break_count:
+        return {
+            "valid": False,
+            "checked": checked,
+            "break_count": break_count,
+            "first_break": first_break,
+            "last_break": last_break,
         }
-        computed = _compute_security_log_hash(event_data, expected_prev)
-        if (row.get("event_hash") or "") != computed:
-            return {
-                "valid": False,
-                "checked": checked,
-                "reason": "event_hash mismatch",
-            }
 
-        expected_prev = computed
-
-    return {"valid": True, "checked": checked}
+    return {"valid": True, "checked": checked, "break_count": 0}
 
 
 def get_security_logs(severity: str = None, event_type: str = None,
@@ -1313,7 +1388,6 @@ def get_incident_reports(email: str = None, user_id: int = None) -> List[Dict[st
         return []
 
 
-
 def update_incident_status(report_id: int, status: str) -> bool:
     """Update status of an incident report."""
     with get_db_connection() as conn:
@@ -1438,6 +1512,23 @@ def add_booking_fraud_log(user_id: str, booking_id: str, vehicle_id: str,
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
+        prev_hash = None
+        try:
+            order_sql = _order_by_timestamp_and_id_desc_sql(
+                conn,
+                table_name="booking_fraud_logs",
+                timestamp_col="timestamp",
+                candidates=["id", "log_id", "booking_fraud_log_id", "event_id"],
+            )
+            cursor.execute(
+                "SELECT event_hash FROM booking_fraud_logs WHERE event_hash IS NOT NULL" + order_sql + " LIMIT 1"
+            )
+            row = cursor.fetchone()
+            if row:
+                prev_hash = row[0]
+        except Exception:
+            prev_hash = None
+
         # Extract booking data
         bookings_count_last_hour = booking_data.get('count_last_hour') if booking_data else None
         bookings_count_last_day = booking_data.get('count_last_day') if booking_data else None
@@ -1451,6 +1542,28 @@ def add_booking_fraud_log(user_id: str, booking_id: str, vehicle_id: str,
         # Convert ml_indicators to JSON
         ml_indicators_json = json.dumps(ml_indicators) if ml_indicators else None
 
+        event_data = {
+            "user_id": user_id,
+            "booking_id": booking_id,
+            "vehicle_id": vehicle_id,
+            "event_type": event_type,
+            "severity": severity,
+            "risk_score": risk_score,
+            "description": description,
+            "action_taken": action_taken,
+            "bookings_count_last_hour": bookings_count_last_hour,
+            "bookings_count_last_day": bookings_count_last_day,
+            "avg_interval_minutes": avg_interval_minutes,
+            "decline_count": decline_count,
+            "cards_attempted": cards_attempted,
+            "last_decline_reason": last_decline_reason,
+            "ml_indicators": ml_indicators_json,
+            "ip_address": ip_address,
+            "fraud_score": risk_score,
+            "fraud_type": event_type,
+        }
+        event_hash = _compute_log_chain_hash(event_data, prev_hash)
+
         # Build query with optional fields (ip_address, fraud_score, fraud_type)
         # These are aliases for compatibility
         query = """
@@ -1458,15 +1571,16 @@ def add_booking_fraud_log(user_id: str, booking_id: str, vehicle_id: str,
             (user_id, booking_id, vehicle_id, event_type, severity, risk_score,
              description, action_taken, bookings_count_last_hour, bookings_count_last_day,
              avg_interval_minutes, decline_count, cards_attempted, last_decline_reason,
-             ml_indicators, ip_address, fraud_score, fraud_type)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             ml_indicators, ip_address, fraud_score, fraud_type, prev_hash, event_hash)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
         cursor.execute(query, (user_id, booking_id, vehicle_id, event_type, severity,
                                risk_score, description, action_taken,
                                bookings_count_last_hour, bookings_count_last_day,
                                avg_interval_minutes, decline_count, cards_attempted,
-                               last_decline_reason, ml_indicators_json, ip_address, risk_score, event_type))
+                               last_decline_reason, ml_indicators_json, ip_address, risk_score, event_type,
+                               prev_hash, event_hash))
         conn.commit()
         log_id = cursor.lastrowid
         cursor.close()
@@ -1621,6 +1735,98 @@ def get_vehicle_fraud_stats() -> Dict[str, Any]:
             'by_type': by_type
         }
 
+
+def verify_booking_fraud_logs_hash_chain(limit: int = None) -> Dict[str, Any]:
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        order_sql = _order_by_timestamp_and_id_sql(
+            conn,
+            table_name="booking_fraud_logs",
+            timestamp_col="timestamp",
+            candidates=["id", "log_id", "booking_fraud_log_id", "event_id"],
+        )
+        q = (
+            "SELECT timestamp, user_id, booking_id, vehicle_id, event_type, severity, risk_score, "
+            "description, action_taken, bookings_count_last_hour, bookings_count_last_day, "
+            "avg_interval_minutes, decline_count, cards_attempted, last_decline_reason, "
+            "ml_indicators, ip_address, fraud_score, fraud_type, "
+            "prev_hash, event_hash "
+            "FROM booking_fraud_logs" + order_sql
+        )
+        if limit:
+            q += " LIMIT %s"
+            cursor.execute(q, (int(limit),))
+        else:
+            cursor.execute(q)
+
+        rows = cursor.fetchall()
+        cursor.close()
+
+    expected_prev = None
+    checked = 0
+    break_count = 0
+    first_break = None
+    last_break = None
+
+    for row in rows:
+        checked += 1
+        mismatch = None
+
+        actual_prev = (row.get("prev_hash") or None)
+        if actual_prev != expected_prev:
+            mismatch = {
+                "reason": "prev_hash mismatch",
+                "timestamp": row.get("timestamp"),
+                "expected_prev_hash": expected_prev,
+                "actual_prev_hash": actual_prev,
+            }
+        else:
+            event_data = {
+                "user_id": row.get("user_id"),
+                "booking_id": row.get("booking_id"),
+                "vehicle_id": row.get("vehicle_id"),
+                "event_type": row.get("event_type"),
+                "severity": row.get("severity"),
+                "risk_score": row.get("risk_score"),
+                "description": row.get("description"),
+                "action_taken": row.get("action_taken"),
+                "bookings_count_last_hour": row.get("bookings_count_last_hour"),
+                "bookings_count_last_day": row.get("bookings_count_last_day"),
+                "avg_interval_minutes": row.get("avg_interval_minutes"),
+                "decline_count": row.get("decline_count"),
+                "cards_attempted": row.get("cards_attempted"),
+                "last_decline_reason": row.get("last_decline_reason"),
+                "ml_indicators": row.get("ml_indicators"),
+                "ip_address": row.get("ip_address"),
+                "fraud_score": row.get("fraud_score"),
+                "fraud_type": row.get("fraud_type"),
+            }
+            computed = _compute_log_chain_hash(event_data, expected_prev)
+            if (row.get("event_hash") or "") != computed:
+                mismatch = {
+                    "reason": "event_hash mismatch",
+                    "timestamp": row.get("timestamp"),
+                }
+            else:
+                expected_prev = computed
+
+        if mismatch:
+            break_count += 1
+            if first_break is None:
+                first_break = mismatch
+            last_break = mismatch
+
+    if break_count:
+        return {
+            "valid": False,
+            "checked": checked,
+            "break_count": break_count,
+            "first_break": first_break,
+            "last_break": last_break,
+        }
+
+    return {"valid": True, "checked": checked, "break_count": 0}
+
 def get_booking_fraud_stats() -> Dict[str, Any]:
     """Get booking fraud statistics"""
     # CORRECTED: Use get_db_connection() instead of self.get_connection()
@@ -1672,11 +1878,6 @@ def get_booking_fraud_stats() -> Dict[str, Any]:
             'by_type': by_type
         }
 
-
-from typing import List, Dict, Optional
-import json
-from database import get_db_connection
-
 # ============= AUDIT LOGS =============
 
 def add_audit_log(user_id: Optional[int], action: str, entity_type: str, entity_id: str,
@@ -1687,11 +1888,45 @@ def add_audit_log(user_id: Optional[int], action: str, entity_type: str, entity_
     """Add an audit log entry"""
     with get_db_connection() as conn:
         cursor = conn.cursor()
+
+        prev_hash = None
+        try:
+            order_sql = _order_by_timestamp_and_id_desc_sql(
+                conn,
+                table_name="audit_logs",
+                timestamp_col="timestamp",
+                candidates=["audit_id", "id", "log_id", "event_id"],
+            )
+            cursor.execute(
+                "SELECT event_hash FROM audit_logs WHERE event_hash IS NOT NULL" + order_sql + " LIMIT 1"
+            )
+            row = cursor.fetchone()
+            if row:
+                prev_hash = row[0]
+        except Exception:
+            prev_hash = None
+
+        event_data = {
+            "user_id": user_id,
+            "action": action,
+            "entity_type": entity_type,
+            "entity_id": str(entity_id),
+            "previous_values": json.dumps(previous_values) if previous_values else None,
+            "new_values": json.dumps(new_values) if new_values else None,
+            "result": result,
+            "reason": reason,
+            "risk_score": risk_score,
+            "severity": severity,
+            "ip_address": ip_address,
+            "device_info": device_info,
+        }
+        event_hash = _compute_log_chain_hash(event_data, prev_hash)
+
         query = """
             INSERT INTO audit_logs
             (user_id, action, entity_type, entity_id, previous_values, new_values,
-             result, reason, risk_score, severity, ip_address, device_info)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             result, reason, risk_score, severity, ip_address, device_info, prev_hash, event_hash)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(query, (
             user_id,
@@ -1705,7 +1940,9 @@ def add_audit_log(user_id: Optional[int], action: str, entity_type: str, entity_
             risk_score,
             severity,
             ip_address,
-            device_info
+            device_info,
+            prev_hash,
+            event_hash
         ))
         conn.commit()
         audit_id = cursor.lastrowid
@@ -1739,6 +1976,90 @@ def get_audit_logs(entity_type: Optional[str] = None, entity_id: Optional[str] =
         logs = cursor.fetchall()
         cursor.close()
         return logs
+
+
+def verify_audit_logs_hash_chain(limit: int = None) -> Dict[str, Any]:
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        order_sql = _order_by_timestamp_and_id_sql(
+            conn,
+            table_name="audit_logs",
+            timestamp_col="timestamp",
+            candidates=["audit_id", "id", "log_id", "event_id"],
+        )
+        q = (
+            "SELECT timestamp, user_id, action, entity_type, entity_id, previous_values, new_values, "
+            "result, reason, risk_score, severity, ip_address, device_info, "
+            "prev_hash, event_hash "
+            "FROM audit_logs" + order_sql
+        )
+        if limit:
+            q += " LIMIT %s"
+            cursor.execute(q, (int(limit),))
+        else:
+            cursor.execute(q)
+
+        rows = cursor.fetchall()
+        cursor.close()
+
+    expected_prev = None
+    checked = 0
+    break_count = 0
+    first_break = None
+    last_break = None
+
+    for row in rows:
+        checked += 1
+        mismatch = None
+
+        actual_prev = (row.get("prev_hash") or None)
+        if actual_prev != expected_prev:
+            mismatch = {
+                "reason": "prev_hash mismatch",
+                "timestamp": row.get("timestamp"),
+                "expected_prev_hash": expected_prev,
+                "actual_prev_hash": actual_prev,
+            }
+        else:
+            event_data = {
+                "user_id": row.get("user_id"),
+                "action": row.get("action"),
+                "entity_type": row.get("entity_type"),
+                "entity_id": row.get("entity_id"),
+                "previous_values": row.get("previous_values"),
+                "new_values": row.get("new_values"),
+                "result": row.get("result"),
+                "reason": row.get("reason"),
+                "risk_score": row.get("risk_score"),
+                "severity": row.get("severity"),
+                "ip_address": row.get("ip_address"),
+                "device_info": row.get("device_info"),
+            }
+            computed = _compute_log_chain_hash(event_data, expected_prev)
+            if (row.get("event_hash") or "") != computed:
+                mismatch = {
+                    "reason": "event_hash mismatch",
+                    "timestamp": row.get("timestamp"),
+                }
+            else:
+                expected_prev = computed
+
+        if mismatch:
+            break_count += 1
+            if first_break is None:
+                first_break = mismatch
+            last_break = mismatch
+
+    if break_count:
+        return {
+            "valid": False,
+            "checked": checked,
+            "break_count": break_count,
+            "first_break": first_break,
+            "last_break": last_break,
+        }
+
+    return {"valid": True, "checked": checked, "break_count": 0}
     
 # ============= BACKUP LOGS =============
 

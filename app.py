@@ -65,6 +65,7 @@ from database import (
     # Data retention policies (multi-type)
     get_all_retention_policies, get_retention_policy, update_retention_policy,
     get_retention_statistics, purge_data_for_type, run_all_retention_purges
+    , verify_security_logs_hash_chain, verify_audit_logs_hash_chain, verify_booking_fraud_logs_hash_chain
 )
 
 # Import data models
@@ -4190,6 +4191,112 @@ def security_dashboard():
         flash('Access denied. Admin privileges required.', 'error')
         return redirect(url_for('index'))
     return render_template('security_dashboard.html')
+
+
+@app.route('/hash-chain-integrity')
+@require_classification('security_logs.user_id')
+def hash_chain_integrity():
+    if 'user' not in session or session.get('user_type') != 'admin':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('index'))
+
+    integrity_items = []
+
+    def _format_reason(res: dict) -> str:
+        if not isinstance(res, dict):
+            return "Unknown"
+        if res.get("valid"):
+            return "OK"
+
+        break_count = res.get("break_count")
+        if isinstance(break_count, int):
+            first_break = res.get("first_break") if isinstance(res.get("first_break"), dict) else {}
+            last_break = res.get("last_break") if isinstance(res.get("last_break"), dict) else {}
+
+            def _fmt_break(b: dict) -> str:
+                r = b.get("reason", "Unknown")
+                ts = b.get("timestamp")
+                if ts:
+                    r = f"{r} @ {ts}"
+                if b.get("expected_prev_hash") is not None or b.get("actual_prev_hash") is not None:
+                    r = r + f" (expected={b.get('expected_prev_hash')}, actual={b.get('actual_prev_hash')})"
+                return r
+
+            if break_count <= 0:
+                return "Unknown"
+            if break_count == 1:
+                return _fmt_break(first_break)
+            return f"{break_count} breaks | first: {_fmt_break(first_break)} | last: {_fmt_break(last_break)}"
+
+        reason = res.get("reason", "Unknown")
+        ts = res.get("timestamp")
+        if ts:
+            reason = f"{reason} @ {ts}"
+        if res.get("expected_prev_hash") is not None or res.get("actual_prev_hash") is not None:
+            reason = reason + f" (expected={res.get('expected_prev_hash')}, actual={res.get('actual_prev_hash')})"
+        return reason
+
+    try:
+        res = verify_security_logs_hash_chain()
+        integrity_items.append({
+            "title": "Access Security Logs",
+            "table_name": "security_logs",
+            "status": "ok" if res.get("valid") else "break",
+            "checked": res.get("checked", 0),
+            "reason": _format_reason(res),
+            "view_endpoint": "security_logs",
+        })
+    except Exception as e:
+        integrity_items.append({
+            "title": "Access Security Logs",
+            "table_name": "security_logs",
+            "status": "unknown",
+            "checked": 0,
+            "reason": str(e),
+            "view_endpoint": "security_logs",
+        })
+
+    try:
+        res = verify_audit_logs_hash_chain()
+        integrity_items.append({
+            "title": "Audit Logs",
+            "table_name": "audit_logs",
+            "status": "ok" if res.get("valid") else "break",
+            "checked": res.get("checked", 0),
+            "reason": _format_reason(res),
+            "view_endpoint": "audit_logs",
+        })
+    except Exception as e:
+        integrity_items.append({
+            "title": "Audit Logs",
+            "table_name": "audit_logs",
+            "status": "unknown",
+            "checked": 0,
+            "reason": str(e),
+            "view_endpoint": "audit_logs",
+        })
+
+    try:
+        res = verify_booking_fraud_logs_hash_chain()
+        integrity_items.append({
+            "title": "Booking Fraud Logs",
+            "table_name": "booking_fraud_logs",
+            "status": "ok" if res.get("valid") else "break",
+            "checked": res.get("checked", 0),
+            "reason": _format_reason(res),
+            "view_endpoint": "booking_fraud_logs",
+        })
+    except Exception as e:
+        integrity_items.append({
+            "title": "Booking Fraud Logs",
+            "table_name": "booking_fraud_logs",
+            "status": "unknown",
+            "checked": 0,
+            "reason": str(e),
+            "view_endpoint": "booking_fraud_logs",
+        })
+
+    return render_template('hash_chain_integrity.html', integrity_items=integrity_items)
 
 
 @app.route('/admin/backup-management')
