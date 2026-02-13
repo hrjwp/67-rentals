@@ -1952,8 +1952,9 @@ def add_audit_log(user_id: Optional[int], action: str, entity_type: str, entity_
 
 
 def get_audit_logs(entity_type: Optional[str] = None, entity_id: Optional[str] = None,
-                   user_id: Optional[int] = None, limit: int = 100) -> List[Dict]:
-    """Retrieve audit logs with optional filters"""
+                   user_id: Optional[int] = None, limit: int = 100,
+                   offset: int = 0) -> List[Dict]:
+    """Retrieve audit logs with optional filters and pagination offset"""
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
         query = "SELECT * FROM audit_logs WHERE 1=1"
@@ -1969,8 +1970,9 @@ def get_audit_logs(entity_type: Optional[str] = None, entity_id: Optional[str] =
             query += " AND user_id = %s"
             params.append(user_id)
 
-        query += " ORDER BY timestamp DESC LIMIT %s"
+        query += " ORDER BY timestamp DESC LIMIT %s OFFSET %s"
         params.append(limit)
+        params.append(offset)
 
         cursor.execute(query, params)
         logs = cursor.fetchall()

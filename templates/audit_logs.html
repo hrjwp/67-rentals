@@ -4,8 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audit Logs - 67 Rentals</title>
+    <title>Audit Logs - AI Risk Detection - 67 Rentals</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/templatemo-graph-page.css') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         .table-controls {
             display: flex;
@@ -56,6 +57,68 @@
             background: var(--custom-btn-bg-hover-color);
         }
 
+        /* AI Risk Detection Styles */
+        .ai-risk-banner {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .ai-risk-banner h3 {
+            margin: 0 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ai-risk-banner p {
+            margin: 0;
+            opacity: 0.9;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--white-color);
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid var(--primary-color);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .stat-card.critical {
+            border-left-color: #dc3545;
+        }
+
+        .stat-card.high {
+            border-left-color: #fd7e14;
+        }
+
+        .stat-card.medium {
+            border-left-color: #ffc107;
+        }
+
+        .stat-card h4 {
+            margin: 0 0 10px 0;
+            color: var(--p-color);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+            color: var(--secondary-color);
+        }
+
         .audit-table {
             width: 100%;
             background: var(--white-color);
@@ -67,7 +130,7 @@
         .audit-table table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 900px;
+            min-width: 1200px;
         }
 
         .audit-table thead {
@@ -92,6 +155,15 @@
             background: var(--section-bg-color);
         }
 
+        .audit-table tbody tr.high-risk {
+            background: rgba(220, 53, 69, 0.05);
+        }
+
+        .audit-table tbody tr.critical-risk {
+            background: rgba(220, 53, 69, 0.1);
+            border-left: 4px solid #dc3545;
+        }
+
         .audit-table td {
             padding: 16px;
             font-size: 14px;
@@ -103,21 +175,7 @@
             border-radius: var(--border-radius-large);
             font-size: 12px;
             font-weight: var(--font-weight-medium);
-        }
-
-        .level-info {
-            background: rgba(129, 178, 154, 0.2);
-            color: var(--primary-color);
-        }
-
-        .level-warning {
-            background: rgba(242, 204, 143, 0.2);
-            color: var(--custom-btn-bg-color);
-        }
-
-        .level-error {
-            background: rgba(224, 122, 95, 0.2);
-            color: var(--custom-btn-bg-hover-color);
+            display: inline-block;
         }
 
         .level-success {
@@ -125,18 +183,93 @@
             color: #2d7a52;
         }
 
+        .level-error {
+            background: rgba(224, 122, 95, 0.2);
+            color: var(--custom-btn-bg-hover-color);
+        }
+
+        .level-warning {
+            background: rgba(242, 204, 143, 0.2);
+            color: var(--custom-btn-bg-color);
+        }
+
+        .risk-badge {
+            padding: 5px 12px;
+            border-radius: var(--border-radius-large);
+            font-size: 12px;
+            font-weight: var(--font-weight-bold);
+            display: inline-block;
+            margin-left: 8px;
+        }
+
+        .risk-low {
+            background: rgba(129, 178, 154, 0.2);
+            color: #2d7a52;
+        }
+
+        .risk-medium {
+            background: rgba(255, 193, 7, 0.2);
+            color: #856404;
+        }
+
+        .risk-high {
+            background: rgba(253, 126, 20, 0.2);
+            color: #d63384;
+        }
+
+        .risk-critical {
+            background: rgba(220, 53, 69, 0.2);
+            color: #dc3545;
+            animation: pulse-risk 2s infinite;
+        }
+
+        @keyframes pulse-risk {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
         .action-type {
             font-weight: var(--font-weight-medium);
             color: var(--secondary-color);
         }
-         * {
-            /* Security: Prevent text selection */
+
+        .threat-reasons {
+            font-size: 12px;
+            color: #dc3545;
+            margin-top: 5px;
+            padding: 8px;
+            background: rgba(220, 53, 69, 0.05);
+            border-radius: 4px;
+            border-left: 3px solid #dc3545;
+        }
+
+        .threat-reasons ul {
+            margin: 5px 0 0 0;
+            padding-left: 20px;
+        }
+
+        .threat-reasons li {
+            margin: 3px 0;
+        }
+
+        .ai-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-left: 5px;
+            display: inline-block;
+        }
+
+        * {
             user-select: none;
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
         }
-        /* --- Security Overlays Start --- */
+
         .security-banner {
             background: #ff6b6b;
             color: white;
@@ -151,6 +284,7 @@
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
             font-size: 14px;
         }
+
         .session-timer {
             position: fixed;
             top: 80px;
@@ -164,20 +298,19 @@
             color: var(--secondary-color);
             border: 2px solid var(--primary-color);
         }
+
         .timer-warning {
             background: #ff6b6b !important;
             color: white !important;
             animation: pulse 1s infinite;
             border-color: #ff6b6b;
         }
+
         @keyframes pulse {
-            0%, 100% {
-                opacity: 1;
-            }
-            50% {
-                opacity: 0.7;
-            }
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
+
         .watermark-overlay {
             position: fixed;
             top: 0;
@@ -188,6 +321,7 @@
             z-index: 9997;
             overflow: hidden;
         }
+
         .watermark-text {
             position: absolute;
             font-size: 80px;
@@ -196,19 +330,23 @@
             white-space: nowrap;
             transform: rotate(-20deg);
         }
+
         .watermark-text:nth-child(1) {
             top: 10%;
             left: 5%;
         }
+
         .watermark-text:nth-child(2) {
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%) rotate(-20deg);
         }
+
         .watermark-text:nth-child(3) {
             bottom: 10%;
             right: 5%;
         }
+
         .blocked-action {
             position: fixed;
             top: 50%;
@@ -224,6 +362,7 @@
             display: none;
             animation: slideIn 0.3s ease;
         }
+
         @keyframes slideIn {
             from {
                 transform: translate(-50%, -60%);
@@ -234,6 +373,77 @@
                 opacity: 1;
             }
         }
+
+        /* ── Pagination ────────────────────────────────────────────── */
+        .pagination-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 24px;
+            padding: 16px 0;
+        }
+
+        .pagination-info {
+            font-size: 14px;
+            color: var(--p-color);
+        }
+
+        .pagination-controls {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .page-btn {
+            min-width: 38px;
+            height: 38px;
+            padding: 0 10px;
+            border: 1px solid var(--primary-color);
+            border-radius: var(--border-radius-small);
+            background: var(--section-bg-color);
+            color: var(--secondary-color);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .page-btn:hover {
+            background: var(--custom-btn-bg-color);
+            color: var(--secondary-color);
+            border-color: var(--custom-btn-bg-color);
+        }
+
+        .page-btn.active {
+            background: var(--secondary-color);
+            color: var(--white-color);
+            border-color: var(--secondary-color);
+        }
+
+        .page-btn:disabled,
+        .page-btn.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .per-page-select {
+            padding: 8px 12px;
+            border: 1px solid var(--primary-color);
+            border-radius: var(--border-radius-small);
+            background: var(--section-bg-color);
+            color: var(--secondary-color);
+            font-size: 14px;
+            cursor: pointer;
+        }
+
         .session-expired {
             position: fixed;
             top: 0;
@@ -246,6 +456,7 @@
             justify-content: center;
             z-index: 10002;
         }
+
         .expired-content {
             background: white;
             padding: 50px;
@@ -253,10 +464,12 @@
             text-align: center;
             max-width: 500px;
         }
+
         .expired-content h1 {
             color: #ff6b6b;
             margin-bottom: 20px;
         }
+
         .expired-content .btn {
             background: var(--custom-btn-bg-color);
             color: var(--secondary-color);
@@ -268,39 +481,13 @@
             margin-top: 20px;
             font-weight: 600;
         }
-        .activity-log {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            max-width: 300px;
-            max-height: 200px;
-            overflow-y: auto;
-            font-size: 12px;
-            z-index: 9998;
-            border-left: 4px solid var(--secondary-color);
-        }
-        .activity-log h4 {
-            margin-bottom: 10px;
-            color: var(--secondary-color);
-            font-weight: 700;
-        }
-        .activity-item {
-            padding: 5px 0;
-            border-bottom: 1px solid #e0e0e0;
-            color: #666;
-        }
-        /* --- Security Overlays End --- */
     </style>
 </head>
 
 <body>
     <!-- Security Overlays -->
     <div class="security-banner">
-        Data Copying Disabled - Session: <span id="sessionId"></span>
+        🔒 Data Copying Disabled - Session: <span id="sessionId"></span>
     </div>
     <div class="session-timer" id="sessionTimer">
         ⏱️ Session: <span id="timeLeft">15:00</span>
@@ -324,32 +511,72 @@
     </div>
     {% include 'partials/navbar_graph.html' %}
 
-
     <!-- Audit Logs Section -->
     <section class="dashboard-section" style="padding-top: 120px; min-height: 100vh;">
         <div class="dashboard-container">
-            <h2 class="section-title">Audit Logs</h2>
+            <h2 class="section-title">Audit Logs - AI Risk Detection</h2>
+
+            <!-- AI Risk Detection Banner -->
+            <div class="ai-risk-banner">
+                <h3>
+                    <i class="bi bi-robot"></i>
+                    AI-Powered Audit Risk Detection
+                    <span class="ai-badge">ACTIVE</span>
+                </h3>
+                <p>Real-time monitoring for privilege escalation, data exfiltration, and insider threats</p>
+            </div>
+
+            <!-- Statistics Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h4>Total Activities (24h)</h4>
+                    <div class="value">{{ stats.total_activities }}</div>
+                </div>
+                <div class="stat-card critical">
+                    <h4>Critical Risk Alerts</h4>
+                    <div class="value" style="color: #dc3545;">{{ stats.critical_risk }}</div>
+                </div>
+                <div class="stat-card high">
+                    <h4>High Risk Activities</h4>
+                    <div class="value" style="color: #fd7e14;">{{ stats.high_risk }}</div>
+                </div>
+                <div class="stat-card medium">
+                    <h4>Avg Risk Score</h4>
+                    <div class="value" style="color: #ffc107;">{{ "%.2f"|format(stats.avg_risk_score) }}</div>
+                </div>
+            </div>
 
             <!-- Table Controls -->
             <div class="table-controls">
                 <div class="search-box">
                     <input type="text" placeholder="Search logs by user, action, or IP address..." id="searchInput">
                 </div>
-                <select class="filter-select" id="levelFilter">
-                    <option value="">All Levels</option>
-                    <option value="info">Info</option>
-                    <option value="warning">Warning</option>
-                    <option value="error">Error</option>
-                    <option value="success">Success</option>
+                <select class="filter-select" id="riskFilter">
+                    <option value="">All Risk Levels</option>
+                    <option value="critical">Critical Risk</option>
+                    <option value="high">High Risk</option>
+                    <option value="medium">Medium Risk</option>
+                    <option value="low">Low Risk</option>
                 </select>
-                <button class="export-btn" onclick="alert('Export functionality coming soon')">
+                <select class="filter-select" id="resultFilter">
+                    <option value="">All Results</option>
+                    <option value="Success">Success</option>
+                    <option value="Failure">Failure</option>
+                </select>
+                <select class="per-page-select" id="perPageSelect" onchange="changePerPage(this.value)">
+                    <option value="25"  {% if pagination.per_page == 25  %}selected{% endif %}>25 / page</option>
+                    <option value="50"  {% if pagination.per_page == 50  %}selected{% endif %}>50 / page</option>
+                    <option value="100" {% if pagination.per_page == 100 %}selected{% endif %}>100 / page</option>
+                    <option value="200" {% if pagination.per_page == 200 %}selected{% endif %}>200 / page</option>
+                </select>
+                <button class="export-btn" onclick="exportToCSV()">
                     📥 Export CSV
                 </button>
             </div>
 
             <!-- Audit Logs Table -->
             <div class="audit-table">
-                <table>
+                <table id="auditTable">
                     <thead>
                         <tr>
                             <th>Timestamp</th>
@@ -358,17 +585,22 @@
                             <th>Resource</th>
                             <th>IP Address</th>
                             <th>Result</th>
-                            <th>Details</th>
-                            <th>Prev Hash</th>
-                            <th>Event Hash</th>
+                            <th>AI Risk Score</th>
+                            <th>Threats Detected</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for log in audit_logs %}
-                        <tr>
+                        <tr class="{% if log.ai_risk_level == 'Critical' %}critical-risk{% elif log.ai_risk_level == 'High' %}high-risk{% endif %}" 
+                            data-risk-level="{{ log.ai_risk_level|lower }}">
                             <td>{{ log.timestamp }}</td>
                             <td>{{ log.user_email or log.user_id }}</td>
-                            <td><span class="action-type">{{ log.action }}</span></td>
+                            <td>
+                                <span class="action-type">{{ log.action }}</span>
+                                {% if log.ai_risk_level in ['Critical', 'High'] %}
+                                <span class="ai-badge">AI</span>
+                                {% endif %}
+                            </td>
                             <td>{{ log.entity_type }} #{{ log.entity_id }}</td>
                             <td>{{ log.ip_address or '-' }}</td>
                             <td>
@@ -377,127 +609,167 @@
                                 {% elif log.result == 'Failure' %}
                                 <span class="log-level level-error">{{ log.result }}</span>
                                 {% else %}
-                                <span class="log-level level-info">{{ log.result }}</span>
+                                <span class="log-level level-warning">{{ log.result }}</span>
                                 {% endif %}
                             </td>
                             <td>
-                                {% if log.previous_values %}
-                                <strong>Before:</strong> {{ log.previous_values }}<br>
-                                {% endif %}
-                                {% if log.new_values %}
-                                <strong>After:</strong> {{ log.new_values }}
-                                {% endif %}
-                                {% if log.reason %}
-                                <br><strong>Reason:</strong> {{ log.reason }}
-                                {% endif %}
-                                {% if log.risk_score %}
-                                <br><strong>Risk:</strong> {{ log.risk_score }} ({{ log.severity }})
+                                {% if log.ai_risk_score is not none %}
+                                <span class="risk-badge risk-{{ log.ai_risk_level|lower }}">
+                                    {{ "%.2f"|format(log.ai_risk_score) }} - {{ log.ai_risk_level }}
+                                </span>
+                                {% else %}
+                                <span class="risk-badge risk-low">-</span>
                                 {% endif %}
                             </td>
-                            <td title="{{ log.prev_hash or '' }}">{{ (log.prev_hash or '-')[:8] }}{% if log.prev_hash %}…{{ log.prev_hash[-8:] }}{% endif %}</td>
-                            <td title="{{ log.event_hash or '' }}">{{ (log.event_hash or '-')[:8] }}{% if log.event_hash %}…{{ log.event_hash[-8:] }}{% endif %}</td>
+                            <td>
+                                {% if log.ai_threats %}
+                                <div class="threat-reasons">
+                                    <strong>⚠️ Threats:</strong>
+                                    <ul>
+                                        {% for threat in log.ai_threats %}
+                                        <li>{{ threat }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                                {% else %}
+                                <span style="color: #2d7a52;">✓ Clean</span>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination Bar -->
+            <div class="pagination-bar">
+                <div class="pagination-info">
+                    Showing page <strong>{{ pagination.page }}</strong> of
+                    <strong>{{ pagination.total_pages }}</strong>
+                    &nbsp;·&nbsp;
+                    <strong>{{ pagination.total_rows }}</strong> total logs
+                </div>
+                <div class="pagination-controls">
+                    {% if pagination.has_prev %}
+                    <a class="page-btn" href="{{ url_for('audit_logs', page=1, per_page=pagination.per_page) }}" title="First page">«</a>
+                    <a class="page-btn" href="{{ url_for('audit_logs', page=pagination.prev_page, per_page=pagination.per_page) }}">‹ Prev</a>
+                    {% else %}
+                    <span class="page-btn disabled">«</span>
+                    <span class="page-btn disabled">‹ Prev</span>
+                    {% endif %}
+
+                    {% for p in pagination.page_range %}
+                    <a class="page-btn {% if p == pagination.page %}active{% endif %}"
+                       href="{{ url_for('audit_logs', page=p, per_page=pagination.per_page) }}">{{ p }}</a>
+                    {% endfor %}
+
+                    {% if pagination.has_next %}
+                    <a class="page-btn" href="{{ url_for('audit_logs', page=pagination.next_page, per_page=pagination.per_page) }}">Next ›</a>
+                    <a class="page-btn" href="{{ url_for('audit_logs', page=pagination.total_pages, per_page=pagination.per_page) }}" title="Last page">»</a>
+                    {% else %}
+                    <span class="page-btn disabled">Next ›</span>
+                    <span class="page-btn disabled">»</span>
+                    {% endif %}
+                </div>
+            </div>
+
         </div>
     </section>
 
     <!-- Footer -->
     <footer>
         <div class="footer-content">
-            <p class="copyright">© 2026 67 Rentals. All rights reserved.</p>
+            <p class="copyright">© 2026 67 Rentals. All rights reserved. | AI Risk Detection Active</p>
         </div>
     </footer>
 
     <script src="{{ url_for('static', filename='js/templatemo-graph-script.js') }}"></script>
     <script>
-        // Search functionality
-        document.getElementById('searchInput').addEventListener('input', function (e) {
-            filterTable();
-        });
+        // Generate session ID
+        const sessionId = 'AUD-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+        document.getElementById('sessionId').textContent = sessionId;
 
-        // Level filter
-        document.getElementById('levelFilter').addEventListener('change', function (e) {
-            filterTable();
-        });
+        // Search and filter functionality
+        document.getElementById('searchInput').addEventListener('input', filterTable);
+        document.getElementById('riskFilter').addEventListener('change', filterTable);
+        document.getElementById('resultFilter').addEventListener('change', filterTable);
 
         function filterTable() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            const levelFilter = document.getElementById('levelFilter').value.toLowerCase();
-            const rows = document.querySelectorAll('.audit-table tbody tr');
+            const riskFilter = document.getElementById('riskFilter').value.toLowerCase();
+            const resultFilter = document.getElementById('resultFilter').value.toLowerCase();
+            const rows = document.querySelectorAll('#auditTable tbody tr');
 
             rows.forEach(row => {
                 const text = row.textContent.toLowerCase();
                 const matchesSearch = text.includes(searchTerm);
-                const levelCell = row.querySelector('.log-level');
-                const matchesLevel = !levelFilter || (levelCell && levelCell.textContent.toLowerCase().includes(levelFilter));
+                const riskLevel = row.getAttribute('data-risk-level') || '';
+                const matchesRisk = !riskFilter || riskLevel === riskFilter;
+                const resultCell = row.querySelector('.log-level');
+                const matchesResult = !resultFilter || (resultCell && resultCell.textContent.toLowerCase().includes(resultFilter.toLowerCase()));
 
-                row.style.display = (matchesSearch && matchesLevel) ? '' : 'none';
+                row.style.display = (matchesSearch && matchesRisk && matchesResult) ? '' : 'none';
             });
         }
-    </script>
 
-    <script>
- // Define user ID first for security scripts
-        const CURRENT_USER_ID = {{ session.get('user_id', 0) | tojson }};
-        // --- Security Scripts Start ---
+        function changePerPage(value) {
+            // Navigate to page 1 with the new per_page value
+            const url = new URL(window.location.href);
+            url.searchParams.set('page', '1');
+            url.searchParams.set('per_page', value);
+            window.location.href = url.toString();
+        }
+
+        // Export to CSV
+        function exportToCSV() {
+            const table = document.getElementById('auditTable');
+            const rows = table.querySelectorAll('tr');
+            let csv = [];
+
+            rows.forEach(row => {
+                const cols = row.querySelectorAll('td, th');
+                const rowData = [];
+                cols.forEach(col => {
+                    rowData.push('"' + col.textContent.replace(/"/g, '""') + '"');
+                });
+                csv.push(rowData.join(','));
+            });
+
+            const csvString = csv.join('\n');
+            const blob = new Blob([csvString], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `audit_logs_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        // Session timer and security
         const SESSION_DURATION = 900;
         let sessionTimeRemaining = SESSION_DURATION;
         let sessionInterval;
-        let activityLogs = [];
         let screenshotAttempts = 0;
-        const _lastReportedAt = {};
-        // Simple in-page activity monitor so we can safely call logActivity(...)
-        function logActivity(message, level = 'info') {
-            const timestamp = new Date().toLocaleTimeString();
-            activityLogs.unshift({ timestamp, message, level });
-            if (activityLogs.length > 50) {
-                activityLogs.pop();
-            }
-            let container = document.getElementById('activityLog');
-            if (!container) {
-                container = document.createElement('div');
-                container.id = 'activityLog';
-                container.className = 'activity-log';
-                container.innerHTML = '<h4>Activity Monitor</h4><div id="activityItems"></div>';
-                document.body.appendChild(container);
-            }
-            const itemsEl = document.getElementById('activityItems');
-            if (itemsEl) {
-                itemsEl.innerHTML = activityLogs
-                    .map(log => `<div class="activity-item">[${log.timestamp}] ${log.message}</div>`)
-                    .join('');
-            }
+
+        function startSessionTimer() {
+            sessionInterval = setInterval(() => {
+                sessionTimeRemaining--;
+                const minutes = Math.floor(sessionTimeRemaining / 60);
+                const seconds = sessionTimeRemaining % 60;
+                document.getElementById('timeLeft').textContent = 
+                    `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+                const timerEl = document.getElementById('sessionTimer');
+                if (sessionTimeRemaining <= 60) {
+                    timerEl.classList.add('timer-warning');
+                }
+                if (sessionTimeRemaining <= 0) {
+                    clearInterval(sessionInterval);
+                    document.getElementById('sessionExpired').style.display = 'flex';
+                }
+            }, 1000);
         }
-        // Generate unique session ID
-        const sessionId = 'SID-' + Math.random().toString(36).substr(2, 9).toUpperCase();
-        document.getElementById('sessionId').textContent = sessionId;
-        async function reportSecurityEvent(eventType, severity, description, actionTaken) {
-            // Simple client-side throttle to avoid flooding logs
-            const key = `${eventType}:${severity}`;
-            const now = Date.now();
-            if (_lastReportedAt[key] && now - _lastReportedAt[key] < 3000) return;
-            _lastReportedAt[key] = now;
-            try {
-                await fetch('/api/log-security-event', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    keepalive: true,
-                    body: JSON.stringify({
-                        user_id: CURRENT_USER_ID,
-                        event_type: eventType,
-                        severity,
-                        // Include page context so admins can see where it happened
-                        description: `${description} | Page: ${window.location.pathname}`,
-                        action_taken: actionTaken
-                    })
-                });
-            } catch (e) {
-                // Best-effort logging; ignore failures
-            }
-        }
+
         function showBlockedAlert(message) {
             const alert = document.getElementById('blockedAlert');
             document.getElementById('blockedMessage').textContent = message;
@@ -506,190 +778,32 @@
                 alert.style.display = 'none';
             }, 2000);
         }
-        function startSessionTimer() {
-            sessionInterval = setInterval(() => {
-                sessionTimeRemaining--;
-                const minutes = Math.floor(sessionTimeRemaining / 60);
-                const seconds = sessionTimeRemaining % 60;
-                const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                document.getElementById('timeLeft').textContent = timeDisplay;
-                const timerEl = document.getElementById('sessionTimer');
-                if (sessionTimeRemaining <= 60) {
-                    timerEl.classList.add('timer-warning');
-                }
-                if (sessionTimeRemaining <= 0) {
-                    clearInterval(sessionInterval);
-                    document.getElementById('sessionExpired').style.display = 'flex';
-                    logActivity('Session expired - Auto logout', 'warning');
-                    reportSecurityEvent(
-                        'Session Timeout',
-                        'Medium',
-                        `Client session timer expired (SID=${sessionId})`,
-                        'Displayed session expired overlay'
-                    );
-                }
-            }, 1000);
-        }
-        function resetSessionTimer() {
-            sessionTimeRemaining = SESSION_DURATION;
-            document.getElementById('sessionTimer').classList.remove('timer-warning');
-        }
+
         // Security event handlers
         document.addEventListener('copy', (e) => {
             e.preventDefault();
             showBlockedAlert('Copying data is not allowed for security reasons.');
-            logActivity('Copy attempt blocked', 'warning');
-            reportSecurityEvent('Copy/Paste Attempt', 'Medium', `Copy blocked (SID=${sessionId})`, 'Blocked copy');
         });
-        document.addEventListener('cut', (e) => {
-            e.preventDefault();
-            showBlockedAlert('Cutting data is not allowed for security reasons.');
-            logActivity('Cut attempt blocked', 'warning');
-            reportSecurityEvent('Copy/Paste Attempt', 'Medium', `Cut blocked (SID=${sessionId})`, 'Blocked cut');
-        });
-        document.addEventListener('paste', (e) => {
-            e.preventDefault();
-            showBlockedAlert('Pasting is not allowed in this secure area.');
-            logActivity('Paste attempt blocked', 'warning');
-            reportSecurityEvent('Copy/Paste Attempt', 'Medium', `Paste blocked (SID=${sessionId})`, 'Blocked paste');
-        });
+
         document.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             showBlockedAlert('Right-click menu is disabled in secure areas.');
-            logActivity('Context menu blocked', 'warning');
         });
-        function handlePrintScreen(e) {
-            const isPrintScreen =
-                e.key === 'PrintScreen' ||
-                e.key === 'Print Screen' ||
-                e.keyCode === 44 ||
-                e.which === 44;
-            if (!isPrintScreen) return false;
-            screenshotAttempts++;
-            showBlockedAlert(`Screenshot attempt detected. Session: ${sessionId}`);
-            logActivity(`Screenshot attempt #${screenshotAttempts}`, 'warning');
-            reportSecurityEvent(
-                'Screenshot Prevented',
-                'High',
-                `PrintScreen detected (attempt #${screenshotAttempts}) (SID=${sessionId})`,
-                e.metaKey ? 'Detected Win+PrintScreen' : 'Detected PrintScreen'
-            );
-            // Best-effort clipboard clear (may be unavailable on HTTP)
-            try {
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText('').catch(() => {});
-                }
-            } catch (err) {
-                // ignore
-            }
-            document.body.style.filter = 'invert(1)';
-            setTimeout(() => { document.body.style.filter = 'none'; }, 100);
-            return true;
-        }
+
         document.addEventListener('keydown', (e) => {
-            if (e.keyCode === 123) {
+            if (e.keyCode === 123 || 
+                (e.ctrlKey && e.shiftKey && ['I', 'J', 'C'].includes(e.key)) ||
+                (e.ctrlKey && ['u', 's', 'p'].includes(e.key))) {
                 e.preventDefault();
-                showBlockedAlert('Developer tools are disabled.');
-                logActivity('DevTools access blocked', 'warning');
-                reportSecurityEvent('Security Alert', 'High', `DevTools blocked (F12) (SID=${sessionId})`, 'Blocked DevTools');
+                showBlockedAlert('This action is disabled for security.');
                 return false;
             }
-            if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) {
-                e.preventDefault();
-                showBlockedAlert('Developer tools are disabled.');
-                logActivity('DevTools shortcut blocked', 'warning');
-                reportSecurityEvent('Security Alert', 'High', `DevTools shortcut blocked (SID=${sessionId})`, 'Blocked DevTools shortcut');
-                return false;
-            }
-            if (e.ctrlKey && e.key === 'u') {
-                e.preventDefault();
-                showBlockedAlert('Viewing source code is disabled.');
-                logActivity('View source blocked', 'warning');
-                return false;
-            }
-            if (e.ctrlKey && e.key === 's') {
-                e.preventDefault();
-                showBlockedAlert('Saving pages is disabled.');
-                logActivity('Save page blocked', 'warning');
-                reportSecurityEvent('Export Blocked', 'High', `Save page blocked (SID=${sessionId})`, 'Blocked Ctrl+S');
-                return false;
-            }
-            if (e.ctrlKey && e.key === 'p') {
-                e.preventDefault();
-                showBlockedAlert('Printing is disabled for security reasons.');
-                logActivity('Print attempt blocked', 'warning');
-                reportSecurityEvent('Export Blocked', 'High', `Print blocked (SID=${sessionId})`, 'Blocked Ctrl+P');
-                return false;
-            }
-            // Try to detect PrintScreen on keydown (may be swallowed by OS in some cases)
-            if (handlePrintScreen(e)) {
-                // preventDefault won't always stop OS screenshot, but can stop page behaviors
-                e.preventDefault();
-                e.stopPropagation();
-                return false;
-            }
-            resetSessionTimer();
+            sessionTimeRemaining = SESSION_DURATION;
+            document.getElementById('sessionTimer').classList.remove('timer-warning');
         });
-        // Also listen on keyup in CAPTURE phase (some browsers only expose PrintScreen here)
-        window.addEventListener('keyup', (e) => {
-            if (handlePrintScreen(e)) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-        }, true);
-        // Detect Snipping Tool (Windows Key + Shift + S) and other combinations
-        document.addEventListener('keyup', (e) => {
-            if (e.key === 's' && e.shiftKey && e.metaKey) {
-                screenshotAttempts++;
-                showBlockedAlert(`Snipping tool detected! Attempt #${screenshotAttempts} logged.`);
-                logActivity(`Snipping tool attempt #${screenshotAttempts}`, 'warning');
-                reportSecurityEvent(
-                    'Screenshot Prevented',
-                    'High',
-                    `Snipping tool shortcut suspected (attempt #${screenshotAttempts}) (SID=${sessionId})`,
-                    'Detected Win+Shift+S'
-                );
-            }
-        });
-        // Detect visibility change (often triggered by screen capture tools overlaying the window)
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                // Don't log to DB on tab switches; this causes false positives.
-                // Keep only a visual deterrent.
-                document.body.style.filter = 'blur(10px)';
-            } else {
-                document.body.style.filter = 'none';
-            }
-        });
-        // Detect focus loss (often happens when clicking "New" on Snipping Tool)
-        window.addEventListener('blur', () => {
-            logActivity('Window lost focus - possible screenshot tool active', 'warning');
-        });
-        window.addEventListener('beforeprint', (e) => {
-            e.preventDefault();
-            showBlockedAlert('Printing is disabled for security reasons.');
-            logActivity('Print blocked', 'warning');
-            return false;
-        });
-        // Monitor for Screen Recording API usage
-        setInterval(() => {
-            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-                const now = Date.now();
-                if (!window.lastCaptureWarning || now - window.lastCaptureWarning > 60000) {
-                    window.lastCaptureWarning = now;
-                    logActivity('Screen capture API detected - monitoring', 'warning');
-                }
-            }
-        }, 30000);
-        document.addEventListener('mousemove', resetSessionTimer);
-        document.addEventListener('click', resetSessionTimer);
-        document.addEventListener('scroll', resetSessionTimer);
-        window.addEventListener('beforeunload', (e) => {
-            logActivity(`Session ended - ${screenshotAttempts} screenshot attempts detected`, 'info');
-        });
-        // Start session timer on page load
+
+        // Start timer on load
         startSessionTimer();
-        // --- Security Scripts End ---
     </script>
 </body>
 

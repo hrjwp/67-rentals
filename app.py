@@ -15,6 +15,8 @@ from dotenv import load_dotenv
 from functools import wraps
 import uuid, time
 from werkzeug.exceptions import HTTPException
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), 'audit-risk-detector'))
 
 # --- Automated System Setup (Integrated from app1) ---
 from utils.auto_setup import ensure_env_file
@@ -56,7 +58,7 @@ from database import (
     get_security_stats, get_vehicle_fraud_stats, get_booking_fraud_stats,
     add_security_log, add_vehicle_fraud_log, add_booking_fraud_log,
     create_incident_report, get_incident_reports,
-    update_incident_status, delete_incident_report, add_audit_log, get_audit_logs, get_user_by_id,
+    update_incident_status, delete_incident_report, add_audit_log as _original_add_audit_log, get_audit_logs, get_user_by_id,
     get_backup_logs, get_backup_stats, update_backup_verification,
     ensure_incident_report_files_table, update_user_last_login,
     get_retention_settings, update_retention_settings, run_retention_purge,
@@ -173,6 +175,32 @@ try:
 except Exception as e:
     print(f"⚠️ Could not start periodic retraining: {e}")
 
+# new audit log call with ai detection
+def add_audit_log(user_id, action, entity_type, entity_id, 
+                  previous_values=None, new_values=None, 
+                  result='Success', reason=None,
+                  risk_score=0.0, severity='Low',
+                  ip_address=None, device_info=None):
+    """Enhanced with AI risk checking"""
+    # Call original
+    log_id = _original_add_audit_log(
+        user_id, action, entity_type, entity_id,
+        previous_values, new_values, result, reason,
+        risk_score, severity, ip_address, device_info
+    )
+    
+    # Check for risks
+    if audit_risk_analyzer and user_id:
+        try:
+            with get_db_connection() as conn:
+                risk = audit_risk_analyzer.analyze_user_audit_logs(user_id, conn)
+                if risk['risk_level'] in ['Critical', 'High']:
+                    print(f"🚨 ALERT: User {user_id} - {risk['risk_level']} risk!")
+        except:
+            pass
+    return log_id
+
+
 app = Flask(__name__)
 
 app.config.from_object(Config)
@@ -286,6 +314,30 @@ PRINT_BLOCK_SCRIPT = """
 </script>
 """
 
+
+# initialise audit risk analyzer
+try:
+    from flask_audit_integration import AuditRiskAnalyzer
+    audit_risk_analyzer = AuditRiskAnalyzer(model_path='audit-risk-detector/models/')
+    print("✅ Audit Risk Detector loaded!")
+except Exception as e:
+    print(f"⚠️  Not loaded: {e}")
+    audit_risk_analyzer = None
+
+# Schedule periodic retraining of the audit risk model (every 7 days)
+if audit_risk_analyzer is not None:
+    try:
+        from audit_risk_retrainer import schedule_audit_risk_retraining
+        schedule_audit_risk_retraining(
+            analyzer=audit_risk_analyzer,
+            interval_days=7,
+            min_new_samples=200,
+            model_path='audit-risk-detector/models/',
+            startup_delay_seconds=120,
+        )
+        print("✅ Audit risk periodic retraining scheduled (every 7 days)")
+    except Exception as e:
+        print(f"⚠️  Could not start audit risk retraining scheduler: {e}")
 
 def _inject_print_block(response):
     if response.mimetype != "text/html":
@@ -4573,12 +4625,10 @@ def data_classification():
     """Data classification page"""
     return render_template('data_classification.html')
 
-
 @app.route('/audit-logs')
 @require_classification('audit_logs.user_id')
 def audit_logs():
-    """Audit logs page"""
-    # Check if user can access restricted audit logs table
+    """Audit logs page with AI risk detection and pagination"""
     user_role = session.get('user_type', 'guest')
     user_id = session.get('user_id')
 
@@ -4586,18 +4636,129 @@ def audit_logs():
         flash('Access denied. Administrator privileges required.', 'error')
         return redirect(url_for('index'))
 
-    # Fetch latest 100 audit logs
-    logs = get_audit_logs(limit=100)
+    # --- Pagination parameters ---
+    per_page = request.args.get('per_page', 50, type=int)
+    per_page = min(max(per_page, 10), 200)   # clamp between 10 and 200
+    page = request.args.get('page', 1, type=int)
+    page = max(page, 1)
+    offset = (page - 1) * per_page
 
-    # Attach user email for display and redact sensitive fields
-    for log in logs:
-        if log.get("user_id"):
-            user = get_user_by_id(log["user_id"])
-            log["user_email"] = user["email"] if user else f"User ID {log['user_id']}"
-        else:
-            log["user_email"] = "System / Unknown"
+    # --- 24-hour stats from DB (independent of page size) ---
+    with get_db_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
 
-    return render_template('audit_logs.html', audit_logs=logs)
+        # Total actions in last 24 h
+        cursor.execute(
+            "SELECT COUNT(*) AS cnt FROM audit_logs "
+            "WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 1 DAY)"
+        )
+        total_24h = (cursor.fetchone() or {}).get('cnt', 0)
+
+        # Total rows in table (for pagination)
+        cursor.execute("SELECT COUNT(*) AS cnt FROM audit_logs")
+        total_rows = (cursor.fetchone() or {}).get('cnt', 0)
+
+        cursor.close()
+
+    total_pages = max(1, -(-total_rows // per_page))  # ceiling division
+    page = min(page, total_pages)
+    offset = (page - 1) * per_page
+
+    # --- Fetch the current page of logs ---
+    logs = get_audit_logs(limit=per_page, offset=offset)
+
+    # --- Initialise stats (based on true 24h count) ---
+    stats = {
+        'total_activities': total_24h,   # ← real 24h count, not page size
+        'critical_risk': 0,
+        'high_risk': 0,
+        'avg_risk_score': 0.0
+    }
+
+    total_risk_scores = []
+    _risk_cache = {}   # avoid querying the same user_id twice on this page
+
+    with get_db_connection() as conn:
+        for log in logs:
+            # Attach user email
+            if log.get("user_id"):
+                user = get_user_by_id(log["user_id"])
+                log["user_email"] = user["email"] if user else f"User ID {log['user_id']}"
+            else:
+                log["user_email"] = "System / Unknown"
+
+            # Run AI risk detection (cache per user so we don't hit DB for every row)
+            uid = log.get("user_id", 0)
+            try:
+                if uid not in _risk_cache:
+                    _risk_cache[uid] = audit_risk_analyzer.analyze_user_audit_logs(uid, conn)
+                risk_result = _risk_cache[uid]
+
+                log['ai_risk_score'] = risk_result.get('risk_score', 0.0)
+                log['ai_risk_level'] = risk_result.get('risk_level', 'Low')
+                log['ai_threats'] = risk_result.get('reasons', [])
+
+                total_risk_scores.append(log['ai_risk_score'])
+                if log['ai_risk_level'] == 'Critical':
+                    stats['critical_risk'] += 1
+                elif log['ai_risk_level'] == 'High':
+                    stats['high_risk'] += 1
+
+            except Exception as e:
+                print(f"AI risk detection failed for user {uid}: {e}")
+                log['ai_risk_score'] = 0.0
+                log['ai_risk_level'] = 'Low'
+                log['ai_threats'] = []
+
+    if total_risk_scores:
+        stats['avg_risk_score'] = sum(total_risk_scores) / len(total_risk_scores)
+
+    pagination = {
+        'page': page,
+        'per_page': per_page,
+        'total_rows': total_rows,
+        'total_pages': total_pages,
+        'has_prev': page > 1,
+        'has_next': page < total_pages,
+        'prev_page': page - 1,
+        'next_page': page + 1,
+        'page_range': list(range(max(1, page - 2), min(total_pages + 1, page + 3))),
+    }
+
+    return render_template('audit_logs.html', audit_logs=logs, stats=stats, pagination=pagination)
+
+
+@app.route('/api/audit-risk/check/<int:user_id>')
+@login_required
+def check_audit_risk(user_id):
+    """API endpoint to check audit risk for a specific user"""
+    if session.get('user_type') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    try:
+        with get_db_connection() as conn:
+            result = audit_risk_analyzer.analyze_user_audit_logs(user_id, conn)
+            return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/audit-risk/summary')
+@login_required
+def audit_risk_summary():
+    """API endpoint to get overall audit risk summary"""
+    if session.get('user_type') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    try:
+        hours = request.args.get('hours', 24, type=int)
+        with get_db_connection() as conn:
+            summary = audit_risk_analyzer.get_risk_summary(conn, hours)
+            return jsonify(summary)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 
 
 @app.route('/data-classification-dashboard')
