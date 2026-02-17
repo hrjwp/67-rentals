@@ -3580,30 +3580,32 @@ def submit_cancellation(booking_id):
 @app.route('/seller/cancellation-requests')
 @login_required
 def seller_cancellation_requests():
-    """Dedicated page for seller to view and manage all cancellation requests"""
+    """Dedicated page for seller to view and manage all cancellation requests.
+    Customer PII fields (name, email, phone, nric) are run through redact_dict
+    so that any classification changes made on the dashboard take effect here live.
+    """
     from database import get_db_connection
+    from data_classification import redact_dict as _redact
 
-    # Get user details from session
-    user_id = session.get('user_id')
+    user_id   = session.get('user_id')
+    user_role = session.get('user_type', 'guest')
 
-    # Get all cancellation requests
-    all_requests = []
+    all_requests    = []
     pending_requests = []
     history_requests = []
 
-    # Statistics
     pending_count = 0
     approved_count = 0
     rejected_count = 0
 
-    # Fetch cancellation requests from database
-    conn = None  # ← CHANGED
-    try:  # ← ADDED
-        conn = get_db_connection()  # ← CHANGED
+    conn = None
+    try:
+        conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        # Query to get all cancellation requests with booking and customer details
+        # Fetch phone_number and nric in addition to the original fields so
+        # the template can show them when classification permits.
         query = """
-            SELECT 
+            SELECT
                 cr.request_id,
                 cr.booking_id,
                 cr.reason,
@@ -3616,45 +3618,68 @@ def seller_cancellation_requests():
                 cr.processing_fee,
                 b.pickup_date,
                 b.return_date,
-                b.total_amount as original_amount,
-                v.name as vehicle_name,
-                v.model as vehicle_model,
-                u.first_name as customer_first_name,
-                u.last_name as customer_last_name,
-                u.email as customer_email
+                b.total_amount  AS original_amount,
+                b.user_id       AS customer_user_id,
+                v.name          AS vehicle_name,
+                v.model         AS vehicle_model,
+                u.first_name    AS customer_first_name,
+                u.last_name     AS customer_last_name,
+                u.email         AS customer_email,
+                u.phone_number  AS customer_phone,
+                u.nric          AS customer_nric
             FROM CancellationRequests cr
-            JOIN Bookings b ON cr.booking_id = b.booking_id
-            JOIN Vehicles v ON b.vehicle_id = v.vehicle_id
-            JOIN Users u ON b.user_id = u.user_id
+            JOIN Bookings  b ON cr.booking_id  = b.booking_id
+            JOIN Vehicles  v ON b.vehicle_id   = v.vehicle_id
+            JOIN Users     u ON b.user_id      = u.user_id
             ORDER BY cr.request_date DESC
         """
-
         cursor.execute(query)
         results = cursor.fetchall()
 
         for row in results:
-            request_data = {
-                'request_id': row['request_id'],
-                'booking_id': row['booking_id'],
-                'reason': row['reason'],
-                'details': row['details'],
-                'request_date': row['request_date'].strftime('%B %d, %Y at %I:%M %p') if row['request_date'] else 'N/A',
-                'status': row['status'],
-                'reviewed_date': row['reviewed_date'].strftime('%B %d, %Y at %I:%M %p') if row[
-                    'reviewed_date'] else 'N/A',
-                'refund_percentage': row['refund_percentage'],
-                'refund_amount': float(row['refund_amount']) if row['refund_amount'] else 0.0,
-                'processing_fee': float(row['processing_fee']) if row['processing_fee'] else 0.0,
-                'pickup_date': row['pickup_date'].strftime('%B %d, %Y') if row['pickup_date'] else 'N/A',
-                'return_date': row['return_date'].strftime('%B %d, %Y') if row['return_date'] else 'N/A',
-                'original_amount': float(row['original_amount']) if row['original_amount'] else 0.0,
-                'vehicle_name': f"{row['vehicle_name']} {row['vehicle_model']}" if row['vehicle_model'] else row[
-                    'vehicle_name'],
-                'customer_name': f"{row['customer_first_name']} {row['customer_last_name']}",
-                'customer_email': row['customer_email']
+            customer_owner_id = row['customer_user_id']
+
+            # Build a flat dict of only the user PII fields, keyed to match
+            # DATA_CLASSIFICATION entries (table = 'users').
+            raw_customer = {
+                'first_name':   row['customer_first_name'],
+                'last_name':    row['customer_last_name'],
+                'email':        row['customer_email'],
+                'phone_number': row['customer_phone'],
+                'nric':         row['customer_nric'],
             }
 
-            # Categorize by status
+            # Apply classification-aware redaction.
+            # owner_id = customer_user_id so the data owner can always see their
+            # own data; sellers see whatever the admin has set as the floor level.
+            safe_customer = _redact(
+                raw_customer, 'users',
+                user_role, user_id,
+                data_owner_id=customer_owner_id
+            )
+
+            request_data = {
+                'request_id':       row['request_id'],
+                'booking_id':       row['booking_id'],
+                'reason':           row['reason'],
+                'details':          row['details'],
+                'request_date':     row['request_date'].strftime('%B %d, %Y at %I:%M %p') if row['request_date'] else 'N/A',
+                'status':           row['status'],
+                'reviewed_date':    row['reviewed_date'].strftime('%B %d, %Y at %I:%M %p') if row['reviewed_date'] else 'N/A',
+                'refund_percentage': row['refund_percentage'],
+                'refund_amount':    float(row['refund_amount'])    if row['refund_amount']    else 0.0,
+                'processing_fee':   float(row['processing_fee'])   if row['processing_fee']   else 0.0,
+                'pickup_date':      row['pickup_date'].strftime('%B %d, %Y')  if row['pickup_date']  else 'N/A',
+                'return_date':      row['return_date'].strftime('%B %d, %Y')  if row['return_date']  else 'N/A',
+                'original_amount':  float(row['original_amount'])  if row['original_amount']  else 0.0,
+                'vehicle_name':     f"{row['vehicle_name']} {row['vehicle_model']}" if row['vehicle_model'] else row['vehicle_name'],
+                # Redacted PII — may be actual values or ***CLASSIFICATION*** strings
+                'customer_name':    f"{safe_customer['first_name']} {safe_customer['last_name']}",
+                'customer_email':   safe_customer['email'],
+                'customer_phone':   safe_customer['phone_number'],
+                'customer_nric':    safe_customer['nric'],
+            }
+
             if row['status'] == 'Pending':
                 pending_requests.append(request_data)
                 pending_count += 1
@@ -3671,18 +3696,111 @@ def seller_cancellation_requests():
         print(f"Error fetching cancellation requests: {e}")
         import traceback
         traceback.print_exc()
-        # Fallback to empty lists if database query fails
-        pending_requests = []
-        history_requests = []
+        pending_requests  = []
+        history_requests  = []
 
     finally:
-        if conn and hasattr(conn, 'close'):  # ← CHANGED - safer closing
+        if conn and hasattr(conn, 'close'):
             conn.close()
 
-    # Calculate totals
+    # ── Demo seed data ────────────────────────────────────────────────────────
+    # Injected so the redaction feature is always demonstrable even when the
+    # CancellationRequests DB table is empty. Uses user_id 99999 (never a real
+    # session user) so the ownership bypass never fires — redaction is driven
+    # purely by whatever classification level is set on the dashboard.
+    DEMO_OWNER_ID = 99999
+
+    demo_raw_customers = [
+        {   # Pending — shown on the main card with Approve / Reject buttons
+            'first_name':   'Wei Ling',
+            'last_name':    'Tan',
+            'email':        'weiling.tan@example.com',
+            'phone_number': '+65 9123 4567',
+            'nric':         'S9812345A',
+        },
+        {   # Approved history entry
+            'first_name':   'Raj',
+            'last_name':    'Kumar',
+            'email':        'raj.kumar@example.com',
+            'phone_number': '+65 8234 5678',
+            'nric':         'S8734567B',
+        },
+    ]
+
+    demo_requests_raw = [
+        {
+            'request_id':        'DEMO-REQ-001',
+            'booking_id':        'DEMO-BKG-001',
+            'reason':            'Change of Plans',
+            'details':           'Customer had an unexpected schedule change and can no longer make the rental dates.',
+            'request_date':      'February 10, 2026 at 10:30 AM',
+            'status':            'Pending',
+            'reviewed_date':     'N/A',
+            'refund_percentage': 75,
+            'refund_amount':     131.25,
+            'processing_fee':    10.0,
+            'pickup_date':       'February 20, 2026',
+            'return_date':       'February 23, 2026',
+            'original_amount':   185.0,
+            'vehicle_name':      'Toyota Sienta Hybrid',
+            'customer_raw':      demo_raw_customers[0],
+        },
+        {
+            'request_id':        'DEMO-REQ-002',
+            'booking_id':        'DEMO-BKG-002',
+            'reason':            'Medical Emergency',
+            'details':           'Customer was hospitalised and unable to proceed with the rental.',
+            'request_date':      'January 28, 2026 at 02:15 PM',
+            'status':            'Approved',
+            'reviewed_date':     'January 29, 2026 at 09:00 AM',
+            'refund_percentage': 100,
+            'refund_amount':     290.0,
+            'processing_fee':    0.0,
+            'pickup_date':       'February 1, 2026',
+            'return_date':       'February 5, 2026',
+            'original_amount':   290.0,
+            'vehicle_name':      'Honda Vezel e:HEV',
+            'customer_raw':      demo_raw_customers[1],
+        },
+    ]
+
+    for demo in demo_requests_raw:
+        safe = _redact(
+            demo['customer_raw'], 'users',
+            user_role, user_id,
+            data_owner_id=DEMO_OWNER_ID
+        )
+        entry = {
+            'request_id':        demo['request_id'],
+            'booking_id':        demo['booking_id'],
+            'reason':            demo['reason'],
+            'details':           demo['details'],
+            'request_date':      demo['request_date'],
+            'status':            demo['status'],
+            'reviewed_date':     demo['reviewed_date'],
+            'refund_percentage': demo['refund_percentage'],
+            'refund_amount':     demo['refund_amount'],
+            'processing_fee':    demo['processing_fee'],
+            'pickup_date':       demo['pickup_date'],
+            'return_date':       demo['return_date'],
+            'original_amount':   demo['original_amount'],
+            'vehicle_name':      demo['vehicle_name'],
+            'customer_name':     f"{safe['first_name']} {safe['last_name']}",
+            'customer_email':    safe['email'],
+            'customer_phone':    safe['phone_number'],
+            'customer_nric':     safe['nric'],
+        }
+        if demo['status'] == 'Pending':
+            pending_requests.insert(0, entry)
+            pending_count += 1
+        else:
+            history_requests.insert(0, entry)
+            approved_count += 1
+        all_requests.append(entry)
+    # ── End demo seed data ───────────────────────────────────────────────────
+
     total_count = len(all_requests)
 
-    # Render the dedicated cancellations page
     return render_template('seller_cancellations.html',
                            pending_requests=pending_requests,
                            history_requests=history_requests,
@@ -4780,6 +4898,129 @@ def data_classification_dashboard():
         table_classifications=TABLE_CLASSIFICATIONS,
         classification_metadata=CLASSIFICATION_METADATA
     )
+
+
+@app.route('/admin/classification/update', methods=['POST'])
+@login_required
+def update_classification():
+    """
+    Update a column- or table-level classification at runtime.
+    Persists changes to classification_overrides.json and mutates live dicts.
+    Admin-only.
+    """
+    if session.get('user_type') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+    data = request.get_json(silent=True) or {}
+    key       = data.get('key', '').strip()        # e.g. "users.email" or "users"
+    new_level = data.get('level', '').strip().upper()
+    is_table  = data.get('is_table', False)
+
+    # Validate inputs
+    valid_levels = ['PUBLIC', 'INTERNAL', 'CONFIDENTIAL', 'RESTRICTED']
+    if not key or new_level not in valid_levels:
+        return jsonify({'success': False, 'error': 'Invalid key or level'}), 400
+
+    # Determine previous value for audit log
+    if is_table:
+        previous_level = TABLE_CLASSIFICATIONS.get(key, 'UNKNOWN')
+    else:
+        previous_level = DATA_CLASSIFICATION.get(key, 'UNKNOWN')
+
+    if previous_level == new_level:
+        return jsonify({'success': True, 'message': 'No change needed'})
+
+    try:
+        from data_classification_config import save_classification_override
+        save_classification_override(key, new_level, is_table=is_table)
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Save failed: {str(e)}'}), 500
+
+    # Audit log the change
+    try:
+        add_audit_log(
+            user_id=session.get('user_id', 0),
+            action='Classification Updated',
+            entity_type='TABLE' if is_table else 'COLUMN',
+            entity_id=key,
+            previous_values={'classification': previous_level},
+            new_values={'classification': new_level},
+            result='Success',
+            severity='High',
+            ip_address=request.remote_addr,
+            device_info=request.headers.get('User-Agent', 'Unknown')
+        )
+    except Exception:
+        pass  # Don't fail the update if audit logging fails
+
+    return jsonify({
+        'success': True,
+        'key': key,
+        'previous': previous_level,
+        'new': new_level,
+        'is_table': is_table
+    })
+
+
+@app.route('/admin/classification/reset', methods=['POST'])
+@login_required
+def reset_classification():
+    """
+    Delete classification_overrides.json, reverting all columns/tables
+    back to the hard-coded defaults in data_classification_config.py.
+    Admin-only.
+    """
+    if session.get('user_type') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+    import os as _os
+    import json as _json
+    from data_classification_config import _OVERRIDES_PATH
+
+    # Snapshot overrides before clearing (for audit log)
+    overridden_keys = []
+    try:
+        if _os.path.exists(_OVERRIDES_PATH):
+            with open(_OVERRIDES_PATH, 'r') as f:
+                old = _json.load(f)
+            overridden_keys = (
+                list(old.get('columns', {}).keys()) +
+                list(old.get('tables', {}).keys())
+            )
+            _os.remove(_OVERRIDES_PATH)
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Reset failed: {str(e)}'}), 500
+
+    # Reload module so live dicts snap back to hardcoded defaults
+    import importlib
+    try:
+        import data_classification_config as _dcc
+        importlib.reload(_dcc)
+        DATA_CLASSIFICATION.clear()
+        DATA_CLASSIFICATION.update(_dcc.DATA_CLASSIFICATION)
+        TABLE_CLASSIFICATIONS.clear()
+        TABLE_CLASSIFICATIONS.update(_dcc.TABLE_CLASSIFICATIONS)
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Module reload failed: {str(e)}'}), 500
+
+    # Audit log the reset
+    try:
+        add_audit_log(
+            user_id=session.get('user_id', 0),
+            action='Classification Reset to Defaults',
+            entity_type='SYSTEM',
+            entity_id='ALL',
+            previous_values={'overridden_keys': overridden_keys},
+            new_values={'status': 'Reverted to hardcoded defaults'},
+            result='Success',
+            severity='High',
+            ip_address=request.remote_addr,
+            device_info=request.headers.get('User-Agent', 'Unknown')
+        )
+    except Exception:
+        pass
+
+    return jsonify({'success': True, 'cleared_count': len(overridden_keys)})
 
 
 # ============================================

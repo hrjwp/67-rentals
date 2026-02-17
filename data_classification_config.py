@@ -72,9 +72,21 @@ DATA_CLASSIFICATION = {
     
     # AUDIT/SECURITY LOGS
     "audit_logs.ip_address": ClassificationLevel.RESTRICTED,
+    "audit_logs.user_id": ClassificationLevel.RESTRICTED,
     "audit_logs.previous_values": ClassificationLevel.RESTRICTED,
     "audit_logs.new_values": ClassificationLevel.RESTRICTED,
     "security_logs.ip_address": ClassificationLevel.RESTRICTED,
+    "security_logs.user_id": ClassificationLevel.RESTRICTED,
+
+    # BACKUP LOGS
+    "backup_logs.backup_path": ClassificationLevel.RESTRICTED,
+
+    # USER DOCUMENTS
+    "user_documents.file_data": ClassificationLevel.RESTRICTED,
+
+    # FRAUD LOGS
+    "vehicle_fraud_logs.user_id": ClassificationLevel.RESTRICTED,
+    "booking_fraud_logs.user_id": ClassificationLevel.RESTRICTED,
 }
 
 # Table-Level Classifications
@@ -87,6 +99,8 @@ TABLE_CLASSIFICATIONS = {
     "security_logs": ClassificationLevel.RESTRICTED,
     "vehicle_fraud_logs": ClassificationLevel.RESTRICTED,
     "booking_fraud_logs": ClassificationLevel.RESTRICTED,
+    "backup_logs": ClassificationLevel.RESTRICTED,
+    "user_documents": ClassificationLevel.RESTRICTED,
 }
 
 # Ownership Rules (users can access their own data)

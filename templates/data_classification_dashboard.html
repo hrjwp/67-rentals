@@ -590,8 +590,70 @@
             border-bottom: 1px solid #e0e0e0;
             color: #666;
         }
-        /* --- Security Overlays End --- */
-    </style>
+        /* --- Classification Edit Controls --- */
+        .classification-select {
+            border: 2px solid var(--primary-color);
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: var(--body-font-family);
+            color: var(--secondary-color);
+            background: white;
+            cursor: pointer;
+            min-width: 140px;
+        }
+        .classification-select:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(129,178,154,0.3);
+        }
+        .btn-save-class {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-right: 4px;
+        }
+        .btn-save-class:hover { background: #6a9e83; }
+        .btn-cancel-class {
+            background: #e9ecef;
+            color: var(--secondary-color);
+            border: none;
+            border-radius: 6px;
+            padding: 5px 10px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-cancel-class:hover { background: #dee2e6; }
+        .badge-display { transition: opacity 0.2s; }
+        /* Toast notification */
+        #classificationToast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 10003;
+            padding: 14px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+            display: none;
+            animation: toastIn 0.3s ease;
+        }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .toast-success { background: var(--primary-color); color: white; }
+        .toast-error   { background: #dc3545; color: white; }
+        /* --- End Classification Edit Controls --- */
+        </style>
 </head>
 <body>
     <!-- Security Banner -->
@@ -734,7 +796,11 @@
 
             <!-- Classification Table -->
             <div class="table-section">
-                <h3><i class="bi bi-table me-2"></i>Column Classifications</h3>
+                <h3><i class="bi bi-table me-2"></i>Column Classifications
+                    <small class="ms-2" style="font-size:13px; color: var(--p-color); font-weight:400;">
+                        <i class="bi bi-pencil-square"></i> Click a classification badge to edit
+                    </small>
+                </h3>
                 <div class="table-responsive">
                     <table class="table">
                         <thead>
@@ -743,6 +809,7 @@
                                 <th>Column</th>
                                 <th>Classification</th>
                                 <th>Access Control</th>
+                                <th style="text-align:center;">Action</th>
                             </tr>
                         </thead>
                         <tbody id="classificationTableBody">
@@ -751,12 +818,18 @@
                                 <td><strong style="color: var(--secondary-color);">{{ column_full.split('.')[0] }}</strong></td>
                                 <td><code>{{ column_full.split('.')[1] }}</code></td>
                                 <td>
-                                    <span class="legend-badge badge-{{ classification|lower }}">
+                                    <select class="classification-select level-select" data-key="{{ column_full }}" data-is-table="false" data-original="{{ classification }}" style="display:none;">
+                                        <option value="PUBLIC"       {% if classification=='PUBLIC'       %}selected{% endif %}>PUBLIC</option>
+                                        <option value="INTERNAL"     {% if classification=='INTERNAL'     %}selected{% endif %}>INTERNAL</option>
+                                        <option value="CONFIDENTIAL" {% if classification=='CONFIDENTIAL' %}selected{% endif %}>CONFIDENTIAL</option>
+                                        <option value="RESTRICTED"   {% if classification=='RESTRICTED'   %}selected{% endif %}>RESTRICTED</option>
+                                    </select>
+                                    <span class="legend-badge badge-{{ classification|lower }} badge-display" style="cursor:pointer;" title="Click to edit">
                                         {{ classification }}
                                     </span>
                                 </td>
                                 <td>
-                                    <small style="color: var(--p-color);">
+                                    <small class="access-label" style="color: var(--p-color);">
                                         {% if classification == 'PUBLIC' %}
                                             <i class="bi bi-globe" style="color: var(--primary-color);"></i> Everyone
                                         {% elif classification == 'INTERNAL' %}
@@ -768,6 +841,14 @@
                                         {% endif %}
                                     </small>
                                 </td>
+                                <td style="text-align:center;">
+                                    <button class="btn-save-class" data-key="{{ column_full }}" data-is-table="false" style="display:none;">
+                                        <i class="bi bi-check-lg"></i> Save
+                                    </button>
+                                    <button class="btn-cancel-class" data-key="{{ column_full }}" style="display:none;">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -777,7 +858,11 @@
 
             <!-- Table Summary -->
             <div class="table-section">
-                <h3><i class="bi bi-bar-chart me-2"></i>Classification Summary by Table</h3>
+                <h3><i class="bi bi-bar-chart me-2"></i>Classification Summary by Table
+                    <small class="ms-2" style="font-size:13px; color: var(--p-color); font-weight:400;">
+                        <i class="bi bi-pencil-square"></i> Click a table-level badge to edit
+                    </small>
+                </h3>
                 <div class="table-responsive">
                     <table class="table">
                         <thead>
@@ -789,15 +874,23 @@
                                 <th style="text-align: center;">CONFIDENTIAL</th>
                                 <th style="text-align: center;">RESTRICTED</th>
                                 <th style="text-align: center;">Total</th>
+                                <th style="text-align: center;">Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for table, counts in stats.by_table.items()|sort %}
+                            {% set tbl_class = table_classifications[table] %}
                             <tr>
                                 <td><strong style="color: var(--secondary-color);">{{ table }}</strong></td>
                                 <td>
-                                    <span class="legend-badge badge-{{ table_classifications[table]|lower }}">
-                                        {{ table_classifications[table] }}
+                                    <select class="classification-select level-select" data-key="{{ table }}" data-is-table="true" data-original="{{ tbl_class }}" style="display:none;">
+                                        <option value="PUBLIC"       {% if tbl_class=='PUBLIC'       %}selected{% endif %}>PUBLIC</option>
+                                        <option value="INTERNAL"     {% if tbl_class=='INTERNAL'     %}selected{% endif %}>INTERNAL</option>
+                                        <option value="CONFIDENTIAL" {% if tbl_class=='CONFIDENTIAL' %}selected{% endif %}>CONFIDENTIAL</option>
+                                        <option value="RESTRICTED"   {% if tbl_class=='RESTRICTED'   %}selected{% endif %}>RESTRICTED</option>
+                                    </select>
+                                    <span class="legend-badge badge-{{ tbl_class|lower }} badge-display" style="cursor:pointer;" title="Click to edit">
+                                        {{ tbl_class }}
                                     </span>
                                 </td>
                                 <td style="text-align: center;">
@@ -815,12 +908,105 @@
                                 <td style="text-align: center;">
                                     <strong>{{ counts.PUBLIC + counts.INTERNAL + counts.CONFIDENTIAL + counts.RESTRICTED }}</strong>
                                 </td>
+                                <td style="text-align:center;">
+                                    <button class="btn-save-class" data-key="{{ table }}" data-is-table="true" style="display:none;">
+                                        <i class="bi bi-check-lg"></i> Save
+                                    </button>
+                                    <button class="btn-cancel-class" data-key="{{ table }}" style="display:none;">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            <!-- ── Route-Guard Warning ── -->
+            <div class="table-section" style="border-left: 4px solid #ffc107;">
+                <h3 style="color:#856404;"><i class="bi bi-exclamation-triangle-fill me-2" style="color:#ffc107;"></i>Important: Route-Guard Impact</h3>
+                <p style="color: var(--p-color); margin-bottom: 16px;">
+                    Several admin routes are protected by <code>@require_classification</code> — they check whether the current user's role
+                    can access a <strong>specific column</strong> before allowing page entry. If you <strong>lower</strong> the classification
+                    of one of these guard columns, you may inadvertently open sensitive admin pages to lower-privileged users.
+                    Raising a classification is always safe.
+                </p>
+                <div class="table-responsive">
+                    <table class="table" style="font-size:13px;">
+                        <thead>
+                            <tr>
+                                <th>Route</th>
+                                <th>Guard Column</th>
+                                <th>Current Level</th>
+                                <th>Risk if Lowered</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set guard_routes = [
+                                ('/admin/panel',                  'users.nric'),
+                                ('/admin/approve/<id>',           'users.nric'),
+                                ('/admin/reject/<id>',            'users.nric'),
+                                ('/admin/document/<id>',          'user_documents.file_data'),
+                                ('/accounts',                     'users.nric'),
+                                ('/security-dashboard',           'security_logs.user_id'),
+                                ('/hash-chain-integrity',         'security_logs.user_id'),
+                                ('/admin/backup-management',      'backup_logs.backup_path'),
+                                ('/audit-logs',                   'audit_logs.user_id'),
+                                ('/data-classification-dashboard','users.nric'),
+                                ('/security-logs',                'security_logs.user_id'),
+                                ('/vehicle-fraud-logs',           'vehicle_fraud_logs.user_id'),
+                                ('/booking-fraud-logs',           'booking_fraud_logs.user_id'),
+                                ('/admin/encrypt-existing-data',  'users.password_hash'),
+                                ('/admin/encrypt-existing-users', 'users.password_hash'),
+                                ('/admin/decrypt-existing-users', 'users.password_hash'),
+                            ] %}
+                            {% for route, col in guard_routes %}
+                            {% set cur_level = all_classifications.get(col, 'UNKNOWN') %}
+                            <tr>
+                                <td><code>{{ route }}</code></td>
+                                <td><code>{{ col }}</code></td>
+                                <td>
+                                    <span class="legend-badge badge-{{ cur_level|lower }}" style="font-size:11px; padding:4px 10px;">
+                                        {{ cur_level }}
+                                    </span>
+                                </td>
+                                <td style="color: #856404; font-size:12px;">
+                                    <i class="bi bi-exclamation-triangle"></i>
+                                    Lowering below RESTRICTED may expose this route to non-admin roles
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ── Danger Zone: Reset to Defaults ── -->
+            <div class="table-section" style="border-left: 4px solid #dc3545; margin-bottom: 40px;">
+                <h3 style="color:#dc3545;"><i class="bi bi-arrow-counterclockwise me-2"></i>Reset to Defaults</h3>
+                <p style="color: var(--p-color); margin-bottom: 20px;">
+                    This will discard <strong>all custom classification overrides</strong> and revert every column and table
+                    back to the hard-coded defaults defined in <code>data_classification_config.py</code>.
+                    This action is logged in the audit trail and cannot be undone without re-applying changes manually.
+                </p>
+                <div id="resetConfirmBox" style="display:none; background:#fff5f5; border:1px solid #f5c2c7; border-radius:8px; padding:16px; margin-bottom:16px;">
+                    <strong style="color:#dc3545;">⚠️ Are you sure?</strong>
+                    <p style="margin:8px 0 12px; color:#721c24; font-size:14px;">
+                        All custom classifications will be erased. Affected routes may change access levels immediately.
+                    </p>
+                    <button id="btnConfirmReset" style="background:#dc3545; color:white; border:none; border-radius:6px; padding:8px 20px; font-weight:600; cursor:pointer; margin-right:8px;">
+                        <i class="bi bi-trash3"></i> Yes, Reset Everything
+                    </button>
+                    <button id="btnCancelReset" style="background:#e9ecef; color:#3D405B; border:none; border-radius:6px; padding:8px 16px; font-weight:600; cursor:pointer;">
+                        Cancel
+                    </button>
+                </div>
+                <button id="btnResetDefaults" style="background:#dc3545; color:white; border:none; border-radius:8px; padding:10px 24px; font-weight:600; cursor:pointer; font-size:14px; transition: background 0.2s;">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i> Reset All Classifications to Default
+                </button>
+            </div>
+
         </div>
     </main>
 
@@ -1087,8 +1273,12 @@
         // Start session timer on page load
         startSessionTimer();
         // --- Security Scripts End ---
+    </script>
 
+    <!-- Classification edit toast -->
+    <div id="classificationToast"></div>
 
+    <script>
         // Filter functionality
         const tableFilter = document.getElementById('tableFilter');
         const levelFilter = document.getElementById('levelFilter');
@@ -1123,5 +1313,192 @@
         levelFilter.addEventListener('change', filterTable);
         searchColumn.addEventListener('keyup', filterTable);
     </script>
+
+    <script>
+    // ============================================================
+    // Classification Editor
+    // ============================================================
+    (function() {
+        const LEVEL_COLORS = {
+            PUBLIC:       { bg: 'var(--primary-color)',          txt: 'white' },
+            INTERNAL:     { bg: '#17a2b8',                       txt: 'white' },
+            CONFIDENTIAL: { bg: 'var(--custom-btn-bg-color)',    txt: 'var(--secondary-color)' },
+            RESTRICTED:   { bg: 'var(--custom-btn-bg-hover-color)', txt: 'white' },
+        };
+        const ACCESS_LABELS = {
+            PUBLIC:       '<i class="bi bi-globe" style="color:var(--primary-color);"></i> Everyone',
+            INTERNAL:     '<i class="bi bi-people" style="color:#17a2b8;"></i> Authenticated Users',
+            CONFIDENTIAL: '<i class="bi bi-lock" style="color:var(--custom-btn-bg-color);"></i> Admin + Data Owner',
+            RESTRICTED:   '<i class="bi bi-shield-lock" style="color:var(--custom-btn-bg-hover-color);"></i> Admin Only',
+        };
+
+        function showToast(msg, isError) {
+            const t = document.getElementById('classificationToast');
+            t.textContent = msg;
+            t.className = isError ? 'toast-error' : 'toast-success';
+            t.style.display = 'block';
+            clearTimeout(t._timer);
+            t._timer = setTimeout(() => { t.style.display = 'none'; }, 3500);
+        }
+
+        function getRow(key) {
+            // Works for both tables: column rows use data-column, table rows use data-key on select
+            return document.querySelector(
+                `[data-key="${CSS.escape(key)}"].level-select`
+            )?.closest('tr');
+        }
+
+        // Enter edit mode when badge is clicked
+        document.addEventListener('click', function(e) {
+            const badge = e.target.closest('.badge-display');
+            if (!badge) return;
+            const row = badge.closest('tr');
+            const select = row.querySelector('.classification-select');
+            if (!select) return;
+
+            badge.style.display = 'none';
+            select.style.display = 'inline-block';
+
+            const key = select.dataset.key;
+            const isTable = select.dataset.isTable === 'true';
+            const saveBtn = row.querySelector(`.btn-save-class[data-key="${CSS.escape(key)}"]`);
+            const cancelBtn = row.querySelector(`.btn-cancel-class[data-key="${CSS.escape(key)}"]`);
+            if (saveBtn)  saveBtn.style.display = 'inline-block';
+            if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        });
+
+        // Cancel — restore badge, hide controls
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.btn-cancel-class');
+            if (!btn) return;
+            const key = btn.dataset.key;
+            const row = btn.closest('tr');
+            const select = row.querySelector('.classification-select');
+            if (!select) return;
+
+            // Reset to original
+            select.value = select.dataset.original;
+            select.style.display = 'none';
+
+            const badge = row.querySelector('.badge-display');
+            if (badge) badge.style.display = '';
+
+            btn.style.display = 'none';
+            const saveBtn = row.querySelector(`.btn-save-class[data-key="${CSS.escape(key)}"]`);
+            if (saveBtn) saveBtn.style.display = 'none';
+        });
+
+        // Save — POST to backend then update DOM
+        document.addEventListener('click', async function(e) {
+            const btn = e.target.closest('.btn-save-class');
+            if (!btn) return;
+            const key = btn.dataset.key;
+            const isTable = btn.dataset.isTable === 'true';
+            const row = btn.closest('tr');
+            const select = row.querySelector('.classification-select');
+            if (!select) return;
+
+            const newLevel = select.value;
+            const prevLevel = select.dataset.original;
+
+            if (newLevel === prevLevel) {
+                // No change — just exit edit mode
+                btn.click(); // won't work, trigger cancel instead
+                row.querySelector('.btn-cancel-class')?.click();
+                return;
+            }
+
+            // Disable controls while saving
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving…';
+
+            try {
+                const resp = await fetch('/admin/classification/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key, level: newLevel, is_table: isTable })
+                });
+                const result = await resp.json();
+
+                if (result.success) {
+                    // Update badge text, class, and stored original
+                    const badge = row.querySelector('.badge-display');
+                    if (badge) {
+                        badge.textContent = newLevel;
+                        badge.className = `legend-badge badge-${newLevel.toLowerCase()} badge-display`;
+                        badge.style.cursor = 'pointer';
+                        badge.title = 'Click to edit';
+                    }
+                    select.dataset.original = newLevel;
+
+                    // Update the data-level attribute so filters still work
+                    row.setAttribute('data-level', newLevel);
+
+                    // Update the access label cell (column table only)
+                    const accessLabel = row.querySelector('.access-label');
+                    if (accessLabel) accessLabel.innerHTML = ACCESS_LABELS[newLevel] || '';
+
+                    showToast(`✅ ${key} → ${newLevel}`, false);
+                } else {
+                    showToast(`❌ ${result.error || 'Save failed'}`, true);
+                    // Restore select to original
+                    select.value = prevLevel;
+                }
+            } catch (err) {
+                showToast('❌ Network error — change not saved', true);
+                select.value = prevLevel;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-lg"></i> Save';
+                // Exit edit mode
+                select.style.display = 'none';
+                const badge = row.querySelector('.badge-display');
+                if (badge) badge.style.display = '';
+                btn.style.display = 'none';
+                const cancelBtn = row.querySelector(`.btn-cancel-class[data-key="${CSS.escape(key)}"]`);
+                if (cancelBtn) cancelBtn.style.display = 'none';
+            }
+        });
+
+        // ── Reset to defaults ──
+        const btnReset   = document.getElementById('btnResetDefaults');
+        const confirmBox = document.getElementById('resetConfirmBox');
+        const btnConfirm = document.getElementById('btnConfirmReset');
+        const btnCancel  = document.getElementById('btnCancelReset');
+
+        btnReset.addEventListener('click', () => {
+            confirmBox.style.display = 'block';
+            btnReset.style.display = 'none';
+        });
+        btnCancel.addEventListener('click', () => {
+            confirmBox.style.display = 'none';
+            btnReset.style.display = 'inline-block';
+        });
+        btnConfirm.addEventListener('click', async () => {
+            btnConfirm.disabled = true;
+            btnConfirm.innerHTML = '<i class="bi bi-hourglass-split"></i> Resetting…';
+            try {
+                const resp = await fetch('/admin/classification/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    showToast(`✅ Reset complete — ${result.cleared_count} override(s) removed. Reloading…`, false);
+                    setTimeout(() => location.reload(), 1800);
+                } else {
+                    showToast(`❌ ${result.error || 'Reset failed'}`, true);
+                    btnConfirm.disabled = false;
+                    btnConfirm.innerHTML = '<i class="bi bi-trash3"></i> Yes, Reset Everything';
+                }
+            } catch (err) {
+                showToast('❌ Network error — reset not completed', true);
+                btnConfirm.disabled = false;
+                btnConfirm.innerHTML = '<i class="bi bi-trash3"></i> Yes, Reset Everything';
+            }
+        });
+    })();
+    </script>
 </body>
+
 </html>
