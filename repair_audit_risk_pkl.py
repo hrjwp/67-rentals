@@ -52,30 +52,33 @@ def check_pkl(path):
     ns = getattr(sc, 'n_features_in_', None)
     na = getattr(am, 'n_features_in_', None)
     nc = getattr(cm, 'n_features_in_', None)
-    has_bounds = 'anomaly_score_min' in m and 'anomaly_score_max' in m
+    # Support both old min/max keys and new p10/p90 percentile keys
+    has_bounds = (('anomaly_p10' in m and 'anomaly_p90' in m) or
+                  ('anomaly_score_min' in m and 'anomaly_score_max' in m))
     is_good = all(n == EXPECTED_N for n in [ns, na, nc] if n is not None)
     return is_good, ns, na, nc, has_bounds
 
 
 def calibrate_bounds(anomaly_model, scaler):
-    """Score synthetic normal data to find the real score distribution."""
+    """Score synthetic normal data to find percentile-based score bounds (p10, p90)."""
     rng = np.random.RandomState(42)
     n = 400
     synthetic = np.zeros((n, EXPECTED_N))
-    synthetic[:, 0] = rng.poisson(4, n)       # actions_last_hour
-    synthetic[:, 1] = rng.poisson(25, n)      # actions_last_day
-    synthetic[:, 2] = rng.binomial(4, 0.05, n)  # failed_actions_count
-    synthetic[:, 3] = rng.uniform(8, 25, n)   # avg_action_interval_minutes
-    synthetic[:, 17] = rng.randint(8, 18, n)  # hour_of_day (business hours)
+    synthetic[:, 0] = rng.poisson(4, n)           # actions_last_hour
+    synthetic[:, 1] = rng.poisson(25, n)           # actions_last_day
+    synthetic[:, 2] = rng.binomial(4, 0.05, n)    # failed_actions_count
+    synthetic[:, 3] = rng.uniform(8, 25, n)        # avg_action_interval_minutes
+    synthetic[:, 17] = rng.randint(8, 18, n)       # hour_of_day (business hours)
     scaled = scaler.transform(synthetic)
     scores = anomaly_model.score_samples(scaled)
-    return float(scores.min()) - 0.05, float(scores.max())
+    # Use percentiles instead of min/max — more robust to training outliers
+    return float(np.percentile(scores, 10)), float(np.percentile(scores, 90))
 
 
 def retrain_from_csv(data_path, model_dir):
-    """Full retrain from the training CSV."""
-    from sklearn.ensemble import IsolationForest, RandomForestClassifier
-    from sklearn.preprocessing import StandardScaler
+    """Full retrain from the training CSV using the updated model architecture."""
+    from sklearn.ensemble import GradientBoostingClassifier, IsolationForest
+    from sklearn.preprocessing import RobustScaler
     from sklearn.model_selection import train_test_split
 
     print(f'  Loading training data from {data_path}…')
@@ -95,8 +98,7 @@ def retrain_from_csv(data_path, model_dir):
     if 'anomaly_score' not in df.columns:
         df['anomaly_score'] = 0.0
 
-    available = [c for c in FEATURE_COLUMNS if c in df.columns]
-    missing   = [c for c in FEATURE_COLUMNS if c not in df.columns]
+    missing = [c for c in FEATURE_COLUMNS if c not in df.columns]
     if missing:
         print(f'  Missing columns (will be zero-filled): {missing}')
         for c in missing:
@@ -109,36 +111,44 @@ def retrain_from_csv(data_path, model_dir):
                                                random_state=42, stratify=y)
     X_normal = X_train[y_train == 0]
 
-    scaler = StandardScaler()
+    # RobustScaler: uses median/IQR instead of mean/std — better for audit logs
+    # where bot activity creates extreme outliers that would skew StandardScaler
+    scaler = RobustScaler()
     X_arr = X_normal.values
     scaler.fit(X_arr)
 
     X_scaled = scaler.transform(X_arr)
-    anomaly_model = IsolationForest(contamination=0.05, random_state=42, n_estimators=100)
+    anomaly_model = IsolationForest(n_estimators=150, contamination=0.04, random_state=0)
     anomaly_model.fit(X_scaled)
     train_scores = anomaly_model.score_samples(X_scaled)
-    score_min = float(train_scores.min()) - 0.05
-    score_max = float(train_scores.max())
+    # Percentile-based bounds (p10/p90) — more robust than min/max to outliers
+    anomaly_p10 = float(np.percentile(train_scores, 10))
+    anomaly_p90 = float(np.percentile(train_scores, 90))
 
     X_all_scaled = scaler.transform(X_train.values)
-    classifier = RandomForestClassifier(n_estimators=100, max_depth=10,
-                                        random_state=42, class_weight='balanced')
+    # GradientBoostingClassifier: corrects its own errors sequentially, better
+    # at catching rare but severe insider-threat patterns than RandomForest.
+    # Heavily regularised to avoid overconfident 0/1 probability outputs.
+    classifier = GradientBoostingClassifier(n_estimators=20, max_depth=2,
+                                             learning_rate=0.03, subsample=0.5,
+                                             min_samples_leaf=30, max_features=0.7,
+                                             random_state=0)
     classifier.fit(X_all_scaled, y_train)
 
     model_dir.mkdir(parents=True, exist_ok=True)
     payload = {
-        'anomaly_model': anomaly_model,
+        'anomaly_model':    anomaly_model,
         'classifier_model': classifier,
-        'scaler': scaler,
-        'anomaly_score_min': score_min,
-        'anomaly_score_max': score_max,
+        'scaler':           scaler,
+        'anomaly_p10':      anomaly_p10,
+        'anomaly_p90':      anomaly_p90,
     }
     with open(model_dir / 'audit_risk_detector.pkl', 'wb') as f:
         pickle.dump(payload, f)
 
     print(f'  Retrained on {len(X_train)} samples ({int(y_train.sum())} suspicious).')
-    print(f'  Score bounds: min={score_min:.4f}, max={score_max:.4f}')
-    return score_min, score_max
+    print(f'  Percentile bounds: p10={anomaly_p10:.4f}, p90={anomaly_p90:.4f}')
+    return anomaly_p10, anomaly_p90
 
 
 # ─── Main ────────────────────────────────────────────────────────────────────
@@ -182,12 +192,15 @@ elif not has_bounds:
     print('\nPKL is valid but missing anomaly score bounds — patching…')
     with open(PKL_PATH, 'rb') as f:
         m = pickle.load(f)
-    score_min, score_max = calibrate_bounds(m['anomaly_model'], m['scaler'])
-    m['anomaly_score_min'] = score_min
-    m['anomaly_score_max'] = score_max
+    p10, p90 = calibrate_bounds(m['anomaly_model'], m['scaler'])
+    m['anomaly_p10'] = p10
+    m['anomaly_p90'] = p90
+    # Remove old-format keys if present
+    m.pop('anomaly_score_min', None)
+    m.pop('anomaly_score_max', None)
     with open(PKL_PATH, 'wb') as f:
         pickle.dump(m, f)
-    print(f'  Score bounds calibrated: min={score_min:.4f}, max={score_max:.4f}')
+    print(f'  Percentile bounds calibrated: p10={p10:.4f}, p90={p90:.4f}')
     print('✅ PKL patched successfully.')
 
 else:

@@ -1,483 +1,794 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - 67 Rentals</title>
+    <title>Admin Dashboard – 67 Rentals</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap-icons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/templatemo-graph-page.css') }}">
-</head>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
 
+    <style>
+        /* ── Page chrome ──────────────────────────────────────────── */
+        body { padding-top: 82px; }
+
+        .adm-page {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 30px 80px;
+        }
+
+        /* ── Page header ──────────────────────────────────────────── */
+        .adm-header {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 40px;
+            padding-bottom: 28px;
+            border-bottom: 2px solid var(--primary-color);
+        }
+        .adm-header h1 {
+            font-size: 2rem;
+            font-weight: var(--font-weight-bold);
+            color: var(--secondary-color);
+            margin: 0;
+            line-height: 1.1;
+        }
+        .adm-header h1 span { color: var(--primary-color); }
+        .adm-header p {
+            color: var(--p-color);
+            font-size: 0.875rem;
+            margin: 4px 0 0;
+        }
+        .adm-clock {
+            font-size: 0.8rem;
+            font-weight: var(--font-weight-medium);
+            color: var(--p-color);
+            background: var(--section-bg-color);
+            border: 1px solid var(--primary-color);
+            padding: 7px 16px;
+            border-radius: var(--border-radius-large);
+            white-space: nowrap;
+        }
+
+        /* ── Section labels ───────────────────────────────────────── */
+        .adm-section-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.7rem;
+            font-weight: var(--font-weight-bold);
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--p-color);
+            margin-bottom: 22px;
+        }
+        .adm-section-label::before {
+            content: '';
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .adm-section-label::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--primary-color);
+            opacity: .4;
+        }
+        .label-ops::before  { background: var(--custom-btn-bg-color); }
+        .label-sec::before  { background: var(--primary-color); }
+
+        /* ── KPI grid ─────────────────────────────────────────────── */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .kpi-card {
+            background: var(--white-color);
+            border: 1px solid var(--primary-color);
+            border-radius: var(--border-radius-medium);
+            padding: 22px 20px 18px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 30px rgba(129,178,154,.18);
+        }
+        .kpi-card.kpi-warn {
+            border-color: var(--custom-btn-bg-hover-color);
+            background: #fff8f7;
+        }
+        .kpi-card.kpi-warn:hover {
+            box-shadow: 0 10px 30px rgba(224,122,95,.15);
+        }
+
+        .kpi-icon {
+            width: 38px; height: 38px;
+            border-radius: var(--border-radius-small);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem;
+            margin-bottom: 14px;
+        }
+        .kpi-icon-green  { background: rgba(129,178,154,.15); color: var(--primary-color); }
+        .kpi-icon-gold   { background: rgba(242,204,143,.25); color: #b87e00; }
+        .kpi-icon-orange { background: rgba(224,122,95,.12);  color: var(--custom-btn-bg-hover-color); }
+        .kpi-icon-navy   { background: rgba(61,64,91,.10);    color: var(--secondary-color); }
+
+        .kpi-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--p-color);
+            margin-bottom: 5px;
+        }
+        .kpi-value {
+            font-size: 1.85rem;
+            font-weight: var(--font-weight-bold);
+            color: var(--secondary-color);
+            line-height: 1;
+        }
+        .kpi-sub {
+            font-size: 0.78rem;
+            color: var(--p-color);
+            margin-top: 6px;
+        }
+        .kpi-sub .tag-ok   { color: var(--primary-color);              font-weight: 500; }
+        .kpi-sub .tag-warn { color: var(--custom-btn-bg-hover-color);  font-weight: 500; }
+
+        /* ── Panel (table / feed container) ──────────────────────── */
+        .adm-panel {
+            background: var(--white-color);
+            border: 1px solid var(--primary-color);
+            border-radius: var(--border-radius-medium);
+            overflow: hidden;
+            margin-bottom: 40px;
+        }
+        .adm-panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 22px;
+            background: var(--section-bg-color);
+            border-bottom: 1px solid var(--primary-color);
+        }
+        .adm-panel-title {
+            font-size: 0.95rem;
+            font-weight: var(--font-weight-bold);
+            color: var(--secondary-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .adm-panel-title i { color: var(--primary-color); }
+        .adm-panel-link {
+            font-size: 0.8rem;
+            font-weight: var(--font-weight-medium);
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+        .adm-panel-link:hover { color: var(--custom-btn-bg-hover-color); }
+
+        /* ── Tables ───────────────────────────────────────────────── */
+        .adm-table { width: 100%; border-collapse: collapse; }
+        .adm-table thead th {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--p-color);
+            padding: 10px 20px;
+            text-align: left;
+            background: var(--section-bg-color);
+            border-bottom: 1px solid var(--primary-color);
+            font-weight: var(--font-weight-bold);
+        }
+        .adm-table tbody td {
+            padding: 12px 20px;
+            font-size: 0.875rem;
+            border-bottom: 1px solid rgba(129,178,154,.15);
+            color: var(--secondary-color);
+            vertical-align: middle;
+        }
+        .adm-table tbody tr:last-child td { border-bottom: none; }
+        .adm-table tbody tr:hover td { background: rgba(129,178,154,.05); }
+        .td-mono { font-family: 'Courier New', monospace; font-size: 0.82rem; }
+        .td-muted { color: var(--p-color); font-size: 0.82rem; }
+
+        /* ── Status pills ─────────────────────────────────────────── */
+        .adm-pill {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: var(--font-weight-bold);
+            letter-spacing: .03em;
+        }
+        .adm-pill::before {
+            content: ''; width: 5px; height: 5px; border-radius: 50%;
+        }
+        .pill-confirmed { background: rgba(129,178,154,.15); color: #3a7a5e; }
+        .pill-confirmed::before { background: #3a7a5e; }
+        .pill-pending   { background: rgba(242,204,143,.25); color: #8a6200; }
+        .pill-pending::before   { background: #c49200; }
+        .pill-cancelled { background: rgba(224,122,95,.12);  color: var(--custom-btn-bg-hover-color); }
+        .pill-cancelled::before { background: var(--custom-btn-bg-hover-color); }
+        .pill-critical  { background: rgba(224,122,95,.12);  color: #c0392b; }
+        .pill-critical::before  { background: #c0392b; }
+        .pill-high      { background: rgba(224,122,95,.12);  color: var(--custom-btn-bg-hover-color); }
+        .pill-high::before      { background: var(--custom-btn-bg-hover-color); }
+        .pill-medium    { background: rgba(242,204,143,.25); color: #8a6200; }
+        .pill-medium::before    { background: #c49200; }
+        .pill-low       { background: rgba(129,178,154,.15); color: #3a7a5e; }
+        .pill-low::before       { background: #3a7a5e; }
+
+        /* ── Security feed ────────────────────────────────────────── */
+        .feed-item {
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+            padding: 14px 22px;
+            border-bottom: 1px solid rgba(129,178,154,.15);
+            transition: background .2s;
+        }
+        .feed-item:last-child { border-bottom: none; }
+        .feed-item:hover { background: rgba(129,178,154,.04); }
+
+        .feed-dot {
+            width: 9px; height: 9px; border-radius: 50%;
+            flex-shrink: 0; margin-top: 5px;
+        }
+        .dot-critical { background: #c0392b; box-shadow: 0 0 6px rgba(192,57,43,.5); }
+        .dot-high     { background: var(--custom-btn-bg-hover-color); box-shadow: 0 0 6px rgba(224,122,95,.4); }
+        .dot-medium   { background: var(--custom-btn-bg-color); }
+        .dot-low, .dot-default { background: var(--primary-color); }
+
+        .feed-event { font-size: 0.875rem; font-weight: 500; color: var(--secondary-color); margin-bottom: 3px; }
+        .feed-meta  { font-size: 0.76rem; color: var(--p-color); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+        /* ── Two-column layout ────────────────────────────────────── */
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 40px; }
+        @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+        /* ── Fraud row list ───────────────────────────────────────── */
+        .fraud-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 22px;
+            border-bottom: 1px solid rgba(129,178,154,.15);
+        }
+        .fraud-row:last-child { border-bottom: none; }
+        .fraud-row-label { font-size: 0.875rem; color: var(--secondary-color); }
+        .fraud-row-label.sub { color: var(--p-color); font-size: 0.8rem; padding-left: 12px; }
+        .fraud-row-val { font-weight: var(--font-weight-bold); font-size: 0.9rem; color: var(--secondary-color); }
+        .fraud-row-val.alert-val { color: var(--custom-btn-bg-hover-color); }
+
+        /* ── Backup grid ──────────────────────────────────────────── */
+        .backup-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            background: rgba(129,178,154,.25);
+        }
+        .backup-cell { background: var(--white-color); padding: 16px 22px; }
+        .backup-cell-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: .07em; color: var(--p-color); margin-bottom: 4px; }
+        .backup-cell-val   { font-size: 1.25rem; font-weight: var(--font-weight-bold); color: var(--secondary-color); }
+        .backup-cell-val.ok   { color: #3a7a5e; }
+        .backup-cell-val.fail { color: var(--custom-btn-bg-hover-color); }
+        .backup-cell-val.info { color: var(--primary-color); }
+
+        /* ── Audit log table extras ──────────────────────────────── */
+        .risk-bar-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .risk-bar {
+            flex: 1;
+            height: 5px;
+            background: rgba(129,178,154,.15);
+            border-radius: 999px;
+            overflow: hidden;
+            min-width: 50px;
+        }
+        .risk-bar-fill {
+            height: 100%;
+            border-radius: 999px;
+            transition: width .4s ease;
+        }
+        .risk-low    { background: var(--primary-color); }
+        .risk-medium { background: var(--custom-btn-bg-color); }
+        .risk-high   { background: var(--custom-btn-bg-hover-color); }
+        .risk-num    { font-size: 0.75rem; color: var(--p-color); white-space: nowrap; min-width: 28px; text-align: right; }
+
+        .result-ok   { color: #3a7a5e; font-weight: 600; font-size: .8rem; }
+        .result-fail { color: var(--custom-btn-bg-hover-color); font-weight: 600; font-size: .8rem; }
+
+        /* ── Empty state ──────────────────────────────────────────── */
+        .adm-empty {
+            text-align: center;
+            padding: 36px 20px;
+            color: var(--p-color);
+            font-size: 0.875rem;
+        }
+        .adm-empty i { font-size: 2rem; display: block; margin-bottom: 8px; opacity: .4; }
+
+        /* ── Responsive ───────────────────────────────────────────── */
+        @media (max-width: 768px) {
+            .adm-page { padding: 24px 16px 60px; }
+            .kpi-grid  { grid-template-columns: 1fr 1fr; }
+            .adm-table thead th:nth-child(n+4),
+            .adm-table tbody td:nth-child(n+4) { display: none; }
+        }
+        @media (max-width: 480px) { .kpi-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
 <body>
-    <!-- Navigation -->
-<<<<<<< HEAD
-    <nav id="navbar">
-        <div class="nav-container">
-            <a href="{{ url_for('dashboard') }}" class="logo">
-                <div class="logo-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M3 13h2v8H3zm4-8h2v13H7zm4-2h2v15h-2zm4 4h2v11h-2zm4-2h2v13h-2z" />
-                    </svg>
-                </div>
-                <span class="logo-text">67 Rentals</span>
-            </a>
-            <ul class="nav-links">
-                <li><a href="{{ url_for('dashboard') }}">Home</a></li>
-                <li><a href="{{ url_for('dashboard') }}" class="active">Dashboard</a></li>
-                <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
-                <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
-                <li><a href="{{ url_for('security_dashboard') }}">Security</a></li>
-            </ul>
-            <div class="d-flex align-items-center gap-2">
-                {% set admin_name = session.get('user_name') or session.get('user', 'Admin') %}
-                {% if '@' in admin_name %}
-                {% set admin_name = admin_name.split('@')[0] %}
-                {% endif %}
-                <a href="{{ url_for('profile') }}" class="cta-button secondary" style="padding:10px 16px;">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"
-                        style="margin-right:6px;vertical-align:middle;">
-                        <path
-                            d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                    </svg>
-                    {{ admin_name }}
-                </a>
-                <a href="{{ url_for('logout') }}" class="cta-button secondary" style="padding:10px 16px;">Logout</a>
+
+<!-- ─── NAVBAR ──────────────────────────────────────────────────── -->
+<nav id="navbar">
+    <div class="nav-container">
+        <a href="{{ url_for('dashboard') }}" class="logo">
+            <div class="logo-icon">
+                <svg viewBox="0 0 24 24"><path d="M3 13h2v8H3zm4-8h2v13H7zm4-2h2v15h-2zm4 4h2v11h-2zm4-2h2v13h-2z"/></svg>
             </div>
-            <div class="hamburger" id="hamburger">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
-        </div>
-        <ul class="nav-links-mobile" id="navLinksMobile">
-            <li><a href="{{ url_for('dashboard') }}">Home</a></li>
+            <span class="logo-text">67 Rentals</span>
+        </a>
+
+        <ul class="nav-links">
             <li><a href="{{ url_for('dashboard') }}" class="active">Dashboard</a></li>
             <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
             <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
             <li><a href="{{ url_for('security_dashboard') }}">Security</a></li>
-            <li><a href="{{ url_for('profile') }}">Profile</a></li>
-            <li><a href="{{ url_for('logout') }}">Logout</a></li>
         </ul>
-    </nav>
-=======
-    {% include 'partials/navbar_graph.html' %}
->>>>>>> e0007d3 (Standardize navbars and admin retention UI)
 
-    <!-- Hero Section -->
-    <section class="hero" id="home">
-        <div class="hero-bg"></div>
-        <div class="geometric-shapes">
-            <div class="shape shape1"></div>
-            <div class="shape shape2"></div>
-            <div class="shape shape3"></div>
-            <div class="shape shape4"></div>
-            <div class="shape shape5"></div>
-            <div class="shape shape6"></div>
+        <div class="nav-actions">
+            {% set admin_name = session.get('user_name') or session.get('user', 'Admin') %}
+            {% if '@' in admin_name %}{% set admin_name = admin_name.split('@')[0] %}{% endif %}
+            <a href="{{ url_for('profile') }}" class="nav-pill nav-pill-ghost">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                </span>
+                {{ admin_name }}
+            </a>
+            <a href="{{ url_for('logout') }}" class="nav-pill nav-pill-ghost">Logout</a>
         </div>
 
-        <div class="hero-content">
-            <div class="hero-text">
-                <h1>Data Analytics<br>Dashboard</h1>
-                <p>Transform your data into actionable insights with our cutting-edge analytics platform. Real-time
-                    monitoring, intelligent predictions, and beautiful visualizations.</p>
-                <a href="#dashboard" class="cta-button">Get Started</a>
-            </div>
+        <div class="hamburger" id="hamburger"><span></span><span></span><span></span></div>
+    </div>
+    <ul class="nav-links-mobile" id="navLinksMobile">
+        <li><a href="{{ url_for('dashboard') }}" class="active">Dashboard</a></li>
+        <li><a href="{{ url_for('accounts') }}">Accounts</a></li>
+        <li><a href="{{ url_for('vehicles_page') }}">Management</a></li>
+        <li><a href="{{ url_for('security_dashboard') }}">Security</a></li>
+        <li><a href="{{ url_for('profile') }}">Profile</a></li>
+        <li><a href="{{ url_for('logout') }}">Logout</a></li>
+    </ul>
+</nav>
 
-            <div class="hero-visual">
-                <div class="city-container">
-                    <div class="building building1">
-                        <div class="building-fill"></div>
-                        <div class="building-windows"></div>
-                    </div>
-                    <div class="building building2">
-                        <div class="building-fill"></div>
-                        <div class="building-windows"></div>
-                    </div>
-                    <div class="building building3">
-                        <div class="building-fill"></div>
-                        <div class="building-windows"></div>
-                    </div>
-                    <div class="building building4">
-                        <div class="building-fill"></div>
-                        <div class="building-windows"></div>
-                    </div>
-                    <div class="neon-line neon-line1"></div>
-                    <div class="neon-line neon-line2"></div>
-                </div>
+
+<!-- ─── MAIN ─────────────────────────────────────────────────────── -->
+<div class="adm-page">
+
+    <!-- Header -->
+    <div class="adm-header">
+        <div>
+            <h1>Admin <span>Dashboard</span></h1>
+            <p>67 Rentals · Operations &amp; Security Overview</p>
+        </div>
+        <div class="adm-clock" id="live-clock">Loading…</div>
+    </div>
+
+
+    <!-- ════════════════════════════════════
+         SECTION 1 — BUSINESS OPERATIONS
+    ════════════════════════════════════ -->
+    <div class="adm-section-label label-ops">Business Operations</div>
+
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-icon kpi-icon-gold"><i class="bi bi-currency-dollar"></i></div>
+            <div class="kpi-label">Total Revenue</div>
+            <div class="kpi-value">${{ "{:,.0f}".format(stats.total_revenue or 0) }}</div>
+            <div class="kpi-sub">All confirmed bookings</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-icon kpi-icon-green"><i class="bi bi-calendar-check"></i></div>
+            <div class="kpi-label">Active Bookings</div>
+            <div class="kpi-value">{{ stats.active_bookings or 0 }}</div>
+            <div class="kpi-sub">
+                <span class="tag-warn">{{ stats.pending_bookings or 0 }} pending</span>
+                &nbsp;·&nbsp; {{ stats.total_bookings or 0 }} total
             </div>
         </div>
-    </section>
 
-    <!-- Dashboard Section -->
-    <section class="dashboard-section" id="dashboard">
-        <div class="dashboard-container">
-            <h2 class="section-title">Dashboard Overview</h2>
-            <!-- Stats Cards -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-icon">📊</div>
-                        <div class="stat-title">Total Revenue</div>
-                    </div>
-                    <div class="stat-value">$42,847</div>
-                    <div class="stat-description">Monthly revenue increased by 23% compared to last month with strong
-                        performance across all channels.</div>
-                    <div class="stat-chart">
-                        <canvas class="mini-chart" id="miniChart1"></canvas>
-                    </div>
-                </div>
+        <div class="kpi-card">
+            <div class="kpi-icon kpi-icon-navy"><i class="bi bi-truck"></i></div>
+            <div class="kpi-label">Fleet Size</div>
+            <div class="kpi-value">{{ stats.total_vehicles or 0 }}</div>
+            <div class="kpi-sub">Vehicles in system</div>
+        </div>
 
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-icon">👥</div>
-                        <div class="stat-title">Active Users</div>
-                    </div>
-                    <div class="stat-value">18.5K</div>
-                    <div class="stat-description">Real-time analytics showing active users currently engaging with the
-                        platform.</div>
-                    <div class="stat-chart">
-                        <canvas class="mini-chart" id="miniChart2"></canvas>
-                    </div>
-                </div>
+        <div class="kpi-card">
+            <div class="kpi-icon kpi-icon-green"><i class="bi bi-people"></i></div>
+            <div class="kpi-label">Registered Users</div>
+            <div class="kpi-value">{{ stats.total_users or 0 }}</div>
+            <div class="kpi-sub">All account types</div>
+        </div>
 
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-icon">🎯</div>
-                        <div class="stat-title">Conversion Rate</div>
-                    </div>
-                    <div class="stat-value">94.3%</div>
-                    <div class="stat-description">Customer satisfaction rate based on recent surveys and feedback
-                        analysis.</div>
-                    <div class="stat-chart">
-                        <canvas class="mini-chart" id="miniChart3"></canvas>
-                    </div>
-                </div>
-
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-icon">🚀</div>
-                        <div class="stat-title">Performance Score</div>
-                    </div>
-                    <div class="stat-value">7,392</div>
-                    <div class="stat-description">Overall system performance metrics showing optimal operation across
-                        all services.</div>
-                    <div class="stat-chart">
-                        <canvas class="mini-chart" id="miniChart4"></canvas>
-                    </div>
-                </div>
-
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-icon">💰</div>
-                        <div class="stat-title">Monthly Growth</div>
-                    </div>
-                    <div class="stat-value">+28.5%</div>
-                    <div class="stat-description">Consistent month-over-month growth in user acquisition and revenue
-                        generation.</div>
-                    <div class="stat-chart">
-                        <canvas class="mini-chart" id="miniChart5"></canvas>
-                    </div>
-                </div>
-
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-icon">⚡</div>
-                        <div class="stat-title">System Uptime</div>
-                    </div>
-                    <div class="stat-value">99.9%</div>
-                    <div class="stat-description">Exceptional reliability with minimal downtime ensuring seamless user
-                        experience.</div>
-                    <div class="stat-chart">
-                        <canvas class="mini-chart" id="miniChart6"></canvas>
-                    </div>
-                </div>
+        <div class="kpi-card {% if (stats.pending_approvals or 0) > 0 %}kpi-warn{% endif %}">
+            <div class="kpi-icon {% if (stats.pending_approvals or 0) > 0 %}kpi-icon-orange{% else %}kpi-icon-green{% endif %}">
+                <i class="bi bi-person-check"></i>
+            </div>
+            <div class="kpi-label">Pending Approvals</div>
+            <div class="kpi-value">{{ stats.pending_approvals or 0 }}</div>
+            <div class="kpi-sub">
+                {% if (stats.pending_approvals or 0) > 0 %}
+                    <span class="tag-warn"><i class="bi bi-exclamation-circle"></i> Action required</span>
+                {% else %}
+                    <span class="tag-ok"><i class="bi bi-check-circle"></i> All clear</span>
+                {% endif %}
             </div>
         </div>
-    </section>
+    </div>
 
-    <!-- Analytics Section -->
-    <section class="analytics-section" id="analytics">
-        <div class="dashboard-container">
-            <h2 class="section-title">Advanced Analytics</h2>
-
-            <!-- Key Metrics Overview -->
-            <div class="metrics-grid">
-                <div class="metric-item">
-                    <div class="metric-value">2.4M</div>
-                    <div class="metric-label">Page Views</div>
-                </div>
-                <div class="metric-item">
-                    <div class="metric-value">156K</div>
-                    <div class="metric-label">Unique Visitors</div>
-                </div>
-                <div class="metric-item">
-                    <div class="metric-value">4.2min</div>
-                    <div class="metric-label">Avg Session</div>
-                </div>
-                <div class="metric-item">
-                    <div class="metric-value">68%</div>
-                    <div class="metric-label">Return Rate</div>
-                </div>
-                <div class="metric-item">
-                    <div class="metric-value">89</div>
-                    <div class="metric-label">NPS Score</div>
-                </div>
-                <div class="metric-item">
-                    <div class="metric-value">3.2K</div>
-                    <div class="metric-label">Daily Active</div>
-                </div>
+    <!-- Recent Bookings -->
+    <div class="adm-panel">
+        <div class="adm-panel-head">
+            <div class="adm-panel-title">
+                <i class="bi bi-activity"></i> Recent Booking Activity
             </div>
+            <a href="{{ url_for('accounts') }}" class="adm-panel-link">View all →</a>
+        </div>
+        {% if recent_bookings %}
+        <table class="adm-table">
+            <thead>
+                <tr>
+                    <th>Booking ID</th>
+                    <th>Customer</th>
+                    <th>Vehicle</th>
+                    <th>Dates</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in recent_bookings %}
+                <tr>
+                    <td class="td-mono">{{ b.booking_id }}</td>
+                    <td>{{ b.user_email or ('User #' ~ b.user_id) }}</td>
+                    <td>{{ b.vehicle_name or ('Vehicle #' ~ b.vehicle_id) }}</td>
+                    <td class="td-muted td-mono">{{ b.pickup_date }} → {{ b.return_date }}</td>
+                    <td class="td-mono">${{ "{:,.2f}".format(b.total_amount or 0) }}</td>
+                    <td>
+                        {% if b.status == 'Confirmed' %}
+                            <span class="adm-pill pill-confirmed">Confirmed</span>
+                        {% elif b.status == 'Pending' %}
+                            <span class="adm-pill pill-pending">Pending</span>
+                        {% elif b.status == 'Cancelled' %}
+                            <span class="adm-pill pill-cancelled">Cancelled</span>
+                        {% else %}
+                            <span class="adm-pill pill-low">{{ b.status }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="adm-empty">
+            <i class="bi bi-calendar-x"></i>
+            No recent bookings found.
+        </div>
+        {% endif %}
+    </div>
 
-            <!-- Chart Cards -->
-            <div class="charts-grid">
-                <div class="chart-card">
-                    <div class="chart-header">
-                        <h3 class="chart-title">📈 Monthly Trends</h3>
-                        <div class="chart-options">
-                            <span class="chart-option active">2024</span>
-                            <span class="chart-option">2023</span>
-                            <span class="chart-option">2022</span>
+
+    <!-- Audit Log Activity -->
+    <div class="adm-panel">
+        <div class="adm-panel-head">
+            <div class="adm-panel-title">
+                <i class="bi bi-journal-text"></i> Audit Log — Recent Activity
+            </div>
+            <a href="{{ url_for('security_dashboard') }}" class="adm-panel-link">Full audit log →</a>
+        </div>
+        {% if recent_audit_logs %}
+        <table class="adm-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Entity</th>
+                    <th>Result</th>
+                    <th>Risk Score</th>
+                    <th>Severity</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in recent_audit_logs %}
+                <tr>
+                    <td class="td-muted td-mono" style="white-space:nowrap;">
+                        {{ log.timestamp.strftime('%d %b, %H:%M') if log.timestamp else '—' }}
+                    </td>
+                    <td class="td-muted">{{ log.user_id or '—' }}</td>
+                    <td style="font-weight:500;color:var(--secondary-color);">{{ log.action or '—' }}</td>
+                    <td class="td-muted">
+                        {{ log.entity_type or '' }}
+                        {% if log.entity_id %}
+                            <span style="opacity:.6;">#{{ log.entity_id }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if log.result in ['Success', 'success'] %}
+                            <span class="result-ok"><i class="bi bi-check-circle"></i> Success</span>
+                        {% elif log.result in ['Failure', 'failure', 'Failed', 'failed'] %}
+                            <span class="result-fail"><i class="bi bi-x-circle"></i> Failure</span>
+                        {% else %}
+                            <span class="td-muted">{{ log.result or '—' }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% set rs = (log.risk_score or 0) | float %}
+                        <div class="risk-bar-wrap">
+                            <div class="risk-bar">
+                                <div class="risk-bar-fill
+                                    {% if rs >= 0.7 %}risk-high
+                                    {% elif rs >= 0.4 %}risk-medium
+                                    {% else %}risk-low{% endif %}"
+                                    style="width: {{ (rs * 100) | int }}%;">
+                                </div>
+                            </div>
+                            <span class="risk-num">{{ "%.2f"|format(rs) }}</span>
                         </div>
-                    </div>
-                    <div class="chart-container">
-                        <div class="bar-chart" id="barChart">
-                            <div class="bar" style="height: 60%">
-                                <span class="bar-value">120</span>
-                                <span class="bar-label">Jan</span>
-                            </div>
-                            <div class="bar" style="height: 80%">
-                                <span class="bar-value">180</span>
-                                <span class="bar-label">Feb</span>
-                            </div>
-                            <div class="bar" style="height: 45%">
-                                <span class="bar-value">90</span>
-                                <span class="bar-label">Mar</span>
-                            </div>
-                            <div class="bar" style="height: 70%">
-                                <span class="bar-value">140</span>
-                                <span class="bar-label">Apr</span>
-                            </div>
-                            <div class="bar" style="height: 90%">
-                                <span class="bar-value">200</span>
-                                <span class="bar-label">May</span>
-                            </div>
-                            <div class="bar" style="height: 65%">
-                                <span class="bar-value">130</span>
-                                <span class="bar-label">Jun</span>
-                            </div>
-                            <div class="bar" style="height: 75%">
-                                <span class="bar-value">150</span>
-                                <span class="bar-label">Jul</span>
-                            </div>
-                            <div class="bar" style="height: 85%">
-                                <span class="bar-value">170</span>
-                                <span class="bar-label">Aug</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                    </td>
+                    <td>
+                        {% set sev = log.severity or 'Low' %}
+                        <span class="adm-pill
+                            {% if sev == 'Critical' %}pill-critical
+                            {% elif sev == 'High' %}pill-high
+                            {% elif sev == 'Medium' %}pill-medium
+                            {% else %}pill-low{% endif %}">
+                            {{ sev }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="adm-empty">
+            <i class="bi bi-journal-x"></i>
+            No audit log entries found.
+        </div>
+        {% endif %}
+    </div>
 
-                <div class="chart-card">
-                    <div class="chart-header">
-                        <h3 class="chart-title">📊 Growth Analytics</h3>
-                        <div class="chart-options">
-                            <span class="chart-option active">Week</span>
-                            <span class="chart-option">Month</span>
-                            <span class="chart-option">Year</span>
-                        </div>
-                    </div>
-                    <div class="chart-container">
-                        <div class="line-chart">
-                            <svg class="line-chart-svg" viewBox="0 0 500 300">
-                                <defs>
-                                    <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                                        <stop offset="0%" style="stop-color:#81B29A;stop-opacity:0.5" />
-                                        <stop offset="100%" style="stop-color:#81B29A;stop-opacity:0" />
-                                    </linearGradient>
-                                </defs>
-                                <!-- Grid lines -->
-                                <line x1="0" y1="50" x2="500" y2="50" class="chart-grid-line" />
-                                <line x1="0" y1="100" x2="500" y2="100" class="chart-grid-line" />
-                                <line x1="0" y1="150" x2="500" y2="150" class="chart-grid-line" />
-                                <line x1="0" y1="200" x2="500" y2="200" class="chart-grid-line" />
-                                <line x1="0" y1="250" x2="500" y2="250" class="chart-grid-line" />
 
-                                <!-- Area -->
-                                <path
-                                    d="M 0,200 L 62,180 L 125,150 L 187,170 L 250,120 L 312,140 L 375,100 L 437,130 L 500,110 L 500,300 L 0,300 Z"
-                                    class="chart-area" />
+    <!-- ════════════════════════════════════
+         SECTION 2 — SECURITY & COMPLIANCE
+    ════════════════════════════════════ -->
+    <div class="adm-section-label label-sec">Security &amp; Compliance</div>
 
-                                <!-- Line -->
-                                <path
-                                    d="M 0,200 L 62,180 L 125,150 L 187,170 L 250,120 L 312,140 L 375,100 L 437,130 L 500,110"
-                                    class="chart-line" />
+    <div class="kpi-grid" style="margin-bottom: 32px;">
+        <div class="kpi-card {% if (security_stats.last_24h or 0) > 10 %}kpi-warn{% endif %}">
+            <div class="kpi-icon {% if (security_stats.last_24h or 0) > 10 %}kpi-icon-orange{% else %}kpi-icon-green{% endif %}">
+                <i class="bi bi-shield-check"></i>
+            </div>
+            <div class="kpi-label">Security Events (24h)</div>
+            <div class="kpi-value">{{ security_stats.last_24h or 0 }}</div>
+            <div class="kpi-sub">{{ security_stats.total or 0 }} all-time</div>
+        </div>
 
-                                <!-- Dots -->
-                                <circle cx="0" cy="200" class="chart-dot" />
-                                <circle cx="62" cy="180" class="chart-dot" />
-                                <circle cx="125" cy="150" class="chart-dot" />
-                                <circle cx="187" cy="170" class="chart-dot" />
-                                <circle cx="250" cy="120" class="chart-dot" />
-                                <circle cx="312" cy="140" class="chart-dot" />
-                                <circle cx="375" cy="100" class="chart-dot" />
-                                <circle cx="437" cy="130" class="chart-dot" />
-                                <circle cx="500" cy="110" class="chart-dot" />
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="chart-card">
-                    <div class="chart-header">
-                        <h3 class="chart-title">🌍 Geographic Distribution</h3>
-                        <div class="chart-options">
-                            <span class="chart-option active">Global</span>
-                            <span class="chart-option">US</span>
-                            <span class="chart-option">EU</span>
-                        </div>
-                    </div>
-                    <div class="chart-container">
-                        <div class="bar-chart">
-                            <div class="bar"
-                                style="height: 85%; background: linear-gradient(180deg, #81B29A 0%, #F2CC8F 100%);">
-                                <span class="bar-value">42%</span>
-                                <span class="bar-label">USA</span>
-                            </div>
-                            <div class="bar"
-                                style="height: 65%; background: linear-gradient(180deg, #F2CC8F 0%, #E07A5F 100%);">
-                                <span class="bar-value">28%</span>
-                                <span class="bar-label">EU</span>
-                            </div>
-                            <div class="bar"
-                                style="height: 45%; background: linear-gradient(180deg, #81B29A 0%, #3D405B 100%);">
-                                <span class="bar-value">18%</span>
-                                <span class="bar-label">Asia</span>
-                            </div>
-                            <div class="bar"
-                                style="height: 25%; background: linear-gradient(180deg, #E07A5F 0%, #3D405B 100%);">
-                                <span class="bar-value">12%</span>
-                                <span class="bar-label">Other</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="chart-card">
-                    <div class="chart-header">
-                        <h3 class="chart-title">📱 Device Analytics</h3>
-                        <div class="chart-options">
-                            <span class="chart-option active">This Month</span>
-                            <span class="chart-option">Last Month</span>
-                            <span class="chart-option">YTD</span>
-                        </div>
-                    </div>
-                    <div class="chart-container">
-                        <div class="line-chart">
-                            <svg class="line-chart-svg" viewBox="0 0 500 300">
-                                <!-- Grid lines -->
-                                <line x1="0" y1="60" x2="500" y2="60" class="chart-grid-line" />
-                                <line x1="0" y1="120" x2="500" y2="120" class="chart-grid-line" />
-                                <line x1="0" y1="180" x2="500" y2="180" class="chart-grid-line" />
-                                <line x1="0" y1="240" x2="500" y2="240" class="chart-grid-line" />
-
-                                <!-- Mobile Line -->
-                                <path d="M 0,180 L 71,160 L 142,140 L 214,120 L 285,100 L 357,90 L 428,80 L 500,70"
-                                    stroke="#E07A5F" stroke-width="2" fill="none" />
-
-                                <!-- Desktop Line -->
-                                <path d="M 0,220 L 71,210 L 142,200 L 214,190 L 285,185 L 357,180 L 428,175 L 500,170"
-                                    stroke="#81B29A" stroke-width="2" fill="none" />
-
-                                <!-- Mobile dots -->
-                                <circle cx="0" cy="180" r="4" fill="#E07A5F" />
-                                <circle cx="71" cy="160" r="4" fill="#E07A5F" />
-                                <circle cx="142" cy="140" r="4" fill="#E07A5F" />
-                                <circle cx="214" cy="120" r="4" fill="#E07A5F" />
-                                <circle cx="285" cy="100" r="4" fill="#E07A5F" />
-                                <circle cx="357" cy="90" r="4" fill="#E07A5F" />
-                                <circle cx="428" cy="80" r="4" fill="#E07A5F" />
-                                <circle cx="500" cy="70" r="4" fill="#E07A5F" />
-
-                                <!-- Desktop dots -->
-                                <circle cx="0" cy="220" r="4" fill="#81B29A" />
-                                <circle cx="71" cy="210" r="4" fill="#81B29A" />
-                                <circle cx="142" cy="200" r="4" fill="#81B29A" />
-                                <circle cx="214" cy="190" r="4" fill="#81B29A" />
-                                <circle cx="285" cy="185" r="4" fill="#81B29A" />
-                                <circle cx="357" cy="180" r="4" fill="#81B29A" />
-                                <circle cx="428" cy="175" r="4" fill="#81B29A" />
-                                <circle cx="500" cy="170" r="4" fill="#81B29A" />
-
-                                <!-- Labels -->
-                                <text x="20" y="50" fill="#E07A5F" font-size="12">Mobile</text>
-                                <text x="20" y="35" fill="#81B29A" font-size="12">Desktop</text>
-                            </svg>
-                        </div>
-                    </div>
-                </div>
+        <div class="kpi-card {% if ((vehicle_fraud_stats.last_24h or 0) + (booking_fraud_stats.last_24h or 0)) > 0 %}kpi-warn{% endif %}">
+            <div class="kpi-icon kpi-icon-gold"><i class="bi bi-exclamation-triangle"></i></div>
+            <div class="kpi-label">Fraud Detections (24h)</div>
+            <div class="kpi-value">{{ (vehicle_fraud_stats.last_24h or 0) + (booking_fraud_stats.last_24h or 0) }}</div>
+            <div class="kpi-sub">
+                {{ vehicle_fraud_stats.last_24h or 0 }} vehicle &nbsp;·&nbsp; {{ booking_fraud_stats.last_24h or 0 }} booking
             </div>
         </div>
-    </section>
 
-    <!-- Reports Section -->
-    <section class="reports-section" id="reports">
-        <div class="dashboard-container">
-            <h2 class="section-title">Reports & Insights</h2>
-            <div class="info-grid">
-                <div class="info-card">
-                    <div class="info-icon">💼</div>
-                    <h3 class="info-title">Business Intelligence</h3>
-                    <div class="info-value">98.5%</div>
-                    <p style="font-size: 14px; color: var(--p-color);">Accuracy in predictive analytics and business
-                        forecasting models.</p>
-                </div>
-                <div class="info-card">
-                    <div class="info-icon">📱</div>
-                    <h3 class="info-title">Mobile Analytics</h3>
-                    <div class="info-value">2.4M</div>
-                    <p style="font-size: 14px; color: var(--p-color);">Mobile app downloads and active user engagement
-                        metrics.</p>
-                </div>
-                <div class="info-card">
-                    <div class="info-icon">🌍</div>
-                    <h3 class="info-title">Global Reach</h3>
-                    <div class="info-value">150+</div>
-                    <p style="font-size: 14px; color: var(--p-color);">Countries actively using our analytics platform
-                        worldwide.</p>
-                </div>
-                <div class="info-card">
-                    <div class="info-icon">🚀</div>
-                    <h3 class="info-title">Performance Index</h3>
-                    <div class="info-value">847</div>
-                    <p style="font-size: 14px; color: var(--p-color);">Comprehensive performance scoring across all
-                        platform metrics.</p>
-                </div>
-                <div class="info-card">
-                    <div class="info-icon">⚡</div>
-                    <h3 class="info-title">Response Time</h3>
-                    <div class="info-value">0.2s</div>
-                    <p style="font-size: 14px; color: var(--p-color);">Average API response time ensuring optimal user
-                        experience.</p>
-                </div>
-                <div class="info-card">
-                    <div class="info-icon">📊</div>
-                    <h3 class="info-title">Data Processing</h3>
-                    <div class="info-value">12TB</div>
-                    <p style="font-size: 14px; color: var(--p-color);">Daily data volume processed through our analytics
-                        pipeline.</p>
-                </div>
+        <div class="kpi-card {% if (incident_counts.open or 0) > 0 %}kpi-warn{% endif %}">
+            <div class="kpi-icon {% if (incident_counts.open or 0) > 0 %}kpi-icon-orange{% else %}kpi-icon-green{% endif %}">
+                <i class="bi bi-file-earmark-exclamation"></i>
+            </div>
+            <div class="kpi-label">Open Incidents</div>
+            <div class="kpi-value">{{ incident_counts.open or 0 }}</div>
+            <div class="kpi-sub">
+                {{ incident_counts.total or 0 }} total &nbsp;·&nbsp; {{ incident_counts.resolved or 0 }} resolved
             </div>
         </div>
-    </section>
 
-    <!-- Footer -->
-    <footer>
-        <div class="footer-content">
-            <p class="copyright">© 2026 67 Rentals. All rights reserved.</p>
+        <div class="kpi-card {% if (security_stats.by_severity.get('Critical', 0) or 0) > 0 %}kpi-warn{% endif %}">
+            <div class="kpi-icon kpi-icon-orange"><i class="bi bi-lightning-charge"></i></div>
+            <div class="kpi-label">Critical Alerts</div>
+            <div class="kpi-value">{{ security_stats.by_severity.get('Critical', 0) or 0 }}</div>
+            <div class="kpi-sub">
+                {{ security_stats.by_severity.get('High', 0) or 0 }} high &nbsp;·&nbsp;
+                {{ security_stats.by_severity.get('Medium', 0) or 0 }} medium
+            </div>
         </div>
-    </footer>
 
-    <script src="{{ url_for('static', filename='js/templatemo-graph-script.js') }}"></script>
+        <div class="kpi-card {% if (backup_stats.failed_backups or 0) > 0 %}kpi-warn{% endif %}">
+            <div class="kpi-icon {% if (backup_stats.failed_backups or 0) > 0 %}kpi-icon-orange{% else %}kpi-icon-green{% endif %}">
+                <i class="bi bi-cloud-check"></i>
+            </div>
+            <div class="kpi-label">Backup Health</div>
+            <div class="kpi-value" style="font-size:1.3rem;">
+                {% if (backup_stats.failed_backups or 0) > 0 %}
+                    <span class="tag-warn">{{ backup_stats.failed_backups }} Failed</span>
+                {% else %}
+                    <span class="tag-ok">All OK</span>
+                {% endif %}
+            </div>
+            <div class="kpi-sub">
+                {{ backup_stats.successful_backups or 0 }} success &nbsp;·&nbsp; {{ backup_stats.total_size_mb or 0 }} MB
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Feed | Fraud + Backup -->
+    <div class="two-col">
+
+        <!-- Security Event Feed -->
+        <div class="adm-panel" style="margin-bottom:0;">
+            <div class="adm-panel-head">
+                <div class="adm-panel-title">
+                    <i class="bi bi-shield-exclamation"></i> Recent Security Events
+                </div>
+                <a href="{{ url_for('security_dashboard') }}" class="adm-panel-link">View all →</a>
+            </div>
+            {% if recent_security_logs %}
+                {% for log in recent_security_logs %}
+                <div class="feed-item">
+                    <div class="feed-dot
+                        {% if log.severity == 'Critical' %}dot-critical
+                        {% elif log.severity == 'High' %}dot-high
+                        {% elif log.severity == 'Medium' %}dot-medium
+                        {% else %}dot-low{% endif %}">
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div class="feed-event">{{ log.event_type or 'Security Event' }}</div>
+                        <div class="feed-meta">
+                            {% if log.severity %}
+                                <span class="adm-pill
+                                    {% if log.severity == 'Critical' %}pill-critical
+                                    {% elif log.severity == 'High' %}pill-high
+                                    {% elif log.severity == 'Medium' %}pill-medium
+                                    {% else %}pill-low{% endif %}">
+                                    {{ log.severity }}
+                                </span>
+                            {% endif %}
+                            <span>{{ log.ip_address or 'Unknown IP' }}</span>
+                            <span>{{ log.timestamp.strftime('%d %b, %H:%M') if log.timestamp else '—' }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="adm-empty">
+                <i class="bi bi-shield-check"></i>
+                No recent security events.
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Right col: Fraud + Backup -->
+        <div style="display:flex;flex-direction:column;gap:22px;">
+
+            <div class="adm-panel" style="margin-bottom:0;">
+                <div class="adm-panel-head">
+                    <div class="adm-panel-title">
+                        <i class="bi bi-bar-chart-steps"></i> Fraud Breakdown
+                    </div>
+                </div>
+                <div class="fraud-row">
+                    <span class="fraud-row-label">Vehicle Fraud — Total</span>
+                    <span class="fraud-row-val">{{ vehicle_fraud_stats.total or 0 }}</span>
+                </div>
+                <div class="fraud-row">
+                    <span class="fraud-row-label">Vehicle Fraud — 24h</span>
+                    <span class="fraud-row-val {% if (vehicle_fraud_stats.last_24h or 0) > 0 %}alert-val{% endif %}">{{ vehicle_fraud_stats.last_24h or 0 }}</span>
+                </div>
+                <div class="fraud-row">
+                    <span class="fraud-row-label">Booking Fraud — Total</span>
+                    <span class="fraud-row-val">{{ booking_fraud_stats.total or 0 }}</span>
+                </div>
+                <div class="fraud-row">
+                    <span class="fraud-row-label">Booking Fraud — 24h</span>
+                    <span class="fraud-row-val {% if (booking_fraud_stats.last_24h or 0) > 0 %}alert-val{% endif %}">{{ booking_fraud_stats.last_24h or 0 }}</span>
+                </div>
+                {% if vehicle_fraud_stats.by_flag_type %}
+                    {% for flag, count in vehicle_fraud_stats.by_flag_type.items() %}
+                    <div class="fraud-row">
+                        <span class="fraud-row-label sub">↳ {{ flag }}</span>
+                        <span class="fraud-row-val" style="font-size:.82rem;">{{ count }}</span>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+
+            <div class="adm-panel" style="margin-bottom:0;">
+                <div class="adm-panel-head">
+                    <div class="adm-panel-title">
+                        <i class="bi bi-cloud-arrow-down"></i> Backup Overview
+                    </div>
+                </div>
+                <div class="backup-grid">
+                    <div class="backup-cell">
+                        <div class="backup-cell-label">Total</div>
+                        <div class="backup-cell-val">{{ backup_stats.total_backups or 0 }}</div>
+                    </div>
+                    <div class="backup-cell">
+                        <div class="backup-cell-label">Successful</div>
+                        <div class="backup-cell-val ok">{{ backup_stats.successful_backups or 0 }}</div>
+                    </div>
+                    <div class="backup-cell">
+                        <div class="backup-cell-label">Failed</div>
+                        <div class="backup-cell-val {% if (backup_stats.failed_backups or 0) > 0 %}fail{% endif %}">{{ backup_stats.failed_backups or 0 }}</div>
+                    </div>
+                    <div class="backup-cell">
+                        <div class="backup-cell-label">Verified</div>
+                        <div class="backup-cell-val info">{{ backup_stats.verified_backups or 0 }}</div>
+                    </div>
+                </div>
+                {% if backup_stats.latest_backup %}
+                <div class="fraud-row" style="padding-top:14px;padding-bottom:14px;">
+                    <span class="fraud-row-label" style="font-size:.82rem;color:var(--p-color);">Last backup</span>
+                    <span class="fraud-row-val td-mono" style="font-size:.8rem;">
+                        {{ backup_stats.latest_backup.timestamp.strftime('%d %b %Y, %H:%M') if backup_stats.latest_backup.timestamp else 'Unknown' }}
+                    </span>
+                </div>
+                <div class="fraud-row">
+                    <span class="fraud-row-label" style="font-size:.82rem;color:var(--p-color);">Storage used</span>
+                    <span class="fraud-row-val td-mono" style="font-size:.8rem;">{{ backup_stats.total_size_mb or 0 }} MB</span>
+                </div>
+                {% endif %}
+            </div>
+
+        </div>
+    </div><!-- /two-col -->
+
+</div><!-- /adm-page -->
+
+<footer>
+    <div class="footer-content">
+        <p class="copyright">© 2026 67 Rentals. All rights reserved.</p>
+    </div>
+</footer>
+
+<script src="{{ url_for('static', filename='js/templatemo-graph-script.js') }}"></script>
+<script>
+    function updateClock() {
+        document.getElementById('live-clock').textContent =
+            new Date().toLocaleString('en-SG', {
+                weekday:'short', year:'numeric', month:'short',
+                day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit'
+            });
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    window.addEventListener('scroll', () => {
+        document.getElementById('navbar')?.classList.toggle('scrolled', window.scrollY > 10);
+    });
+
+    const hamburger = document.getElementById('hamburger');
+    const navMobile = document.getElementById('navLinksMobile');
+    if (hamburger && navMobile) {
+        hamburger.addEventListener('click', () => {
+            navMobile.classList.toggle('active');
+            hamburger.classList.toggle('active');
+        });
+    }
+</script>
 </body>
-
 </html>

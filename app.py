@@ -4265,10 +4265,133 @@ def delete_listing(listing_id):
 # ADMIN ROUTES
 # ============================================
 
+
+
 @app.route('/dashboard')
 def dashboard():
-    """Dashboard page"""
-    return render_template('dashboard.html')
+    """Admin Dashboard – Business Operations & Security Overview"""
+
+    # ── Business Operations ──────────────────────────────────────
+    stats = {}
+    recent_bookings = []
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+
+            # Revenue from confirmed bookings
+            cursor.execute(
+                "SELECT COALESCE(SUM(total_amount), 0) AS rev FROM bookings WHERE status = 'Confirmed'"
+            )
+            stats['total_revenue'] = float(cursor.fetchone()['rev'])
+
+            # Booking counts
+            cursor.execute("SELECT COUNT(*) AS c FROM bookings WHERE status = 'Confirmed'")
+            stats['active_bookings'] = cursor.fetchone()['c']
+
+            cursor.execute("SELECT COUNT(*) AS c FROM bookings WHERE status = 'Pending'")
+            stats['pending_bookings'] = cursor.fetchone()['c']
+
+            cursor.execute("SELECT COUNT(*) AS c FROM bookings")
+            stats['total_bookings'] = cursor.fetchone()['c']
+
+            # Vehicles
+            cursor.execute("SELECT COUNT(*) AS c FROM vehicles")
+            stats['total_vehicles'] = cursor.fetchone()['c']
+
+            # Users
+            cursor.execute("SELECT COUNT(*) AS c FROM users")
+            stats['total_users'] = cursor.fetchone()['c']
+
+            # Pending signup approvals
+            cursor.execute("SELECT COUNT(*) AS c FROM signup_tickets WHERE status = 'pending'")
+            stats['pending_approvals'] = cursor.fetchone()['c']
+
+            # Recent bookings (last 10) with user email + vehicle name
+            cursor.execute("""
+                SELECT b.booking_id, b.user_id, b.vehicle_id,
+                       b.pickup_date, b.return_date,
+                       b.total_amount, b.status, b.booking_date,
+                       u.email AS user_email,
+                       v.name AS vehicle_name
+                FROM bookings b
+                LEFT JOIN users u ON b.user_id = u.user_id
+                LEFT JOIN vehicles v ON b.vehicle_id = v.id
+                ORDER BY b.booking_date DESC
+                LIMIT 10
+            """)
+            recent_bookings = cursor.fetchall()
+
+            cursor.close()
+    except Exception as e:
+        print(f"[dashboard] Business stats error: {e}")
+
+    # ── Audit Logs ───────────────────────────────────────────────
+    recent_audit_logs = []
+    try:
+        recent_audit_logs = get_audit_logs(limit=15)
+    except Exception as e:
+        print(f"[dashboard] Audit log error: {e}")
+
+    # ── Security & Compliance ─────────────────────────────────────
+    security_stats      = {'total': 0, 'last_24h': 0, 'by_severity': {}, 'by_type': {}}
+    vehicle_fraud_stats = {'total': 0, 'last_24h': 0, 'by_flag_type': {}}
+    booking_fraud_stats = {'total': 0, 'last_24h': 0, 'by_flag_type': {}}
+    backup_stats        = {
+        'total_backups': 0, 'successful_backups': 0, 'failed_backups': 0,
+        'total_size_mb': 0, 'latest_backup': None, 'verified_backups': 0
+    }
+    incident_counts     = {'total': 0, 'open': 0, 'resolved': 0}
+    recent_security_logs = []
+
+    try:
+        security_stats = get_security_stats()
+    except Exception as e:
+        print(f"[dashboard] Security stats error: {e}")
+
+    try:
+        vehicle_fraud_stats = get_vehicle_fraud_stats()
+    except Exception as e:
+        print(f"[dashboard] Vehicle fraud stats error: {e}")
+
+    try:
+        booking_fraud_stats = get_booking_fraud_stats()
+    except Exception as e:
+        print(f"[dashboard] Booking fraud stats error: {e}")
+
+    try:
+        backup_stats = get_backup_stats()
+    except Exception as e:
+        print(f"[dashboard] Backup stats error: {e}")
+
+    try:
+        all_incidents = get_incident_reports()
+        incident_counts['total']    = len(all_incidents)
+        incident_counts['open']     = sum(1 for i in all_incidents if i.get('status') in ('Open', 'open', None, 'In Progress'))
+        incident_counts['resolved'] = sum(1 for i in all_incidents if i.get('status') in ('Resolved', 'resolved', 'Closed', 'closed'))
+    except Exception as e:
+        print(f"[dashboard] Incident counts error: {e}")
+
+    try:
+        logs = get_security_logs()
+        # get_security_logs returns a list; take the 8 most recent
+        recent_security_logs = sorted(
+            logs, key=lambda x: x.get('timestamp') or '', reverse=True
+        )[:8]
+    except Exception as e:
+        print(f"[dashboard] Security logs error: {e}")
+
+    return render_template(
+        'dashboard.html',
+        stats=stats,
+        recent_bookings=recent_bookings,
+        security_stats=security_stats,
+        vehicle_fraud_stats=vehicle_fraud_stats,
+        booking_fraud_stats=booking_fraud_stats,
+        backup_stats=backup_stats,
+        incident_counts=incident_counts,
+        recent_security_logs=recent_security_logs,
+        recent_audit_logs=recent_audit_logs,
+    )
 
 
 @app.route('/accounts')

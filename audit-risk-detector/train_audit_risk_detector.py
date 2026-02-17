@@ -69,13 +69,14 @@ print("=" * 70)
 detector = AuditRiskDetector()
 
 # Train anomaly detection (unsupervised)
-print("\n📊 Training Anomaly Detection Model (Isolation Forest)...")
-X_train_normal = X_train[y_train == 0]  # Only normal activity for anomaly detection
-detector.train_anomaly_model(X_train_normal)
+print("\n📊 Training Anomaly Detection Model (Isolation Forest — 150 estimators, contamination=0.04)...")
+X_train_normal = X_train[y_train == 0]    # normal samples for fitting
+X_train_suspicious = X_train[y_train == 1] # suspicious samples for calibrating danger threshold
+detector.train_anomaly_model(X_train_normal, X_train_suspicious)
 print("✅ Anomaly detection model trained!")
 
 # Train supervised classifier
-print("\n📊 Training Supervised Classifier (Random Forest)...")
+print("\n📊 Training Supervised Classifier (Gradient Boosting — sequential error correction)...")
 detector.train_classifier(X_train, y_train)
 print("✅ Classifier trained!")
 

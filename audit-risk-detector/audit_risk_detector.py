@@ -1,679 +1,822 @@
+"""
+audit_risk_detector.py
+----------------------
+AI-powered insider threat and audit log risk analyser.
+
+Architecture differs from the fraud detector by design:
+  - Uses a PIPELINE pattern (BehaviourProfile → ThreatSignalEngine → RiskScorer)
+    instead of a flat extract/check/predict structure.
+  - Threat detection is organised into named ThreatSignal dataclasses so each
+    signal carries its own severity weight rather than every rule adding ±0.30.
+  - Anomaly normalisation uses a percentile-based approach (stored as p10/p90)
+    instead of raw min/max bounds.
+  - Score composition is a weighted geometric mean rather than a linear blend,
+    which penalises moderate-across-all-channels more aggressively than a single
+    spiking channel.
+"""
+
+from __future__ import annotations
+
+import os
+import pickle
+from collections import Counter
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import IsolationForest, RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
-import pickle
-from datetime import datetime, timedelta
-from collections import Counter
-from typing import Dict, List, Tuple, Optional
+from sklearn.ensemble import GradientBoostingClassifier, IsolationForest
+from sklearn.preprocessing import RobustScaler
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Domain constants
+# ─────────────────────────────────────────────────────────────────────────────
+
+#: Actions that carry inherent risk regardless of context.
+HIGH_RISK_ACTIONS = frozenset({
+    "DELETE_USER", "BULK_DELETE", "ALTER_AUDIT", "DISABLE_LOGGING",
+    "SYSTEM_CONFIG", "DATABASE_ACCESS", "CREDENTIAL_CHANGE",
+    "EXPORT_DATA", "GRANT_ACCESS", "REVOKE_ACCESS",
+    "UPDATE_ROLE", "UPDATE_PERMISSIONS", "MODIFY_SECURITY",
+})
+
+#: Patterns associated with data exfiltration attempts.
+EXFIL_KEYWORDS = frozenset({
+    "EXPORT", "DOWNLOAD", "BULK_READ", "VIEW_ALL",
+    "EXTRACT", "COPY", "BACKUP", "QUERY_ALL",
+})
+
+#: Patterns associated with privilege escalation.
+PRIVILEGE_KEYWORDS = frozenset({
+    "ROLE", "PERMISSION", "GRANT", "REVOKE", "ACCESS",
+})
+
+#: Patterns associated with credential attacks.
+CREDENTIAL_KEYWORDS = frozenset({"PASSWORD", "CREDENTIAL", "TOKEN", "SECRET"})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Data structures
+# ─────────────────────────────────────────────────────────────────────────────
+
+@dataclass
+class ThreatSignal:
+    """A detected threat with a name, human-readable description, and severity."""
+    name: str
+    description: str
+    severity: float          # 0.0 – 1.0; used as a weight in the final score
+
+
+@dataclass
+class BehaviourProfile:
+    """
+    Structured representation of a user's recent audit-log behaviour.
+    Created by ``ProfileBuilder.build()`` from raw audit_data dicts.
+    """
+    # Volume
+    actions_last_hour: int = 0
+    actions_last_day: int = 0
+    failed_actions_count: int = 0
+    avg_action_interval_minutes: float = 0.0
+    consecutive_failures: int = 0
+
+    # Action composition
+    sensitive_actions_count: int = 0
+    delete_operations_count: int = 0
+    update_operations_count: int = 0
+    create_operations_count: int = 0
+    view_operations_count: int = 0
+
+    # Scope
+    unique_entity_types: int = 0
+    entity_diversity_score: float = 0.0    # Shannon entropy, 0-10
+    privilege_level_changes: int = 0
+    data_access_volume: int = 0
+
+    # Access anomalies
+    ip_diversity_score: float = 0.0
+    device_changes: int = 0
+
+    # Temporal
+    hour_of_day: int = 12
+    is_weekend: int = 0
+    is_night_hours: int = 0
+    unusual_time_score: float = 0.0
+
+    # Velocity & trend
+    action_velocity: float = 0.0           # actions per minute
+    risk_score_trend: float = 0.0
+
+    # Placeholder for ML pass-through
+    anomaly_score: float = 0.0
+
+    # Non-numeric context (not fed to ML)
+    recent_actions: List[str] = field(default_factory=list)
+    entity_types_accessed: List[str] = field(default_factory=list)
+
+    def to_feature_dict(self) -> Dict[str, float]:
+        """Return only the numeric fields used as ML features."""
+        return {
+            "actions_last_hour":          float(self.actions_last_hour),
+            "actions_last_day":           float(self.actions_last_day),
+            "failed_actions_count":       float(self.failed_actions_count),
+            "avg_action_interval_minutes": float(self.avg_action_interval_minutes),
+            "sensitive_actions_count":    float(self.sensitive_actions_count),
+            "delete_operations_count":    float(self.delete_operations_count),
+            "update_operations_count":    float(self.update_operations_count),
+            "create_operations_count":    float(self.create_operations_count),
+            "view_operations_count":      float(self.view_operations_count),
+            "unique_entity_types":        float(self.unique_entity_types),
+            "entity_diversity_score":     float(self.entity_diversity_score),
+            "consecutive_failures":       float(self.consecutive_failures),
+            "privilege_level_changes":    float(self.privilege_level_changes),
+            "data_access_volume":         float(self.data_access_volume),
+            "unusual_time_score":         float(self.unusual_time_score),
+            "ip_diversity_score":         float(self.ip_diversity_score),
+            "device_changes":             float(self.device_changes),
+            "hour_of_day":                float(self.hour_of_day),
+            "is_weekend":                 float(self.is_weekend),
+            "is_night_hours":             float(self.is_night_hours),
+            "action_velocity":            float(self.action_velocity),
+            "risk_score_trend":           float(self.risk_score_trend),
+            "anomaly_score":              float(self.anomaly_score),
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Profile builder — converts raw audit_data dicts into a BehaviourProfile
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ProfileBuilder:
+    """Converts a raw audit_data dict into a BehaviourProfile."""
+
+    @staticmethod
+    def build(audit_data: Dict) -> BehaviourProfile:
+        p = BehaviourProfile()
+
+        def _int(key: str) -> int:
+            try:
+                return int(audit_data.get(key) or 0)
+            except (TypeError, ValueError):
+                return 0
+
+        def _float(key: str) -> float:
+            try:
+                return float(audit_data.get(key) or 0.0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        # Volume
+        p.actions_last_hour          = _int("actions_last_hour")
+        p.actions_last_day           = _int("actions_last_day")
+        p.failed_actions_count       = _int("failed_actions_count")
+        p.avg_action_interval_minutes = _float("avg_action_interval_minutes")
+        p.consecutive_failures       = _int("consecutive_failures")
+
+        # Action composition
+        p.sensitive_actions_count    = _int("sensitive_actions_count")
+        p.delete_operations_count    = _int("delete_operations_count")
+        p.update_operations_count    = _int("update_operations_count")
+        p.create_operations_count    = _int("create_operations_count")
+        p.view_operations_count      = _int("view_operations_count")
+
+        # Scope
+        p.unique_entity_types        = _int("unique_entity_types")
+        p.privilege_level_changes    = _int("privilege_level_changes")
+        p.data_access_volume         = _int("data_access_volume")
+
+        # Access anomalies
+        p.ip_diversity_score         = _float("ip_diversity_score")
+        p.device_changes             = _int("device_changes")
+
+        # Temporal
+        p.hour_of_day  = _int("hour_of_day") if "hour_of_day" in audit_data else datetime.now().hour
+        p.is_weekend   = _int("is_weekend") if "is_weekend" in audit_data else (1 if datetime.now().weekday() >= 5 else 0)
+        p.is_night_hours = 1 if (p.hour_of_day < 6 or p.hour_of_day > 22) else 0
+
+        p.risk_score_trend           = _float("risk_score_trend")
+        p.anomaly_score              = _float("anomaly_score")
+
+        # Context lists
+        p.recent_actions          = list(audit_data.get("recent_actions") or [])
+        p.entity_types_accessed   = list(audit_data.get("entity_types_accessed") or [])
+
+        # Derived scores
+        p.entity_diversity_score  = ProfileBuilder._shannon_diversity(p.entity_types_accessed)
+        p.unusual_time_score      = ProfileBuilder._unusual_time(p)
+        p.action_velocity         = p.actions_last_hour / 60.0
+
+        return p
+
+    @staticmethod
+    def _shannon_diversity(entity_types: List[str]) -> float:
+        """Shannon entropy of entity type distribution, scaled 0-10."""
+        if not entity_types:
+            return 0.0
+        counts = Counter(entity_types)
+        total = len(entity_types)
+        entropy = -sum(
+            (c / total) * np.log2(c / total)
+            for c in counts.values()
+            if c > 0
+        )
+        max_entropy = np.log2(len(counts)) if len(counts) > 1 else 1.0
+        return float((entropy / max_entropy) * 10.0) if max_entropy > 0 else 0.0
+
+    @staticmethod
+    def _unusual_time(p: BehaviourProfile) -> float:
+        """Score 0-10 reflecting how unusual the session timing is."""
+        score = 0.0
+        if p.hour_of_day < 6 or p.hour_of_day > 22:
+            score += 3.5
+        elif p.hour_of_day < 8 or p.hour_of_day > 20:
+            score += 1.5
+        if p.is_weekend:
+            score += 2.0
+        if p.avg_action_interval_minutes < 0.083:   # < 5 seconds
+            score += 4.0
+        elif p.avg_action_interval_minutes < 1.0:
+            score += 2.0
+        return min(score, 10.0)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Threat signal engine — domain rules that produce weighted ThreatSignals
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ThreatSignalEngine:
+    """
+    Evaluates a BehaviourProfile against a catalogue of named threat patterns.
+
+    Each check returns either a ThreatSignal or None.  Callers collect the
+    non-None results and pass them to the RiskScorer.
+
+    This is deliberately organised as independent check methods (not a big
+    if-elif chain) so new threat patterns can be added or removed without
+    breaking existing checks.
+    """
+
+    # ── Privilege escalation ─────────────────────────────────────────────────
+
+    def check_privilege_escalation(self, p: BehaviourProfile) -> Optional[ThreatSignal]:
+        if p.privilege_level_changes >= 3:
+            return ThreatSignal(
+                name="PRIVILEGE_ESCALATION",
+                description=(
+                    f"User changed permission levels {p.privilege_level_changes} times — "
+                    "this many changes in a short period is unusual."
+                ),
+                severity=0.80,
+            )
+        return None
+
+    def check_sensitive_action_surge(self, p: BehaviourProfile) -> Optional[ThreatSignal]:
+        if p.sensitive_actions_count >= 5 and p.failed_actions_count >= 2:
+            return ThreatSignal(
+                name="SENSITIVE_ACTION_SURGE",
+                description=(
+                    f"{p.sensitive_actions_count} high-risk admin actions with "
+                    f"{p.failed_actions_count} failures — unusually high for a single session."
+                ),
+                severity=0.70,
+            )
+        return None
+
+    def check_credential_harvesting(self, p: BehaviourProfile) -> Optional[ThreatSignal]:
+        hits = sum(
+            1 for a in p.recent_actions
+            if any(kw in a.upper() for kw in CREDENTIAL_KEYWORDS)
+        )
+        if hits >= 3:
+            return ThreatSignal(
+                name="CREDENTIAL_HARVESTING",
+                description=(
+                    f"{hits} password or credential actions in a short window — "
+                    "this many in one session is a red flag."
+                ),
+                severity=0.85,
+            )
+        return None
+
+    # ── Data exfiltration ────────────────────────────────────────────────────
+
+    def check_bulk_exfiltration(self, p: BehaviourProfile) -> Optional[ThreatSignal]:
+        exfil_hits = sum(
+            1 for a in p.recent_actions
+            if any(kw in a.upper() for kw in EXFIL_KEYWORDS)
+        )
+        if exfil_hits >= 3:
+            return ThreatSignal(
+                name="BULK_EXFILTRATION",
+                description=(
+                    f"{exfil_hits} bulk export or download actions detected — "
+                    "large amounts of data being accessed or copied."
+                ),
+                severity=0.90,
+            )
+        return None
+
+    def check_high_data_volume(self, p: BehaviourProfile) -> Optional[ThreatSignal]:
+        if p.data_access_volume >= 100 or (
+            p.actions_last_hour >= 20 and p.unique_entity_types >= 5
+        ):
+            return ThreatSignal(
+                name="HIGH_DATA_VOLUME",
+                description=(
+                    f"Accessed {p.data_access_volume} records across "
+                    f"{p.unique_entity_types} data types — unusually broad data access."
+                ),
+                severity=0.75,
+            )
+        return None
+
+    def check_reconnaissance(self, p: BehaviourProfile) -> Optional[ThreatSignal]:
+        if (
+            p.view_operations_count >= 15
+            and p.unique_entity_types >= 4
+            and p.avg_action_interval_minutes < 5
+        ):
+            return ThreatSignal(
+                name="RECONNAISSANCE",
+                description=(
+                    f"Rapidly browsed {p.unique_entity_types} different data types "
+                    f"({p.view_operations_count} views in quick succession) — "
+                    "looks like someone mapping out the system."
+                ),
+                severity=0.70,
+            )
+        return None
+
+    # ── Destructive operations ───────────────────────────────────────────────
+
+    def check_bulk_deletion(self, p: BehaviourProfile) -> Optional[ThreatSignal]:
+        if p.delete_operations_count >= 5:
+            return ThreatSignal(
+                name="BULK_DELETION",
+                description=(
+                    f"{p.delete_operations_count} delete operations in one session — "
+                    "deleting this much data at once is unusual."
+                ),
+                severity=0.85,
+            )
+        return None
+
+    def check_deletion_with_failures(self, p: BehaviourProfile) -> Optional[ThreatSignal]:
+        if p.delete_operations_count >= 3 and p.consecutive_failures >= 2:
+            return ThreatSignal(
+                name="DELETION_WITH_FAILURES",
+                description=(
+                    f"{p.delete_operations_count} deletion attempts with repeated failures — "
+                    "may be trying to delete data they don't have permission for."
+                ),
+                severity=0.75,
+            )
+        return None
+
+    # ── Brute-force / automated ──────────────────────────────────────────────
+
+    def check_consecutive_failures(self, p: BehaviourProfile) -> Optional[ThreatSignal]:
+        if p.consecutive_failures >= 5:
+            return ThreatSignal(
+                name="CONSECUTIVE_FAILURES",
+                description=(
+                    f"{p.consecutive_failures} actions failed in a row — "
+                    "could indicate someone repeatedly trying actions they're not allowed to do."
+                ),
+                severity=0.80,
+            )
+        return None
+
+    def check_automated_activity(self, p: BehaviourProfile) -> Optional[ThreatSignal]:
+        if p.actions_last_hour >= 30 and p.avg_action_interval_minutes < 1.0:
+            return ThreatSignal(
+                name="AUTOMATED_ACTIVITY",
+                description=(
+                    f"{p.actions_last_hour} actions in the last hour, "
+                    f"averaging {p.avg_action_interval_minutes:.1f} min apart — "
+                    "this speed suggests an automated script rather than a human."
+                ),
+                severity=0.80,
+            )
+        return None
+
+    # ── Temporal anomalies ───────────────────────────────────────────────────
+
+    def check_off_hours_activity(self, p: BehaviourProfile) -> Optional[ThreatSignal]:
+        if (p.hour_of_day < 5 or p.hour_of_day > 23) and p.actions_last_hour >= 10:
+            return ThreatSignal(
+                name="OFF_HOURS_ACTIVITY",
+                description=(
+                    f"{p.actions_last_hour} actions at {p.hour_of_day:02d}:00 — "
+                    "high activity in the middle of the night is unusual."
+                ),
+                severity=0.65,
+            )
+        return None
+
+    def check_weekend_sensitive_ops(self, p: BehaviourProfile) -> Optional[ThreatSignal]:
+        if p.is_weekend and p.sensitive_actions_count >= 3:
+            return ThreatSignal(
+                name="WEEKEND_SENSITIVE_OPS",
+                description=(
+                    f"{p.sensitive_actions_count} high-risk admin actions performed on a weekend — "
+                    "outside normal working hours."
+                ),
+                severity=0.55,
+            )
+        return None
+
+    # ── Access anomalies ─────────────────────────────────────────────────────
+
+    def check_ip_spreading(self, p: BehaviourProfile) -> Optional[ThreatSignal]:
+        if p.ip_diversity_score >= 5.0 and p.actions_last_day >= 20:
+            return ThreatSignal(
+                name="IP_SPREADING",
+                description=(
+                    f"Activity from many different IP addresses (score: {p.ip_diversity_score:.1f}) — "
+                    "could mean the account is being used from multiple locations."
+                ),
+                severity=0.65,
+            )
+        return None
+
+    def check_device_hopping(self, p: BehaviourProfile) -> Optional[ThreatSignal]:
+        if p.device_changes >= 3 and p.actions_last_day >= 15:
+            return ThreatSignal(
+                name="DEVICE_HOPPING",
+                description=(
+                    f"Logged in from {p.device_changes + 1} different devices today — "
+                    "switching devices this frequently is unusual."
+                ),
+                severity=0.60,
+            )
+        return None
+
+    # ── Run all checks ───────────────────────────────────────────────────────
+
+    def evaluate(self, profile: BehaviourProfile) -> List[ThreatSignal]:
+        """Run every check and return the list of fired ThreatSignals."""
+        checks = [
+            self.check_privilege_escalation,
+            self.check_sensitive_action_surge,
+            self.check_credential_harvesting,
+            self.check_bulk_exfiltration,
+            self.check_high_data_volume,
+            self.check_reconnaissance,
+            self.check_bulk_deletion,
+            self.check_deletion_with_failures,
+            self.check_consecutive_failures,
+            self.check_automated_activity,
+            self.check_off_hours_activity,
+            self.check_weekend_sensitive_ops,
+            self.check_ip_spreading,
+            self.check_device_hopping,
+        ]
+        return [sig for check in checks for sig in [check(profile)] if sig is not None]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Risk scorer — combines rule signals with ML outputs into a final score
+# ─────────────────────────────────────────────────────────────────────────────
+
+class RiskScorer:
+    """
+    Combines threat signals and ML probabilities into a single risk score.
+
+    Score formula (geometric-mean blend):
+        rule_score = max severity among fired signals  (or 0 if none)
+        ml_score   = max(anomaly_prob, classifier_prob)
+        final      = geometric_mean(ml_score ^ 0.6, rule_score ^ 0.4)
+
+    Using the geometric mean ensures that *both* the ML and rule channels must
+    agree for the score to be high — a single moderate channel cannot push the
+    result to Critical on its own.
+    """
+
+    @staticmethod
+    def combine(
+        signals: List[ThreatSignal],
+        ml_score: float,
+    ) -> float:
+        rule_score = max((s.severity for s in signals), default=0.0)
+
+        if not signals:
+            # No rule fired — trust ML alone
+            return float(np.clip(ml_score, 0.0, 1.0))
+
+        # Geometric mean blend
+        eps = 1e-6
+        blended = (ml_score ** 0.6) * (rule_score ** 0.4)
+        # Boost slightly when several independent signals converge
+        convergence_boost = min(0.10 * (len(signals) - 1), 0.20)
+        return float(np.clip(blended + convergence_boost, 0.0, 1.0))
+
+    @staticmethod
+    def to_risk_level(score: float) -> str:
+        if score >= 0.80:
+            return "Critical"
+        if score >= 0.60:
+            return "High"
+        if score >= 0.40:
+            return "Medium"
+        return "Low"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Main detector class
+# ─────────────────────────────────────────────────────────────────────────────
 
 class AuditRiskDetector:
     """
-    AI-powered risk detection system for audit logs
-    Detects suspicious activities like privilege escalation, data exfiltration,
-    unauthorized access, and unusual administrative actions.
+    Public API for audit-log risk detection.
+
+    Internally orchestrates:
+      ProfileBuilder  →  ThreatSignalEngine  →  ML models  →  RiskScorer
+
+    The ML models used are:
+      - IsolationForest  (unsupervised; trained on normal-only logs)
+      - GradientBoostingClassifier  (supervised; trained on labelled logs)
+      NOTE: GBC is intentionally different from the fraud detector's
+            RandomForestClassifier to produce a distinct probability surface.
+
+    Anomaly score normalisation uses stored percentile bounds (p10, p90 of the
+    training score distribution) rather than min/max, making it more robust to
+    outliers in the training data.
     """
-    
-    def __init__(self):
-        # Canonical feature order for ML models
-        self.feature_columns = [
-            'actions_last_hour', 'actions_last_day', 'failed_actions_count',
-            'avg_action_interval_minutes', 'sensitive_actions_count',
-            'delete_operations_count', 'update_operations_count',
-            'create_operations_count', 'view_operations_count',
-            'unique_entity_types', 'entity_diversity_score',
-            'consecutive_failures', 'privilege_level_changes',
-            'data_access_volume', 'unusual_time_score',
-            'ip_diversity_score', 'device_changes', 'hour_of_day',
-            'is_weekend', 'is_night_hours', 'action_velocity',
-            'risk_score_trend', 'anomaly_score'
-        ]
-        
-        self.anomaly_model = None
-        self.classifier_model = None
-        self.scaler = StandardScaler()
-        
-        # High-risk action patterns
-        self.sensitive_actions = {
-            'DELETE_USER', 'DELETE_BOOKING', 'UPDATE_PERMISSIONS', 'GRANT_ACCESS',
-            'REVOKE_ACCESS', 'CHANGE_PASSWORD', 'UPDATE_ROLE', 'EXPORT_DATA',
-            'BULK_DELETE', 'MODIFY_SECURITY', 'DISABLE_LOGGING', 'ALTER_AUDIT',
-            'SYSTEM_CONFIG', 'DATABASE_ACCESS', 'CREDENTIAL_CHANGE'
-        }
-        
-        self.data_exfiltration_patterns = {
-            'EXPORT', 'DOWNLOAD', 'VIEW_ALL', 'BULK_READ', 'QUERY_ALL',
-            'EXTRACT', 'COPY', 'BACKUP'
-        }
-        
-    def extract_features(self, audit_data: Dict) -> Dict:
-        """
-        Extract behavioral features from audit log data
-        """
-        features = {
-            # Activity volume metrics
-            'actions_last_hour': audit_data.get('actions_last_hour', 0),
-            'actions_last_day': audit_data.get('actions_last_day', 0),
-            'failed_actions_count': audit_data.get('failed_actions_count', 0),
-            'avg_action_interval_minutes': audit_data.get('avg_action_interval_minutes', 0),
-            
-            # Action type analysis
-            'sensitive_actions_count': audit_data.get('sensitive_actions_count', 0),
-            'delete_operations_count': audit_data.get('delete_operations_count', 0),
-            'update_operations_count': audit_data.get('update_operations_count', 0),
-            'create_operations_count': audit_data.get('create_operations_count', 0),
-            'view_operations_count': audit_data.get('view_operations_count', 0),
-            
-            # Diversity metrics
-            'unique_entity_types': audit_data.get('unique_entity_types', 0),
-            'entity_diversity_score': self.calculate_diversity_score(audit_data),
-            
-            # Behavioral anomalies
-            'consecutive_failures': audit_data.get('consecutive_failures', 0),
-            'privilege_level_changes': audit_data.get('privilege_level_changes', 0),
-            'data_access_volume': audit_data.get('data_access_volume', 0),
-            
-            # Temporal patterns
-            'unusual_time_score': self.calculate_unusual_time_score(audit_data),
-            'hour_of_day': audit_data.get('hour_of_day', datetime.now().hour),
-            'is_weekend': audit_data.get('is_weekend', 1 if datetime.now().weekday() >= 5 else 0),
-            'is_night_hours': 1 if audit_data.get('hour_of_day', 12) < 6 or audit_data.get('hour_of_day', 12) > 22 else 0,
-            
-            # Access pattern metrics
-            'ip_diversity_score': audit_data.get('ip_diversity_score', 0),
-            'device_changes': audit_data.get('device_changes', 0),
-            
-            # Velocity and trend metrics
-            'action_velocity': self.calculate_action_velocity(audit_data),
-            'risk_score_trend': audit_data.get('risk_score_trend', 0),
-            'anomaly_score': audit_data.get('anomaly_score', 0)
-        }
-        
-        return features
-    
-    def calculate_diversity_score(self, audit_data: Dict) -> float:
-        """
-        Calculate how diverse the entity types accessed are
-        High diversity might indicate reconnaissance or data exfiltration
-        """
-        entity_types = audit_data.get('entity_types_accessed', [])
-        if not entity_types:
-            return 0.0
-        
-        # Shannon entropy for diversity
-        counts = Counter(entity_types)
-        total = len(entity_types)
-        entropy = -sum((count/total) * np.log2(count/total) for count in counts.values() if count > 0)
-        
-        # Normalize to 0-10 scale
-        max_entropy = np.log2(len(counts)) if len(counts) > 1 else 1
-        return (entropy / max_entropy) * 10 if max_entropy > 0 else 0
-    
-    def calculate_unusual_time_score(self, audit_data: Dict) -> float:
-        """
-        Score how unusual the timing of actions is
-        Higher score = more unusual (night/weekend/rapid succession)
-        """
-        score = 0.0
-        hour = audit_data.get('hour_of_day', 12)
-        is_weekend = audit_data.get('is_weekend', 0)
-        avg_interval = audit_data.get('avg_action_interval_minutes', 60)
-        
-        # Night hours (11 PM - 6 AM)
-        if hour < 6 or hour > 22:
-            score += 3.0
-        # Early morning (6-8 AM) or late evening (8-11 PM)
-        elif hour < 8 or hour > 20:
-            score += 1.5
-        
-        # Weekend activity
-        if is_weekend:
-            score += 2.0
-        
-        # Rapid-fire actions (less than 5 seconds between actions)
-        if avg_interval < 0.083:  # 5 seconds in minutes
-            score += 4.0
-        elif avg_interval < 1:  # Less than 1 minute
-            score += 2.0
-        
-        return min(score, 10.0)  # Cap at 10
-    
-    def calculate_action_velocity(self, audit_data: Dict) -> float:
-        """
-        Calculate the speed of actions (actions per minute)
-        """
-        actions_last_hour = audit_data.get('actions_last_hour', 0)
-        if actions_last_hour == 0:
-            return 0.0
-        return actions_last_hour / 60.0  # Actions per minute
-    
-    def rule_based_checks(self, audit_data: Dict) -> Tuple[bool, List[str]]:
-        """
-        Rule-based detection for obvious suspicious patterns
-        Returns: (is_suspicious, list of reasons)
-        """
-        reasons = []
-        
-        def num(k):
-            try:
-                return float(audit_data.get(k, 0) or 0)
-            except:
-                return 0.0
-        
-        def intnum(k):
-            try:
-                return int(audit_data.get(k, 0) or 0)
-            except:
-                return 0
-        
-        # Extract metrics
-        actions_last_hour = intnum('actions_last_hour')
-        actions_last_day = intnum('actions_last_day')
-        failed_actions = intnum('failed_actions_count')
-        consecutive_failures = intnum('consecutive_failures')
-        sensitive_actions = intnum('sensitive_actions_count')
-        delete_ops = intnum('delete_operations_count')
-        privilege_changes = intnum('privilege_level_changes')
-        data_access = intnum('data_access_volume')
-        ip_diversity = num('ip_diversity_score')
-        device_changes = intnum('device_changes')
-        hour_of_day = intnum('hour_of_day')
-        is_weekend = intnum('is_weekend')
-        unique_entities = intnum('unique_entity_types')
-        
-        # Get action list for pattern matching
-        recent_actions = audit_data.get('recent_actions', [])
-        
-        # === PRIVILEGE ESCALATION DETECTION ===
-        if privilege_changes >= 3:
-            reasons.append(
-                f"Multiple privilege level changes detected ({privilege_changes}). "
-                f"Possible privilege escalation attempt."
-            )
-        
-        if sensitive_actions >= 5 and failed_actions >= 2:
-            reasons.append(
-                f"High number of sensitive actions ({sensitive_actions}) with failures ({failed_actions}). "
-                f"Suspicious administrative activity."
-            )
-        
-        # === BRUTE FORCE / UNAUTHORIZED ACCESS ===
-        if consecutive_failures >= 5:
-            reasons.append(
-                f"Consecutive failed actions ({consecutive_failures}). "
-                f"Possible unauthorized access attempt or brute force."
-            )
-        
-        if failed_actions >= 10 and actions_last_hour >= 15:
-            reasons.append(
-                f"Unusual failure rate: {failed_actions} failures with {actions_last_hour} actions in last hour. "
-                f"Account may be compromised."
-            )
-        
-        # === DATA EXFILTRATION DETECTION ===
-        if data_access >= 100 or (actions_last_hour >= 20 and unique_entities >= 5):
-            reasons.append(
-                f"High data access volume ({data_access} records, {unique_entities} entity types). "
-                f"Possible data exfiltration or reconnaissance."
-            )
-        
-        # Check for exfiltration patterns in actions
-        exfil_count = sum(1 for action in recent_actions 
-                         if any(pattern in action.upper() for pattern in self.data_exfiltration_patterns))
-        if exfil_count >= 3:
-            reasons.append(
-                f"Multiple data export/download operations detected ({exfil_count}). "
-                f"Possible data exfiltration attempt."
-            )
-        
-        # === BULK DELETION ATTACK ===
-        if delete_ops >= 5:
-            reasons.append(
-                f"Excessive deletion operations ({delete_ops}). "
-                f"Possible sabotage or data destruction attempt."
-            )
-        
-        if delete_ops >= 3 and consecutive_failures >= 2:
-            reasons.append(
-                f"Multiple delete attempts with failures. "
-                f"Unauthorized deletion attempt likely."
-            )
-        
-        # === RAPID AUTOMATED ACTIVITY ===
-        avg_interval = num('avg_action_interval_minutes')
-        if actions_last_hour >= 30 and avg_interval < 1:
-            reasons.append(
-                f"Extremely rapid actions ({actions_last_hour} in 1 hour, avg {avg_interval:.2f} min apart). "
-                f"Automated attack or bot activity suspected."
-            )
-        
-        # === SUSPICIOUS TIMING ===
-        if (hour_of_day < 5 or hour_of_day > 23) and actions_last_hour >= 10:
-            reasons.append(
-                f"High activity during unusual hours ({hour_of_day}:00 with {actions_last_hour} actions). "
-                f"Possible unauthorized access during off-hours."
-            )
-        
-        if is_weekend and sensitive_actions >= 3:
-            reasons.append(
-                f"Sensitive administrative actions during weekend. "
-                f"Unusual behavior pattern detected."
-            )
-        
-        # === IP/DEVICE ANOMALIES ===
-        if ip_diversity >= 5 and actions_last_day >= 20:
-            reasons.append(
-                f"High IP diversity ({ip_diversity:.1f} score) with frequent actions. "
-                f"Possible account sharing or compromise."
-            )
-        
-        if device_changes >= 3 and actions_last_day >= 15:
-            reasons.append(
-                f"Multiple device changes ({device_changes}) with high activity. "
-                f"Unusual access pattern detected."
-            )
-        
-        # === PATTERN-BASED DETECTION ===
-        # Check for reconnaissance pattern (view multiple entities quickly)
-        view_ops = intnum('view_operations_count')
-        if view_ops >= 15 and unique_entities >= 4 and avg_interval < 5:
-            reasons.append(
-                f"Rapid viewing of multiple entity types ({unique_entities} types, {view_ops} views). "
-                f"Reconnaissance activity suspected."
-            )
-        
-        # Check for credential harvesting
-        password_changes = sum(1 for action in recent_actions if 'PASSWORD' in action.upper() or 'CREDENTIAL' in action.upper())
-        if password_changes >= 3:
-            reasons.append(
-                f"Multiple password/credential related actions ({password_changes}). "
-                f"Possible credential harvesting or account takeover."
-            )
-        
-        is_suspicious = len(reasons) > 0
-        return is_suspicious, reasons
-    
-    def predict_risk(self, audit_data: Dict) -> Tuple[float, bool, List[str], str]:
-        """
-        Main prediction function
-        Returns: (risk_score, is_suspicious, reasons, risk_level)
 
-        Score composition:
-          - Rule-based hits contribute up to 0.30 per fired rule (capped at 0.90)
-          - ML signals (anomaly + classifier) contribute the remaining weight
-          - Final = 0.70 * ml_score + 0.30 * rule_score
-          This prevents a single mild rule from hard-coding 1.0 and ensures
-          normal admin activity is not persistently flagged as High/Critical.
+    FEATURE_COLUMNS = list(BehaviourProfile().to_feature_dict().keys())  # 23 features
+
+    def __init__(self) -> None:
+        self.anomaly_model: Optional[IsolationForest] = None
+        self.classifier_model: Optional[GradientBoostingClassifier] = None
+        self.scaler = RobustScaler()
+        # Anomaly score thresholds:
+        # _anomaly_safe   = p90 of normal training scores  → maps to 0.0 anomaly
+        # _anomaly_danger = p10 of suspicious training scores → maps to 1.0 anomaly
+        # Using both ends of the real score distribution gives proper spread.
+        self._anomaly_safe: float   = -0.40
+        self._anomaly_danger: float = -0.77
+
+        self._profile_builder = ProfileBuilder()
+        self._threat_engine   = ThreatSignalEngine()
+
+    # ── feature_columns property (backward-compat with flask_audit_integration) ──
+
+    @property
+    def feature_columns(self) -> List[str]:
+        return self.FEATURE_COLUMNS
+
+    # ── Public prediction API ─────────────────────────────────────────────────
+
+    def predict_risk(
+        self, audit_data: Dict
+    ) -> Tuple[float, bool, List[str], str]:
         """
-        # Run rule-based checks — collect reasons but don't short-circuit
-        rule_suspicious, rule_reasons = self.rule_based_checks(audit_data)
-        # Scale: each rule adds ~0.30; cap total rule contribution at 0.90
-        rule_score = float(np.clip(0.30 * len(rule_reasons), 0.0, 0.90))
+        Analyse a user's audit-log behaviour and return a risk assessment.
 
-        # Extract features for ML models
-        features = self.extract_features(audit_data)
-        feature_df = pd.DataFrame([features], columns=self.feature_columns).fillna(0)
+        Parameters
+        ----------
+        audit_data : dict
+            Raw behaviour dict as produced by AuditRiskAnalyzer.prepare_audit_data_from_logs().
 
-        # Always pass a plain numpy array (no column names) to avoid sklearn's
-        # feature-name validation.  Column ORDER is fixed by self.feature_columns.
-        feature_arr = feature_df.values  # shape (1, 23)
+        Returns
+        -------
+        risk_score : float  — 0.0 (no risk) to 1.0 (critical)
+        is_suspicious : bool
+        reasons : List[str]  — human-readable descriptions of fired signals
+        risk_level : str     — "Low" | "Medium" | "High" | "Critical"
+        """
+        # Step 1: build structured profile
+        profile = ProfileBuilder.build(audit_data)
 
-        # Scale features — guard against a mismatched scaler
-        try:
-            if hasattr(self.scaler, "mean_"):
-                scaler_n = getattr(self.scaler, 'n_features_in_', feature_arr.shape[1])
-                arr_for_scaler = feature_arr
-                if arr_for_scaler.shape[1] != scaler_n:
-                    if arr_for_scaler.shape[1] < scaler_n:
-                        pad = np.zeros((1, scaler_n - arr_for_scaler.shape[1]))
-                        arr_for_scaler = np.hstack([arr_for_scaler, pad])
-                    else:
-                        arr_for_scaler = arr_for_scaler[:, :scaler_n]
-                feature_scaled = self.scaler.transform(arr_for_scaler)
-                # After scaling, ensure the output has the right number of columns
-                # for the downstream models (handles the scaler-retrained-on-17 case)
-                for model_name, model_obj in [('anomaly', self.anomaly_model),
-                                               ('classifier', self.classifier_model)]:
-                    if model_obj is None:
-                        continue
-                    model_n = getattr(model_obj, 'n_features_in_', feature_scaled.shape[1])
-                    if feature_scaled.shape[1] != model_n:
-                        if feature_scaled.shape[1] < model_n:
-                            pad = np.zeros((1, model_n - feature_scaled.shape[1]))
-                            feature_scaled = np.hstack([feature_scaled, pad])
-                        else:
-                            feature_scaled = feature_scaled[:, :model_n]
-                        break  # same fix applies to both models
-            else:
-                feature_scaled = feature_arr
-        except Exception:
-            feature_scaled = feature_arr
+        # Step 2: evaluate threat signals
+        signals = self._threat_engine.evaluate(profile)
 
-        reasons = list(rule_reasons)
-        ml_score = 0.0
+        # Step 3: ML scoring
+        ml_score = self._ml_score(profile)
 
-        # Anomaly detection
-        if self.anomaly_model:
-            raw_score = self.anomaly_model.score_samples(feature_scaled)[0]
-
-            # Normalise relative to training score distribution:
-            # score_max (≈0 for normal) → 0.0 anomaly  |  score_min (very negative) → 1.0 anomaly
-            score_min = getattr(self, '_anomaly_score_min', -0.5)
-            score_max = getattr(self, '_anomaly_score_max', 0.0)
-            score_range = score_max - score_min
-            if score_range > 0:
-                anomaly_prob = float(np.clip((score_max - raw_score) / score_range, 0.0, 1.0))
-            else:
-                anomaly_prob = float(np.clip(-raw_score / 0.5, 0.0, 1.0))
-
-            ml_score = max(ml_score, anomaly_prob)
-            if anomaly_prob > 0.65:
-                reasons.append('Unusual audit log pattern detected by anomaly detection')
-
-        # Supervised classification
-        if self.classifier_model:
-            risk_prob = self.classifier_model.predict_proba(feature_scaled)[0][1]
-            ml_score = max(ml_score, risk_prob)
-            if risk_prob > 0.6:
-                reasons.append('High risk probability based on historical patterns')
-
-        # Combine: ML is the primary driver; rules add weight on top
-        if self.anomaly_model or self.classifier_model:
-            risk_score = float(np.clip(0.70 * ml_score + 0.30 * rule_score, 0.0, 1.0))
-        else:
-            # No ML models loaded — rely solely on rule score
-            risk_score = rule_score
-
-        is_suspicious = risk_score > 0.6
-        risk_level = self.calculate_risk_level(risk_score)
+        # Step 4: combine into final risk score
+        risk_score = RiskScorer.combine(signals, ml_score)
+        is_suspicious = risk_score > 0.60
+        risk_level = RiskScorer.to_risk_level(risk_score)
+        reasons = [s.description for s in signals]
+        if ml_score > 0.65 and not reasons:
+            reasons.append("Behaviour pattern looks unusual compared to normal users.")
+        if ml_score > 0.60 and signals:
+            reasons.append("Activity pattern matches known suspicious behaviour from training data.")
 
         return risk_score, is_suspicious, reasons, risk_level
-    
-    def calculate_risk_level(self, risk_score: float) -> str:
-        """Convert risk score to risk level"""
-        if risk_score >= 0.8:
-            return 'Critical'
-        elif risk_score >= 0.6:
-            return 'High'
-        elif risk_score >= 0.4:
-            return 'Medium'
-        else:
-            return 'Low'
-    
-    def train_anomaly_model(self, X_train: pd.DataFrame):
-        """Train anomaly detection model on normal audit logs"""
-        X_arr = X_train.values if hasattr(X_train, 'values') else np.array(X_train)
+
+    # ── Feature extraction (kept for backward-compat with flask_audit_integration) ──
+
+    def extract_features(self, audit_data: Dict) -> Dict:
+        """Return the full feature dict (same as BehaviourProfile.to_feature_dict)."""
+        return ProfileBuilder.build(audit_data).to_feature_dict()
+
+    # ── ML helpers ────────────────────────────────────────────────────────────
+
+    def _ml_score(self, profile: BehaviourProfile) -> float:
+        feature_dict = profile.to_feature_dict()
+        feature_arr = np.array([[feature_dict[c] for c in self.FEATURE_COLUMNS]], dtype=float)
+
+        try:
+            if hasattr(self.scaler, "center_"):          # RobustScaler fitted
+                n_expected = getattr(self.scaler, "n_features_in_", feature_arr.shape[1])
+                arr = self._pad_or_trim(feature_arr, n_expected)
+                scaled = self.scaler.transform(arr)
+            else:
+                scaled = feature_arr
+        except Exception:
+            scaled = feature_arr
+
+        score = 0.0
+
+        if self.anomaly_model is not None:
+            raw = float(self.anomaly_model.score_samples(
+                self._pad_or_trim(scaled, getattr(self.anomaly_model, "n_features_in_", scaled.shape[1]))
+            )[0])
+            # Normalise: safe threshold → 0.0 anomaly, danger threshold → 1.0 anomaly
+            safe   = self._anomaly_safe
+            danger = self._anomaly_danger
+            span   = safe - danger
+            if span > 0:
+                anomaly_prob = float(np.clip((safe - raw) / span, 0.0, 1.0))
+            else:
+                anomaly_prob = 0.0
+            score = max(score, anomaly_prob)
+
+        if self.classifier_model is not None:
+            cls_arr = self._pad_or_trim(
+                scaled, getattr(self.classifier_model, "n_features_in_", scaled.shape[1])
+            )
+            risk_prob = float(self.classifier_model.predict_proba(cls_arr)[0][1])
+            score = max(score, risk_prob)
+
+        return score
+
+    @staticmethod
+    def _pad_or_trim(arr: np.ndarray, target_cols: int) -> np.ndarray:
+        """Ensure arr has exactly target_cols columns."""
+        current = arr.shape[1]
+        if current < target_cols:
+            arr = np.hstack([arr, np.zeros((arr.shape[0], target_cols - current))])
+        elif current > target_cols:
+            arr = arr[:, :target_cols]
+        return arr
+
+    # ── Training ──────────────────────────────────────────────────────────────
+
+    def train_anomaly_model(self, X_normal: pd.DataFrame, X_suspicious: pd.DataFrame = None) -> None:
+        """
+        Fit the IsolationForest on normal-only samples.
+        Stores two thresholds for score normalisation:
+          _anomaly_safe   = p90 of normal scores  (what 'definitely normal' looks like)
+          _anomaly_danger = p10 of suspicious scores (what 'definitely suspicious' looks like)
+        This gives a calibrated spread rather than compressing everything to 0 or 1.
+        """
+        X_arr = X_normal.values if hasattr(X_normal, "values") else np.asarray(X_normal)
         self.scaler.fit(X_arr)
         X_scaled = self.scaler.transform(X_arr)
-        
+
         self.anomaly_model = IsolationForest(
-            contamination=0.05,   # lower = fewer false positives on clean data
-            random_state=42,
-            n_estimators=100
+            n_estimators=150,
+            contamination=0.04,
+            random_state=0,
         )
         self.anomaly_model.fit(X_scaled)
 
-        # Store the score distribution on training (normal) data so we can
-        # normalise future scores relative to what "normal" looks like.
-        train_scores = self.anomaly_model.score_samples(X_scaled)
-        self._anomaly_score_min = float(train_scores.min())
-        self._anomaly_score_max = float(train_scores.max())
-    
-    def train_classifier(self, X_train: pd.DataFrame, y_train: pd.Series):
-        """Train supervised classifier on labeled audit logs"""
-        X_arr = X_train.values if hasattr(X_train, 'values') else np.array(X_train)
-        if not hasattr(self.scaler, "mean_"):
+        norm_scores = self.anomaly_model.score_samples(X_scaled)
+        self._anomaly_safe = float(np.percentile(norm_scores, 90))
+
+        if X_suspicious is not None and len(X_suspicious) > 0:
+            X_susp_arr = X_suspicious.values if hasattr(X_suspicious, "values") else np.asarray(X_suspicious)
+            X_susp_scaled = self.scaler.transform(X_susp_arr)
+            susp_scores = self.anomaly_model.score_samples(X_susp_scaled)
+            self._anomaly_danger = float(np.percentile(susp_scores, 10))
+        else:
+            # Fallback if no suspicious samples provided
+            self._anomaly_danger = float(np.percentile(norm_scores, 10)) - 0.15
+
+    def train_classifier(self, X_train: pd.DataFrame, y_train: pd.Series) -> None:
+        """
+        Fit a GradientBoostingClassifier on labelled samples.
+        Uses GBC instead of RFC to produce a distinct decision boundary.
+        """
+        X_arr = X_train.values if hasattr(X_train, "values") else np.asarray(X_train)
+        if not hasattr(self.scaler, "center_"):
             self.scaler.fit(X_arr)
-        
         X_scaled = self.scaler.transform(X_arr)
-        
-        self.classifier_model = RandomForestClassifier(
-            n_estimators=100,
-            max_depth=10,
-            random_state=42,
-            class_weight='balanced'
+
+        # Heavily regularised GBC: shallow trees, few estimators, large min_samples_leaf.
+        # This prevents the model from memorising the training data and
+        # producing overconfident 0.0/1.0 probabilities — keeps scores in a natural range.
+        self.classifier_model = GradientBoostingClassifier(
+            n_estimators=20,
+            max_depth=2,
+            learning_rate=0.03,
+            subsample=0.5,
+            min_samples_leaf=30,
+            max_features=0.7,
+            random_state=0,
         )
         self.classifier_model.fit(X_scaled, y_train)
-    
-    def save_models(self, path='models/'):
-        """Save trained models"""
-        import os
+
+    # ── Persistence ───────────────────────────────────────────────────────────
+
+    def save_models(self, path: str = "models/") -> None:
         os.makedirs(path, exist_ok=True)
-        
-        with open(f'{path}audit_risk_detector.pkl', 'wb') as f:
-            pickle.dump({
-                'anomaly_model': self.anomaly_model,
-                'classifier_model': self.classifier_model,
-                'scaler': self.scaler,
-                'anomaly_score_min': getattr(self, '_anomaly_score_min', -0.5),
-                'anomaly_score_max': getattr(self, '_anomaly_score_max', 0.0),
-            }, f)
-    
-    def load_models(self, path='models/'):
-        """
-        Load trained models.
-        Validates every component was trained on len(self.feature_columns) features.
-        If a corrupted / mismatched pkl is found (e.g. one written by an old retrainer
-        that only used 17 features), the bad file is deleted and a FileNotFoundError is
-        raised so the caller falls back to rule-based detection until retrained.
-        """
-        import os
-        pkl_path = f'{path}audit_risk_detector.pkl'
-        with open(pkl_path, 'rb') as fh:
-            models = pickle.load(fh)
+        payload = {
+            "anomaly_model":    self.anomaly_model,
+            "classifier_model": self.classifier_model,
+            "scaler":           self.scaler,
+            "anomaly_safe":     self._anomaly_safe,
+            "anomaly_danger":   self._anomaly_danger,
+        }
+        with open(os.path.join(path, "audit_risk_detector.pkl"), "wb") as fh:
+            pickle.dump(payload, fh)
 
-        anomaly_model    = models['anomaly_model']
-        classifier_model = models['classifier_model']
-        scaler           = models['scaler']
+    def load_models(self, path: str = "models/") -> None:
+        pkl_path = os.path.join(path, "audit_risk_detector.pkl")
+        with open(pkl_path, "rb") as fh:
+            payload = pickle.load(fh)
 
-        expected = len(self.feature_columns)  # always 23
-
-        # Validate feature counts on every component
-        bad = []
-        for name, obj in [('scaler', scaler),
-                          ('anomaly_model', anomaly_model),
-                          ('classifier_model', classifier_model)]:
-            n = getattr(obj, 'n_features_in_', None)
+        expected = len(self.FEATURE_COLUMNS)
+        for component_name in ("scaler", "anomaly_model", "classifier_model"):
+            obj = payload.get(component_name)
+            n = getattr(obj, "n_features_in_", None)
             if n is not None and n != expected:
-                bad.append(f'{name} has {n} features (expected {expected})')
+                print(
+                    f"WARNING: {component_name} expects {n} features "
+                    f"but current code uses {expected}. "
+                    "Falling back to rule-based detection — please retrain."
+                )
+                return
 
-        if bad:
-            print(f'WARNING: Corrupt pkl at {pkl_path}:')
-            for msg in bad:
-                print(f'  - {msg}')
-            print('  Deleting corrupt pkl — will retrain on next scheduled run.')
-            try:
-                os.remove(pkl_path)
-            except OSError:
-                pass
-            raise FileNotFoundError(
-                f'Corrupt pkl deleted ({", ".join(bad)}). '
-                'Re-run train_audit_risk_detector.py to rebuild.'
-            )
+        self.anomaly_model    = payload["anomaly_model"]
+        self.classifier_model = payload["classifier_model"]
+        self.scaler           = payload["scaler"]
+        self._anomaly_safe    = payload.get("anomaly_safe",   payload.get("anomaly_p90", -0.40))
+        self._anomaly_danger  = payload.get("anomaly_danger", payload.get("anomaly_p10", -0.77))
 
-        self.anomaly_model    = anomaly_model
-        self.classifier_model = classifier_model
-        self.scaler           = scaler
+    # ── Convenience risk-level helper (backward-compat) ───────────────────────
 
-        if 'anomaly_score_min' in models and 'anomaly_score_max' in models:
-            self._anomaly_score_min = models['anomaly_score_min']
-            self._anomaly_score_max = models['anomaly_score_max']
-        else:
-            self._calibrate_anomaly_bounds()
-
-    def _calibrate_anomaly_bounds(self):
-        """
-        Derive _anomaly_score_min / _anomaly_score_max from the loaded model
-        by scoring a representative batch of synthetic normal-looking data.
-        Called automatically for legacy pkls that don't store these bounds.
-        """
-        if self.anomaly_model is None or self.scaler is None:
-            self._anomaly_score_min = -0.5
-            self._anomaly_score_max = -0.3
-            return
-        try:
-            n = 300
-            rng = np.random.RandomState(42)
-            n_features = getattr(self.scaler, 'n_features_in_', 23)
-            # Generate plausible normal activity: low counts, low diversity
-            # Use zeros as a safe baseline that is definitely "normal"
-            synthetic = np.zeros((n, n_features))
-            # actions_last_hour ≈ 3-6, actions_last_day ≈ 15-35
-            synthetic[:, 0] = rng.poisson(4, n)
-            synthetic[:, 1] = rng.poisson(25, n)
-            # failed actions ≈ 0-1
-            synthetic[:, 2] = rng.binomial(4, 0.05, n)
-            # avg_interval ≈ 10-20 min
-            synthetic[:, 3] = rng.uniform(8, 25, n)
-            # hour_of_day ≈ business hours (col 17)
-            if n_features > 17:
-                synthetic[:, 17] = rng.randint(8, 18, n)
-
-            scaled = self.scaler.transform(synthetic)
-            scores = self.anomaly_model.score_samples(scaled)
-            # Use a slightly wider range than [min, max] so a score
-            # exactly at the training min doesn't map to 1.0 immediately
-            self._anomaly_score_min = float(scores.min()) - 0.05
-            self._anomaly_score_max = float(scores.max())
-        except Exception:
-            self._anomaly_score_min = -0.65
-            self._anomaly_score_max = -0.40
+    def calculate_risk_level(self, risk_score: float) -> str:
+        return RiskScorer.to_risk_level(risk_score)
 
 
-# Example usage
-if __name__ == '__main__':
+# ─────────────────────────────────────────────────────────────────────────────
+# Quick smoke-test
+# ─────────────────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
     detector = AuditRiskDetector()
-    
-    # Example 1: Normal admin activity
-    print("=" * 70)
-    print("EXAMPLE 1: NORMAL ADMIN ACTIVITY")
-    print("=" * 70)
-    normal_activity = {
-        'actions_last_hour': 5,
-        'actions_last_day': 25,
-        'failed_actions_count': 1,
-        'avg_action_interval_minutes': 12,
-        'sensitive_actions_count': 2,
-        'delete_operations_count': 1,
-        'update_operations_count': 3,
-        'create_operations_count': 1,
-        'view_operations_count': 0,
-        'unique_entity_types': 2,
-        'consecutive_failures': 0,
-        'privilege_level_changes': 0,
-        'data_access_volume': 15,
-        'ip_diversity_score': 0,
-        'device_changes': 0,
-        'hour_of_day': 14,
-        'is_weekend': 0,
-        'recent_actions': ['UPDATE_VEHICLE', 'UPDATE_BOOKING', 'VIEW_DASHBOARD'],
-        'entity_types_accessed': ['VEHICLE', 'BOOKING', 'USER']
+
+    scenarios = {
+        "Normal admin": {
+            "actions_last_hour": 5, "actions_last_day": 25,
+            "failed_actions_count": 1, "avg_action_interval_minutes": 12,
+            "sensitive_actions_count": 2, "delete_operations_count": 1,
+            "update_operations_count": 3, "create_operations_count": 1,
+            "view_operations_count": 0, "unique_entity_types": 2,
+            "consecutive_failures": 0, "privilege_level_changes": 0,
+            "data_access_volume": 15, "ip_diversity_score": 0.0,
+            "device_changes": 0, "hour_of_day": 14, "is_weekend": 0,
+            "recent_actions": ["UPDATE_VEHICLE", "UPDATE_BOOKING"],
+            "entity_types_accessed": ["VEHICLE", "BOOKING"],
+        },
+        "Data exfiltration": {
+            "actions_last_hour": 45, "actions_last_day": 180,
+            "failed_actions_count": 5, "avg_action_interval_minutes": 1.3,
+            "sensitive_actions_count": 8, "delete_operations_count": 0,
+            "update_operations_count": 2, "create_operations_count": 0,
+            "view_operations_count": 43, "unique_entity_types": 6,
+            "consecutive_failures": 2, "privilege_level_changes": 0,
+            "data_access_volume": 250, "ip_diversity_score": 3.2,
+            "device_changes": 2, "hour_of_day": 2, "is_weekend": 1,
+            "recent_actions": ["EXPORT_USERS", "BULK_READ", "DOWNLOAD_LOGS"],
+            "entity_types_accessed": ["USER", "BOOKING", "VEHICLE", "PAYMENT", "LOG"],
+        },
+        "Privilege escalation": {
+            "actions_last_hour": 12, "actions_last_day": 35,
+            "failed_actions_count": 8, "avg_action_interval_minutes": 5,
+            "sensitive_actions_count": 10, "delete_operations_count": 2,
+            "update_operations_count": 5, "create_operations_count": 3,
+            "view_operations_count": 2, "unique_entity_types": 3,
+            "consecutive_failures": 6, "privilege_level_changes": 4,
+            "data_access_volume": 45, "ip_diversity_score": 4.5,
+            "device_changes": 3, "hour_of_day": 23, "is_weekend": 0,
+            "recent_actions": ["UPDATE_ROLE", "GRANT_ACCESS", "MODIFY_SECURITY"],
+            "entity_types_accessed": ["USER", "PERMISSION", "ROLE"],
+        },
     }
-    
-    risk_score, is_suspicious, reasons, risk_level = detector.predict_risk(normal_activity)
-    print(f"Risk Score: {risk_score:.3f}")
-    print(f"Risk Level: {risk_level}")
-    print(f"Is Suspicious: {is_suspicious}")
-    print(f"Reasons: {reasons if reasons else 'Clean - Normal activity pattern'}")
-    
-    # Example 2: Data exfiltration attempt
-    print("\n" + "=" * 70)
-    print("EXAMPLE 2: DATA EXFILTRATION ATTEMPT")
-    print("=" * 70)
-    data_exfil = {
-        'actions_last_hour': 45,
-        'actions_last_day': 180,
-        'failed_actions_count': 5,
-        'avg_action_interval_minutes': 1.3,
-        'sensitive_actions_count': 8,
-        'delete_operations_count': 0,
-        'update_operations_count': 2,
-        'create_operations_count': 0,
-        'view_operations_count': 35,
-        'unique_entity_types': 6,
-        'consecutive_failures': 2,
-        'privilege_level_changes': 0,
-        'data_access_volume': 250,
-        'ip_diversity_score': 3.2,
-        'device_changes': 2,
-        'hour_of_day': 2,
-        'is_weekend': 1,
-        'recent_actions': ['EXPORT_USERS', 'BULK_READ_BOOKINGS', 'DOWNLOAD_LOGS', 'EXPORT_VEHICLES', 'VIEW_ALL_USERS'],
-        'entity_types_accessed': ['USER', 'BOOKING', 'VEHICLE', 'PAYMENT', 'DOCUMENT', 'LOG']
-    }
-    
-    risk_score, is_suspicious, reasons, risk_level = detector.predict_risk(data_exfil)
-    print(f"Risk Score: {risk_score:.3f}")
-    print(f"Risk Level: {risk_level}")
-    print(f"Is Suspicious: {is_suspicious}")
-    print(f"Reasons:")
-    for reason in reasons:
-        print(f"  - {reason}")
-    
-    # Example 3: Privilege escalation attempt
-    print("\n" + "=" * 70)
-    print("EXAMPLE 3: PRIVILEGE ESCALATION ATTEMPT")
-    print("=" * 70)
-    priv_escalation = {
-        'actions_last_hour': 12,
-        'actions_last_day': 35,
-        'failed_actions_count': 8,
-        'avg_action_interval_minutes': 5,
-        'sensitive_actions_count': 10,
-        'delete_operations_count': 2,
-        'update_operations_count': 5,
-        'create_operations_count': 3,
-        'view_operations_count': 2,
-        'unique_entity_types': 3,
-        'consecutive_failures': 6,
-        'privilege_level_changes': 4,
-        'data_access_volume': 45,
-        'ip_diversity_score': 4.5,
-        'device_changes': 3,
-        'hour_of_day': 23,
-        'is_weekend': 0,
-        'recent_actions': ['UPDATE_ROLE', 'GRANT_ACCESS', 'UPDATE_PERMISSIONS', 'CHANGE_PASSWORD', 'MODIFY_SECURITY'],
-        'entity_types_accessed': ['USER', 'PERMISSION', 'ROLE']
-    }
-    
-    risk_score, is_suspicious, reasons, risk_level = detector.predict_risk(priv_escalation)
-    print(f"Risk Score: {risk_score:.3f}")
-    print(f"Risk Level: {risk_level}")
-    print(f"Is Suspicious: {is_suspicious}")
-    print(f"Reasons:")
-    for reason in reasons:
-        print(f"  - {reason}")
-    
-    # Example 4: Bulk deletion attack
-    print("\n" + "=" * 70)
-    print("EXAMPLE 4: BULK DELETION ATTACK")
-    print("=" * 70)
-    bulk_delete = {
-        'actions_last_hour': 18,
-        'actions_last_day': 40,
-        'failed_actions_count': 3,
-        'avg_action_interval_minutes': 3.3,
-        'sensitive_actions_count': 12,
-        'delete_operations_count': 8,
-        'update_operations_count': 2,
-        'create_operations_count': 0,
-        'view_operations_count': 8,
-        'unique_entity_types': 4,
-        'consecutive_failures': 3,
-        'privilege_level_changes': 1,
-        'data_access_volume': 60,
-        'ip_diversity_score': 2.1,
-        'device_changes': 1,
-        'hour_of_day': 3,
-        'is_weekend': 1,
-        'recent_actions': ['DELETE_BOOKING', 'DELETE_USER', 'BULK_DELETE', 'DELETE_VEHICLE', 'DELETE_LOG'],
-        'entity_types_accessed': ['BOOKING', 'USER', 'VEHICLE', 'LOG']
-    }
-    
-    risk_score, is_suspicious, reasons, risk_level = detector.predict_risk(bulk_delete)
-    print(f"Risk Score: {risk_score:.3f}")
-    print(f"Risk Level: {risk_level}")
-    print(f"Is Suspicious: {is_suspicious}")
-    print(f"Reasons:")
-    for reason in reasons:
-        print(f"  - {reason}")
+
+    for name, data in scenarios.items():
+        score, suspicious, reasons, level = detector.predict_risk(data)
+        print(f"\n{'='*55}")
+        print(f"  {name}")
+        print(f"{'='*55}")
+        print(f"  Score : {score:.3f}  |  Level : {level}  |  Suspicious : {suspicious}")
+        for r in reasons:
+            print(f"    • {r}")
