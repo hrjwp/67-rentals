@@ -512,7 +512,7 @@
     </div>
 
     <div class="session-timer" id="sessionTimer">
-        ⏱️ Session: <span id="timeLeft">15:00</span>
+        ⏱️ Session: <span id="timeLeft">5:00</span>
     </div>
 
     <div class="watermark-overlay">
@@ -667,7 +667,7 @@
         const CURRENT_USER_ID = {{ session.get('user_id', 0) | tojson }};
 
         // --- Security Scripts Start ---
-        const SESSION_DURATION = 900; // 15 minutes
+        const SESSION_DURATION = 300; // 15 minutes
         let sessionTimeRemaining = SESSION_DURATION;
         let sessionInterval;
         let activityLogs = [];

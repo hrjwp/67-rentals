@@ -37,3 +37,5 @@ backups/*.zip.encrypted
 *.pyd
 
 !AUDIT_AND_CLASSIFICATION_REFERENCE.txt
+
+*.pkl

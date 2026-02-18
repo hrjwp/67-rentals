@@ -12,7 +12,7 @@ class Config:
     # AES data encryption key (URL-safe base64, 16/24/32 bytes when decoded)
     DATA_ENCRYPTION_KEY = _env("DATA_ENCRYPTION_KEY")
     BACKUP_ENCRYPTION_KEY = _env("BACKUP_ENCRYPTION_KEY")
-    BACKUP_DB_ENCRYPTION_KEY = _env("BACKUP_DB_ENCRYPTION_KEY")
+    BACKUP_DB_ENCRYPTION_KEY = _env("BACKUP_DB_ENCRYPTION_KEY") or BACKUP_ENCRYPTION_KEY
 
     # Session cookie settings - will be overridden by app.py based on HTTPS usage
     SESSION_COOKIE_SECURE = True  # Will be set dynamically based on HTTPS
@@ -38,7 +38,7 @@ class Config:
     # Backup Configuration
     BACKUP_DIR = 'backups'  # local encrypted backups
     CLOUD_BACKUP_DIR = None
-    BACKUP_RETENTION_DAYS = 2  # Keep backups for 30 days
+    BACKUP_RETENTION_DAYS = 30  # Keep backups for 30 days
     AUTO_BACKUP_ENABLED = True
     AUTO_BACKUP_INTERVAL_HOURS = 24  # Daily backups
     RETENTION_CHECK_INTERVAL_HOURS = 24  # Data retention scheduler interval

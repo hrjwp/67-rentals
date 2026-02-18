@@ -182,12 +182,12 @@ class SecureBackup:
                 }
                 backup_zip.writestr('backup_metadata.json', json.dumps(metadata, indent=2, default=str))
 
-            # Calculate checksum BEFORE encryption for verification
-            checksum = self.calculate_checksum(backup_path)
-            
             # Encrypt the backup file
             encrypted_backup_path = self.encrypt_backup_file(backup_path)
-            
+
+            # ✅ Calculate checksum AFTER encryption (hash the encrypted file)
+            checksum = self.calculate_checksum(encrypted_backup_path)
+
             # Get file size
             backup_size = os.path.getsize(encrypted_backup_path)
             backup_size_mb = round(backup_size / (1024 * 1024), 2)
@@ -533,28 +533,45 @@ class SecureBackup:
             # and matches the logged size
             file_size = os.path.getsize(encrypted_path)
             logged_size = backup_log['backup_size_bytes']
-            
-            if file_size == logged_size:
-                return {
-                    'verified': True,
-                    'checksum': backup_log['checksum_sha256'],
-                    'file_size': file_size,
-                    'logged_size': logged_size,
-                    'timestamp': backup_log['timestamp'].isoformat() if hasattr(backup_log['timestamp'], 'isoformat') else str(backup_log['timestamp'])
-                }
-            else:
+
+            current_sha256 = self.calculate_checksum(encrypted_path)
+            expected_sha256 = (backup_log['checksum_sha256'] or "").lower()
+
+            if file_size != logged_size:
                 return {
                     'verified': False,
                     'error': f'File size mismatch: {file_size} vs {logged_size}',
                     'file_size': file_size,
                     'logged_size': logged_size
                 }
+
+            if expected_sha256 and current_sha256 != expected_sha256:
+                return {
+                    'verified': False,
+                    'error': 'SHA-256 mismatch (possible tampering/corruption)',
+                    'expected_sha256': expected_sha256,
+                    'current_sha256': current_sha256,
+                    'file_size': file_size,
+                    'logged_size': logged_size
+                }
+
+            return {
+                'verified': True,
+                'expected_sha256': expected_sha256,
+                'current_sha256': current_sha256,
+                'file_size': file_size,
+                'logged_size': logged_size,
+                'timestamp': backup_log['timestamp'].isoformat() if hasattr(backup_log['timestamp'],
+                                                                            'isoformat') else str(
+                    backup_log['timestamp'])
+            }
+
         except Exception as e:
             return {
                 'verified': False,
                 'error': str(e)
             }
-    
+
     def restore_in_memory_data(self, in_memory_data: Dict) -> Dict:
         """Restore in-memory Python data structures (listings, etc.)"""
         restored = {}
@@ -628,3 +645,12 @@ def decrypt_db_backup_json(enc_b64_bytes: bytes) -> dict:
     aesgcm = AESGCM(key)
     plaintext = aesgcm.decrypt(nonce, ct, None)
     return json.loads(plaintext.decode("utf-8"))
+
+if __name__ == "__main__":
+    sb = SecureBackup()
+    info = sb.create_backup(include_files=True, backup_type="Manual", log_to_db=True)
+    print("CREATED:", info["backup_filename"])
+    print(sb.verify_backup(info["backup_filename"]))
+
+
+
