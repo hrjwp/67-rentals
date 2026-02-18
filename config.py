@@ -38,7 +38,7 @@ class Config:
     # Backup Configuration
     BACKUP_DIR = 'backups'  # local encrypted backups
     CLOUD_BACKUP_DIR = None
-    BACKUP_RETENTION_DAYS = 2  # Keep backups for 30 days
+    BACKUP_RETENTION_DAYS = 30  # Keep backups for 30 days
     AUTO_BACKUP_ENABLED = True
     AUTO_BACKUP_INTERVAL_HOURS = 24  # Daily backups
     RETENTION_CHECK_INTERVAL_HOURS = 24  # Data retention scheduler interval
