@@ -305,7 +305,7 @@
     </div>
 
     <div class="session-timer" id="sessionTimer">
-        Session Timeout: <span id="timerDisplay">15:00</span>
+        Session Timeout: <span id="timerDisplay">5:00</span>
     </div>
 
     <nav class="navbar navbar-expand-lg">
@@ -428,7 +428,7 @@
         const sessionId = 'INT-' + Math.random().toString(36).substring(2, 10).toUpperCase();
         document.getElementById('sessionId').textContent = sessionId;
 
-        let sessionTimeLeft = 15 * 60;
+        let sessionTimeLeft = 5 * 60;
         function updateTimer() {
             const minutes = Math.floor(sessionTimeLeft / 60);
             const seconds = sessionTimeLeft % 60;
@@ -446,7 +446,7 @@
         }
 
         function resetSessionTimer() {
-            sessionTimeLeft = 15 * 60;
+            sessionTimeLeft = 5 * 60;
         }
 
         updateTimer();
