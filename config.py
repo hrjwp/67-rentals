@@ -12,7 +12,7 @@ class Config:
     # AES data encryption key (URL-safe base64, 16/24/32 bytes when decoded)
     DATA_ENCRYPTION_KEY = _env("DATA_ENCRYPTION_KEY")
     BACKUP_ENCRYPTION_KEY = _env("BACKUP_ENCRYPTION_KEY")
-    BACKUP_DB_ENCRYPTION_KEY = _env("BACKUP_DB_ENCRYPTION_KEY")
+    BACKUP_DB_ENCRYPTION_KEY = _env("BACKUP_DB_ENCRYPTION_KEY") or BACKUP_ENCRYPTION_KEY
 
     # Session cookie settings - will be overridden by app.py based on HTTPS usage
     SESSION_COOKIE_SECURE = True  # Will be set dynamically based on HTTPS
