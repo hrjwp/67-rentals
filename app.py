@@ -4315,7 +4315,7 @@ def dashboard():
                        v.name AS vehicle_name
                 FROM bookings b
                 LEFT JOIN users u ON b.user_id = u.user_id
-                LEFT JOIN vehicles v ON b.vehicle_id = v.id
+                LEFT JOIN vehicles v ON b.vehicle_id = v.vehicle_id
                 ORDER BY b.booking_date DESC
                 LIMIT 10
             """)
