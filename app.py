@@ -5098,19 +5098,19 @@ def reset_classification():
 
     import os as _os
     import json as _json
-    from data_classification_config import _OVERRIDES_PATH
+    from data_classification_config import OVERRIDE_FILE
 
     # Snapshot overrides before clearing (for audit log)
     overridden_keys = []
     try:
-        if _os.path.exists(_OVERRIDES_PATH):
-            with open(_OVERRIDES_PATH, 'r') as f:
+        if _os.path.exists(OVERRIDE_FILE):
+            with open(OVERRIDE_FILE, 'r') as f:
                 old = _json.load(f)
             overridden_keys = (
                 list(old.get('columns', {}).keys()) +
                 list(old.get('tables', {}).keys())
             )
-            _os.remove(_OVERRIDES_PATH)
+            _os.remove(OVERRIDE_FILE)
     except Exception as e:
         return jsonify({'success': False, 'error': f'Reset failed: {str(e)}'}), 500
 

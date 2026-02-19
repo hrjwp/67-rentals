@@ -5,6 +5,9 @@ Classification and enforcement
 Uses existing audit_log system for tracking access.
 """
 
+import json
+import os
+
 # Classification Levels
 class ClassificationLevel:
     PUBLIC = "PUBLIC"
@@ -149,3 +152,69 @@ CLASSIFICATION_METADATA = {
         "badge_class": "badge-danger"
     }
 }
+
+# ============================================================================
+# PERSISTENCE FUNCTIONS
+# ============================================================================
+
+# Path to store classification overrides
+OVERRIDE_FILE = 'classification_overrides.json'
+
+def load_overrides():
+    """Load classification overrides from file"""
+    if os.path.exists(OVERRIDE_FILE):
+        try:
+            with open(OVERRIDE_FILE, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading classification overrides: {e}")
+            return {'columns': {}, 'tables': {}}
+    return {'columns': {}, 'tables': {}}
+
+def save_classification_override(key, new_level, is_table=False):
+    """
+    Save a classification override to file and update in-memory dictionaries
+    
+    Args:
+        key: Column name (e.g., 'users.email') or table name (e.g., 'users')
+        new_level: New classification level (PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED)
+        is_table: True if updating a table, False if updating a column
+    """
+    # Load existing overrides
+    overrides = load_overrides()
+    
+    # Update the override
+    if is_table:
+        overrides['tables'][key] = new_level
+        # Update in-memory dictionary
+        TABLE_CLASSIFICATIONS[key] = new_level
+    else:
+        overrides['columns'][key] = new_level
+        # Update in-memory dictionary
+        DATA_CLASSIFICATION[key] = new_level
+    
+    # Save to file
+    try:
+        with open(OVERRIDE_FILE, 'w') as f:
+            json.dump(overrides, f, indent=2)
+        print(f"✅ Saved classification override: {key} -> {new_level}")
+    except Exception as e:
+        raise Exception(f"Failed to save classification override: {str(e)}")
+
+def apply_overrides():
+    """Apply saved overrides on module load"""
+    overrides = load_overrides()
+    
+    # Apply column overrides
+    for key, level in overrides.get('columns', {}).items():
+        DATA_CLASSIFICATION[key] = level
+    
+    # Apply table overrides
+    for key, level in overrides.get('tables', {}).items():
+        TABLE_CLASSIFICATIONS[key] = level
+    
+    if overrides.get('columns') or overrides.get('tables'):
+        print(f"✅ Applied {len(overrides.get('columns', {}))} column and {len(overrides.get('tables', {}))} table classification overrides")
+
+# Apply overrides when module is imported
+apply_overrides()
